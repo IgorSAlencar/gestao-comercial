@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,12 +26,12 @@ interface Evento {
   descricao: string;
   dataInicio: Date;
   dataFim: Date;
-  horario: string;
   tipo: "visita" | "reuniao" | "outro";
   tratativa?: string;
   location?: string;
   subcategory?: string;
   other_description?: string;
+  informar_agencia_pa?: boolean;
   agencia_pa_number?: string;
   is_pa?: boolean;
   municipio?: string;
@@ -43,28 +42,28 @@ const eventosIniciais: Evento[] = [
   {
     id: "1",
     titulo: "Visita à Loja ABC",
-    descricao: "Verificação das operações e reunião com gerente.",
+    descricao: "",
     dataInicio: new Date(),
     dataFim: new Date(),
-    horario: "09:00",
     tipo: "visita",
     location: "Visitas Operacionais",
     subcategory: "Treinamento",
     municipio: "São Paulo",
     uf: "SP",
+    informar_agencia_pa: true,
     agencia_pa_number: "12345",
     is_pa: true
   },
   {
     id: "2",
     titulo: "Treinamento da Equipe",
-    descricao: "Apresentação das novas estratégias comerciais.",
+    descricao: "",
     dataInicio: new Date(),
     dataFim: new Date(new Date().setDate(new Date().getDate() + 2)),
-    horario: "14:00",
     tipo: "reuniao",
     location: "Outros",
     other_description: "Reunião de equipe trimestral",
+    informar_agencia_pa: false,
     municipio: "Rio de Janeiro",
     uf: "RJ"
   },
@@ -88,11 +87,11 @@ const AgendaPage = () => {
     descricao: "",
     dataInicio: new Date(),
     dataFim: new Date(),
-    horario: "",
     tipo: "visita",
     location: "",
     subcategory: "",
     other_description: "",
+    informar_agencia_pa: false,
     agencia_pa_number: "",
     is_pa: false,
     municipio: "",
@@ -122,7 +121,7 @@ const AgendaPage = () => {
   );
   
   const handleSalvarEvento = () => {
-    if (!novoEvento.titulo || !novoEvento.horario || !novoEvento.location) {
+    if (!novoEvento.titulo || !novoEvento.location) {
       toast({
         title: "Campos obrigatórios",
         description: "Preencha todos os campos obrigatórios",
@@ -162,11 +161,11 @@ const AgendaPage = () => {
       descricao: "",
       dataInicio: new Date(),
       dataFim: new Date(),
-      horario: "",
       tipo: "visita",
       location: "",
       subcategory: "",
       other_description: "",
+      informar_agencia_pa: false,
       agencia_pa_number: "",
       is_pa: false,
       municipio: "",
@@ -226,11 +225,11 @@ const AgendaPage = () => {
         descricao: evento.descricao,
         dataInicio: evento.dataInicio,
         dataFim: evento.dataFim,
-        horario: evento.horario,
         tipo: evento.tipo,
         location: evento.location || "",
         subcategory: evento.subcategory || "",
         other_description: evento.other_description || "",
+        informar_agencia_pa: evento.informar_agencia_pa || false,
         agencia_pa_number: evento.agencia_pa_number || "",
         is_pa: evento.is_pa || false,
         municipio: evento.municipio || "",
@@ -324,16 +323,6 @@ const AgendaPage = () => {
                   </div>
                 </div>
               )}
-              
-              <div className="grid grid-cols-4 items-center gap-4">
-                <label className="text-right text-sm">Horário</label>
-                <Input
-                  className="col-span-3"
-                  type="time"
-                  value={novoEvento.horario}
-                  onChange={(e) => setNovoEvento({ ...novoEvento, horario: e.target.value })}
-                />
-              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="location">Ocorrência</Label>
@@ -430,35 +419,54 @@ const AgendaPage = () => {
                 </div>
               )}
 
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="agencia_pa_number">Número da Agência/PA</Label>
-                  <Input
-                    id="agencia_pa_number"
-                    type="text"
-                    value={novoEvento.agencia_pa_number || ""}
-                    onChange={(e) =>
-                      setNovoEvento({ ...novoEvento, agencia_pa_number: e.target.value })
-                    }
-                    placeholder="Ex: 12345"
-                  />
-                </div>
-
+              <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    id="is_pa"
-                    checked={novoEvento.is_pa || false}
+                    id="informar_agencia_pa"
+                    checked={novoEvento.informar_agencia_pa || false}
                     onChange={(e) =>
-                      setNovoEvento({ ...novoEvento, is_pa: e.target.checked })
+                      setNovoEvento({ ...novoEvento, informar_agencia_pa: e.target.checked })
                     }
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
-                  <Label htmlFor="is_pa" className="text-sm text-gray-700">
-                    Marque se for um PA
+                  <Label htmlFor="informar_agencia_pa" className="text-sm text-gray-700">
+                    Desejo informar a Agência/PA que irei visitar
                   </Label>
                 </div>
               </div>
+
+              {novoEvento.informar_agencia_pa && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="agencia_pa_number">Número da Agência/PA</Label>
+                    <Input
+                      id="agencia_pa_number"
+                      type="text"
+                      value={novoEvento.agencia_pa_number || ""}
+                      onChange={(e) =>
+                        setNovoEvento({ ...novoEvento, agencia_pa_number: e.target.value })
+                      }
+                      placeholder="Ex: 12345"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_pa"
+                      checked={novoEvento.is_pa || false}
+                      onChange={(e) =>
+                        setNovoEvento({ ...novoEvento, is_pa: e.target.checked })
+                      }
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <Label htmlFor="is_pa" className="text-sm text-gray-700">
+                      Marque se for um PA
+                    </Label>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="flex space-x-4">
@@ -479,56 +487,60 @@ const AgendaPage = () => {
                     <Label htmlFor="uf" className="block text-sm font-medium text-gray-700">
                       UF
                     </Label>
-                    <Select
-                      value={novoEvento.uf || ""}
-                      onValueChange={(value) =>
-                        setNovoEvento({ ...novoEvento, uf: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a UF" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
-                        <SelectItem value="AC">Acre</SelectItem>
-                        <SelectItem value="AL">Alagoas</SelectItem>
-                        <SelectItem value="AP">Amapá</SelectItem>
-                        <SelectItem value="AM">Amazonas</SelectItem>
-                        <SelectItem value="BA">Bahia</SelectItem>
-                        <SelectItem value="CE">Ceará</SelectItem>
-                        <SelectItem value="DF">Distrito Federal</SelectItem>
-                        <SelectItem value="ES">Espírito Santo</SelectItem>
-                        <SelectItem value="GO">Goiás</SelectItem>
-                        <SelectItem value="MA">Maranhão</SelectItem>
-                        <SelectItem value="MT">Mato Grosso</SelectItem>
-                        <SelectItem value="MS">Mato Grosso do Sul</SelectItem>
-                        <SelectItem value="MG">Minas Gerais</SelectItem>
-                        <SelectItem value="PA">Pará</SelectItem>
-                        <SelectItem value="PB">Paraíba</SelectItem>
-                        <SelectItem value="PR">Paraná</SelectItem>
-                        <SelectItem value="PE">Pernambuco</SelectItem>
-                        <SelectItem value="PI">Piauí</SelectItem>
-                        <SelectItem value="RJ">Rio de Janeiro</SelectItem>
-                        <SelectItem value="RN">Rio Grande do Norte</SelectItem>
-                        <SelectItem value="RS">Rio Grande do Sul</SelectItem>
-                        <SelectItem value="RO">Rondônia</SelectItem>
-                        <SelectItem value="RR">Roraima</SelectItem>
-                        <SelectItem value="SC">Santa Catarina</SelectItem>
-                        <SelectItem value="SP">São Paulo</SelectItem>
-                        <SelectItem value="SE">Sergipe</SelectItem>
-                        <SelectItem value="TO">Tocantins</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <Input
+                        id="uf"
+                        value={novoEvento.uf || ""}
+                        onChange={(e) =>
+                          setNovoEvento({ ...novoEvento, uf: e.target.value })
+                        }
+                        placeholder="Informe a UF"
+                        className="w-full"
+                      />
+                      <div className="absolute inset-y-0 right-0">
+                        <Select
+                          value=""
+                          onValueChange={(value) =>
+                            setNovoEvento({ ...novoEvento, uf: value })
+                          }
+                        >
+                          <SelectTrigger className="h-10 min-w-0 border-0 focus:ring-0">
+                            <SelectValue placeholder="" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
+                            <SelectItem value="AC">AC</SelectItem>
+                            <SelectItem value="AL">AL</SelectItem>
+                            <SelectItem value="AP">AP</SelectItem>
+                            <SelectItem value="AM">AM</SelectItem>
+                            <SelectItem value="BA">BA</SelectItem>
+                            <SelectItem value="CE">CE</SelectItem>
+                            <SelectItem value="DF">DF</SelectItem>
+                            <SelectItem value="ES">ES</SelectItem>
+                            <SelectItem value="GO">GO</SelectItem>
+                            <SelectItem value="MA">MA</SelectItem>
+                            <SelectItem value="MT">MT</SelectItem>
+                            <SelectItem value="MS">MS</SelectItem>
+                            <SelectItem value="MG">MG</SelectItem>
+                            <SelectItem value="PA">PA</SelectItem>
+                            <SelectItem value="PB">PB</SelectItem>
+                            <SelectItem value="PR">PR</SelectItem>
+                            <SelectItem value="PE">PE</SelectItem>
+                            <SelectItem value="PI">PI</SelectItem>
+                            <SelectItem value="RJ">RJ</SelectItem>
+                            <SelectItem value="RN">RN</SelectItem>
+                            <SelectItem value="RS">RS</SelectItem>
+                            <SelectItem value="RO">RO</SelectItem>
+                            <SelectItem value="RR">RR</SelectItem>
+                            <SelectItem value="SC">SC</SelectItem>
+                            <SelectItem value="SP">SP</SelectItem>
+                            <SelectItem value="SE">SE</SelectItem>
+                            <SelectItem value="TO">TO</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-4 items-start gap-4">
-                <label className="text-right text-sm">Descrição</label>
-                <Textarea
-                  className="col-span-3"
-                  value={novoEvento.descricao}
-                  onChange={(e) => setNovoEvento({ ...novoEvento, descricao: e.target.value })}
-                />
               </div>
             </div>
             
@@ -586,9 +598,6 @@ const AgendaPage = () => {
                       <div className="flex-grow">
                         <h3 className="font-medium">{evento.titulo}</h3>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <Clock className="h-4 w-4 mr-1" />
-                          <span>{evento.horario}</span>
-                          <span className="mx-2">•</span>
                           <span>{formatDateRange(evento.dataInicio, evento.dataFim)}</span>
                           {evento.location && (
                             <>
@@ -606,13 +615,10 @@ const AgendaPage = () => {
                         {evento.municipio && evento.uf && (
                           <div className="mt-1 text-sm text-gray-500">
                             {evento.municipio}, {evento.uf}
-                            {evento.agencia_pa_number && (
+                            {evento.informar_agencia_pa && evento.agencia_pa_number && (
                               <span> • {evento.is_pa ? "PA" : "Agência"} {evento.agencia_pa_number}</span>
                             )}
                           </div>
-                        )}
-                        {evento.descricao && (
-                          <p className="mt-2 text-sm text-gray-600">{evento.descricao}</p>
                         )}
                         
                         {evento.tratativa && (
