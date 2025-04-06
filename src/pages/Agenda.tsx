@@ -1,6 +1,6 @@
 
 import React, { useState } from "react";
-import { Calendar as CalendarIcon, Clock, Plus } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -18,6 +18,7 @@ interface Evento {
   data: Date;
   horario: string;
   tipo: "visita" | "reuniao" | "outro";
+  tratativa?: string;
 }
 
 const eventosIniciais: Evento[] = [
@@ -43,6 +44,9 @@ const AgendaPage = () => {
   const [eventos, setEventos] = useState<Evento[]>(eventosIniciais);
   const [date, setDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
+  const [currentEventId, setCurrentEventId] = useState<string | null>(null);
+  const [parecerText, setParecerText] = useState("");
   const [novoEvento, setNovoEvento] = useState<Omit<Evento, "id">>({
     titulo: "",
     descricao: "",
@@ -84,6 +88,47 @@ const AgendaPage = () => {
     });
     
     setIsDialogOpen(false);
+  };
+
+  const handleExcluirEvento = (id: string) => {
+    const novosEventos = eventos.filter(evento => evento.id !== id);
+    setEventos(novosEventos);
+    
+    toast({
+      title: "Evento excluído",
+      description: "O evento foi removido da sua agenda com sucesso!",
+    });
+  };
+
+  const handleAbrirParecerDialog = (id: string) => {
+    const evento = eventos.find(evento => evento.id === id);
+    if (evento) {
+      setParecerText(evento.tratativa || "");
+      setCurrentEventId(id);
+      setIsParecerDialogOpen(true);
+    }
+  };
+
+  const handleSalvarParecer = () => {
+    if (!currentEventId) return;
+    
+    const novosEventos = eventos.map(evento => {
+      if (evento.id === currentEventId) {
+        return { ...evento, tratativa: parecerText };
+      }
+      return evento;
+    });
+    
+    setEventos(novosEventos);
+    
+    toast({
+      title: "Parecer adicionado",
+      description: "O parecer foi adicionado ao evento com sucesso!",
+    });
+    
+    setIsParecerDialogOpen(false);
+    setCurrentEventId(null);
+    setParecerText("");
   };
   
   return (
@@ -174,7 +219,7 @@ const AgendaPage = () => {
               mode="single"
               selected={date}
               onSelect={(newDate) => newDate && setDate(newDate)}
-              className="rounded-md border"
+              className="rounded-md border pointer-events-auto"
               locale={ptBR}
             />
           </CardContent>
@@ -199,7 +244,7 @@ const AgendaPage = () => {
                     className="p-4 border rounded-lg hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex-grow">
                         <h3 className="font-medium">{evento.titulo}</h3>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
                           <Clock className="h-4 w-4 mr-1" />
@@ -210,10 +255,31 @@ const AgendaPage = () => {
                         {evento.descricao && (
                           <p className="mt-2 text-sm text-gray-600">{evento.descricao}</p>
                         )}
+                        
+                        {evento.tratativa && (
+                          <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                            <p className="text-sm font-medium text-gray-700">Parecer / Tratativa:</p>
+                            <p className="text-sm text-gray-600">{evento.tratativa}</p>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <Button variant="outline" size="sm">
-                          Editar
+                      <div className="flex flex-col gap-2 ml-4">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleAbrirParecerDialog(evento.id)}
+                        >
+                          <MessageSquare className="h-4 w-4 mr-1" />
+                          Parecer
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-red-500 hover:text-red-700 hover:border-red-300"
+                          onClick={() => handleExcluirEvento(evento.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Excluir
                         </Button>
                       </div>
                     </div>
@@ -224,6 +290,31 @@ const AgendaPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog para adicionar parecer/tratativa */}
+      <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Parecer/Tratativa</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              className="min-h-[120px]"
+              placeholder="Digite seu parecer ou tratativa sobre este evento..."
+              value={parecerText}
+              onChange={(e) => setParecerText(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsParecerDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSalvarParecer} className="bg-bradesco-blue">
+              Salvar Parecer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
