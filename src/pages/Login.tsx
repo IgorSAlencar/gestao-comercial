@@ -5,55 +5,70 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { User, Lock } from "lucide-react";
+import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
+import { useAuth } from "@/context/AuthContext";
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState("");
+  const [funcional, setFuncional] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulando autenticação (em uma aplicação real, isso seria feito com um backend)
-    setTimeout(() => {
-      // Usuários de demonstração
-      const users = [
-        { id: "1", name: "João Silva", email: "joao@bradesco.com.br", role: "supervisor" },
-        { id: "2", name: "Maria Santos", email: "maria@bradesco.com.br", role: "gerente" },
-      ];
+    try {
+      // Simulando autenticação (em uma aplicação real, isso seria feito com um backend/SQL)
+      setTimeout(() => {
+        // Usuários de demonstração
+        const users = [
+          { id: "1", name: "João Silva", funcional: "12345", role: "supervisor" },
+          { id: "2", name: "Maria Santos", funcional: "67890", role: "gerente" },
+        ];
 
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (user && password === "123456") {
-        // Login bem-sucedido
-        localStorage.setItem("user", JSON.stringify(user));
-        toast({
-          title: "Login realizado com sucesso",
-          description: `Bem-vindo(a), ${user.name}!`,
-        });
-        navigate("/agenda");
-      } else {
-        // Falha no login
-        toast({
-          title: "Falha no login",
-          description: "Email ou senha incorretos. Tente novamente.",
-          variant: "destructive",
-        });
-      }
+        const user = users.find(u => u.funcional === funcional);
+        
+        if (user && password === "123456") {
+          // Login bem-sucedido
+          login({
+            id: user.id,
+            name: user.name,
+            email: `${user.funcional}@bradesco.com.br`, // Mantendo campo email para compatibilidade
+            role: user.role
+          });
+          
+          toast({
+            title: "Login realizado com sucesso",
+            description: `Bem-vindo(a), ${user.name}!`,
+          });
+          navigate("/agenda");
+        } else {
+          // Falha no login
+          toast({
+            title: "Falha no login",
+            description: "Funcional ou senha incorretos. Tente novamente.",
+            variant: "destructive",
+          });
+        }
+        setIsLoading(false);
+      }, 1000);
+    } catch (error) {
+      toast({
+        title: "Erro no login",
+        description: "Ocorreu um erro durante a autenticação.",
+        variant: "destructive",
+      });
       setIsLoading(false);
-    }, 1000);
+    }
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
@@ -74,16 +89,16 @@ const LoginPage: React.FC = () => {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="funcional">Funcional</Label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu.email@bradesco.com.br"
+                    id="funcional"
+                    type="text"
+                    placeholder="Digite seu funcional"
                     className="pl-10"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={funcional}
+                    onChange={(e) => setFuncional(e.target.value)}
                     required
                   />
                 </div>
@@ -94,13 +109,21 @@ const LoginPage: React.FC = () => {
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-10"
+                    className="pl-10 pr-10"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={toggleShowPassword}
+                    className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
               </div>
               <Button 
@@ -113,7 +136,7 @@ const LoginPage: React.FC = () => {
             </form>
             <div className="mt-4 text-center text-sm text-gray-500">
               <p>Usuário de demonstração:</p>
-              <p>Email: joao@bradesco.com.br</p>
+              <p>Funcional: 12345</p>
               <p>Senha: 123456</p>
             </div>
           </CardContent>
