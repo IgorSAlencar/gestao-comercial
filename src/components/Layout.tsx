@@ -1,12 +1,14 @@
 
-import React from "react";
+import React, { useState } from "react";
 import { 
   Calendar, 
   ClipboardList, 
   MapPin, 
   ChartBar,
   User,
-  LogOut
+  LogOut,
+  Menu,
+  ChevronLeft
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const navItems = [
     {
@@ -44,19 +47,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     },
   ];
 
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
-      <div className="hidden md:flex w-64 flex-col bg-white border-r">
+      <div 
+        className={cn(
+          "transition-all duration-300 flex flex-col bg-white border-r",
+          isSidebarCollapsed ? "w-16" : "w-64"
+        )}
+      >
         {/* Logo */}
-        <div className="p-4 border-b">
-          <div className="flex items-center">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className={cn("flex items-center", isSidebarCollapsed && "justify-center w-full")}>
             <div className="h-8 w-8 rounded-md bradesco-gradient flex items-center justify-center">
               <span className="font-bold text-white">BE</span>
             </div>
-            <span className="ml-2 font-bold text-lg">Bradesco Expresso</span>
+            {!isSidebarCollapsed && (
+              <div className="ml-2">
+                <span className="font-bold text-lg">Bradesco Expresso</span>
+                <div className="text-xs text-gray-500 mt-1">Gestão Comercial</div>
+              </div>
+            )}
           </div>
-          <div className="text-xs text-gray-500 mt-1">Gestão Comercial</div>
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={toggleSidebar}
+            className="p-1 h-auto hover:bg-gray-100 text-gray-500"
+          >
+            <ChevronLeft className={cn("h-5 w-5 transition-transform", isSidebarCollapsed && "rotate-180")} />
+          </Button>
         </div>
         
         {/* Nav Items */}
@@ -70,11 +95,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
                   location.pathname === item.path
                     ? "bg-bradesco-blue text-white"
-                    : "text-gray-700 hover:bg-gray-100"
+                    : "text-gray-700 hover:bg-gray-100",
+                  isSidebarCollapsed && "justify-center"
                 )}
+                title={isSidebarCollapsed ? item.title : undefined}
               >
                 {item.icon}
-                <span className="ml-3">{item.title}</span>
+                {!isSidebarCollapsed && <span className="ml-3">{item.title}</span>}
               </Link>
             ))}
           </nav>
@@ -82,26 +109,41 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         {/* User Profile */}
         <div className="p-4 border-t">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
+          <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "justify-between")}>
+            <div className={cn("flex items-center", isSidebarCollapsed && "flex-col")}>
               <div className="h-8 w-8 rounded-full bg-bradesco-blue flex items-center justify-center">
                 <User className="h-5 w-5 text-white" />
               </div>
-              <div className="ml-2">
-                <div className="text-sm font-medium">{user?.name || "Usuário"}</div>
-                <div className="text-xs text-gray-500 capitalize">{user?.role || "Cargo"}</div>
-              </div>
+              {!isSidebarCollapsed && (
+                <div className="ml-2">
+                  <div className="text-sm font-medium">{user?.name || "Usuário"}</div>
+                  <div className="text-xs text-gray-500 capitalize">{user?.role || "Cargo"}</div>
+                </div>
+              )}
             </div>
+            {!isSidebarCollapsed && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={logout} 
+                className="text-gray-500 hover:text-red-500"
+                title="Sair"
+              >
+                <LogOut className="h-5 w-5" />
+              </Button>
+            )}
+          </div>
+          {isSidebarCollapsed && (
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={logout} 
-              className="text-gray-500 hover:text-red-500"
+              onClick={logout}
+              className="mt-2 text-gray-500 hover:text-red-500 w-full"
               title="Sair"
             >
               <LogOut className="h-5 w-5" />
             </Button>
-          </div>
+          )}
         </div>
       </div>
       
@@ -116,7 +158,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
               <span className="ml-2 font-bold">Bradesco Expresso</span>
             </div>
-            {/* Mobile menu button would go here */}
+            <Button variant="ghost" size="sm" onClick={toggleSidebar}>
+              <Menu className="h-6 w-6" />
+            </Button>
           </div>
         </div>
         
