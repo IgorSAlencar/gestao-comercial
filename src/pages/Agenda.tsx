@@ -10,15 +10,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { Label } from "@/components/ui/label";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { DateRange } from "react-day-picker";
 
 interface Evento {
   id: string;
   titulo: string;
   descricao: string;
-  data: Date;
+  dataInicio: Date;
+  dataFim: Date;
   horario: string;
   tipo: "visita" | "reuniao" | "outro";
   tratativa?: string;
+  location?: string;
+  subcategory?: string;
+  other_description?: string;
+  agencia_pa_number?: string;
+  is_pa?: boolean;
+  municipio?: string;
+  uf?: string;
 }
 
 const eventosIniciais: Evento[] = [
@@ -26,17 +44,29 @@ const eventosIniciais: Evento[] = [
     id: "1",
     titulo: "Visita à Loja ABC",
     descricao: "Verificação das operações e reunião com gerente.",
-    data: new Date(),
+    dataInicio: new Date(),
+    dataFim: new Date(),
     horario: "09:00",
     tipo: "visita",
+    location: "Visitas Operacionais",
+    subcategory: "Treinamento",
+    municipio: "São Paulo",
+    uf: "SP",
+    agencia_pa_number: "12345",
+    is_pa: true
   },
   {
     id: "2",
     titulo: "Treinamento da Equipe",
     descricao: "Apresentação das novas estratégias comerciais.",
-    data: new Date(),
+    dataInicio: new Date(),
+    dataFim: new Date(new Date().setDate(new Date().getDate() + 2)),
     horario: "14:00",
     tipo: "reuniao",
+    location: "Outros",
+    other_description: "Reunião de equipe trimestral",
+    municipio: "Rio de Janeiro",
+    uf: "RJ"
   },
 ];
 
@@ -47,47 +77,104 @@ const AgendaPage = () => {
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [parecerText, setParecerText] = useState("");
+  
+  // Estado para o calendário embutido na página
+  const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
+  const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
+  
+  // Estados para o novo evento
   const [novoEvento, setNovoEvento] = useState<Omit<Evento, "id">>({
     titulo: "",
     descricao: "",
-    data: new Date(),
+    dataInicio: new Date(),
+    dataFim: new Date(),
     horario: "",
     tipo: "visita",
+    location: "",
+    subcategory: "",
+    other_description: "",
+    agencia_pa_number: "",
+    is_pa: false,
+    municipio: "",
+    uf: ""
   });
+
+  // Estado para edição de evento
+  const [editingEvent, setEditingEvent] = useState<string | null>(null);
   
   const { toast } = useToast();
+  const { user } = useAuth();
 
+  // Filtra eventos para o dia selecionado ou dentro do intervalo de datas
   const eventosDoDia = eventos.filter(
-    (evento) => format(evento.data, "yyyy-MM-dd") === format(date, "yyyy-MM-dd")
+    (evento) => {
+      const currentDate = format(date, "yyyy-MM-dd");
+      const startDate = format(evento.dataInicio, "yyyy-MM-dd");
+      const endDate = format(evento.dataFim, "yyyy-MM-dd");
+      
+      // Verifica se a data atual está dentro do intervalo do evento (inclusive)
+      const eventDate = new Date(currentDate);
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      return eventDate >= start && eventDate <= end;
+    }
   );
   
   const handleSalvarEvento = () => {
-    if (!novoEvento.titulo || !novoEvento.horario) {
+    if (!novoEvento.titulo || !novoEvento.horario || !novoEvento.location) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha o título e horário do evento",
+        description: "Preencha todos os campos obrigatórios",
         variant: "destructive",
       });
       return;
     }
     
-    const novoId = Math.random().toString(36).substring(7);
-    setEventos([...eventos, { ...novoEvento, id: novoId }]);
+    // Se estivermos editando um evento existente
+    if (editingEvent) {
+      const novosEventos = eventos.map(evento => {
+        if (evento.id === editingEvent) {
+          return { ...novoEvento, id: editingEvent };
+        }
+        return evento;
+      });
+      
+      setEventos(novosEventos);
+      toast({
+        title: "Evento atualizado",
+        description: "O evento foi atualizado com sucesso!",
+      });
+    } else {
+      // Criando um novo evento
+      const novoId = Math.random().toString(36).substring(7);
+      setEventos([...eventos, { ...novoEvento, id: novoId }]);
+      
+      toast({
+        title: "Evento adicionado",
+        description: "O evento foi adicionado à sua agenda com sucesso!",
+      });
+    }
     
-    toast({
-      title: "Evento adicionado",
-      description: "O evento foi adicionado à sua agenda com sucesso!",
-    });
-    
+    // Resetar os estados
     setNovoEvento({
       titulo: "",
       descricao: "",
-      data: new Date(),
+      dataInicio: new Date(),
+      dataFim: new Date(),
       horario: "",
       tipo: "visita",
+      location: "",
+      subcategory: "",
+      other_description: "",
+      agencia_pa_number: "",
+      is_pa: false,
+      municipio: "",
+      uf: ""
     });
     
     setIsDialogOpen(false);
+    setEditingEvent(null);
   };
 
   const handleExcluirEvento = (id: string) => {
@@ -131,6 +218,38 @@ const AgendaPage = () => {
     setParecerText("");
   };
   
+  const handleEditarEvento = (id: string) => {
+    const evento = eventos.find(evento => evento.id === id);
+    if (evento) {
+      setNovoEvento({
+        titulo: evento.titulo,
+        descricao: evento.descricao,
+        dataInicio: evento.dataInicio,
+        dataFim: evento.dataFim,
+        horario: evento.horario,
+        tipo: evento.tipo,
+        location: evento.location || "",
+        subcategory: evento.subcategory || "",
+        other_description: evento.other_description || "",
+        agencia_pa_number: evento.agencia_pa_number || "",
+        is_pa: evento.is_pa || false,
+        municipio: evento.municipio || "",
+        uf: evento.uf || ""
+      });
+      setEditingEvent(id);
+      setIsDialogOpen(true);
+    }
+  };
+  
+  // Função para formatar a exibição do intervalo de datas
+  const formatDateRange = (inicio: Date, fim: Date) => {
+    if (format(inicio, "yyyy-MM-dd") === format(fim, "yyyy-MM-dd")) {
+      return format(inicio, "dd 'de' MMMM", { locale: ptBR });
+    }
+    
+    return `${format(inicio, "dd/MM", { locale: ptBR })} - ${format(fim, "dd/MM", { locale: ptBR })}`;
+  };
+  
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -141,10 +260,11 @@ const AgendaPage = () => {
               <Plus className="h-4 w-4 mr-2" /> Novo Evento
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Adicionar novo evento</DialogTitle>
+              <DialogTitle>{editingEvent ? "Editar evento" : "Adicionar novo evento"}</DialogTitle>
             </DialogHeader>
+            
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <label className="text-right text-sm">Título</label>
@@ -154,16 +274,57 @@ const AgendaPage = () => {
                   onChange={(e) => setNovoEvento({ ...novoEvento, titulo: e.target.value })}
                 />
               </div>
+              
               <div className="grid grid-cols-4 items-center gap-4">
-                <label className="text-right text-sm">Data</label>
-                <div className="col-span-3">
-                  <Input
-                    type="date"
-                    value={format(novoEvento.data, "yyyy-MM-dd")}
-                    onChange={(e) => setNovoEvento({ ...novoEvento, data: new Date(e.target.value) })}
-                  />
+                <label className="text-right text-sm">Intervalo de Datas</label>
+                <div className="col-span-3 flex space-x-4">
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={novoEvento.dataInicio ? format(novoEvento.dataInicio, "dd/MM/yyyy") : ""}
+                      onClick={() => setCalendarOpen("start")}
+                      readOnly
+                      placeholder="Data inicial"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={novoEvento.dataFim ? format(novoEvento.dataFim, "dd/MM/yyyy") : ""}
+                      onClick={() => setCalendarOpen("end")}
+                      readOnly
+                      placeholder="Data final"
+                    />
+                  </div>
                 </div>
               </div>
+              
+              {calendarOpen && (
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <div className="col-span-1"></div>
+                  <div className="col-span-3 bg-white border rounded-md shadow-md p-2">
+                    <Calendar
+                      mode="range"
+                      selected={selectedRange}
+                      onSelect={(range) => {
+                        setSelectedRange(range);
+                        if (range?.from) {
+                          setNovoEvento({ 
+                            ...novoEvento, 
+                            dataInicio: range.from,
+                            dataFim: range.to || range.from
+                          });
+                        }
+                        if (range?.from && range?.to) {
+                          setCalendarOpen(null);
+                        }
+                      }}
+                      className="rounded-md border"
+                    />
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-4 items-center gap-4">
                 <label className="text-right text-sm">Horário</label>
                 <Input
@@ -173,21 +334,194 @@ const AgendaPage = () => {
                   onChange={(e) => setNovoEvento({ ...novoEvento, horario: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <label className="text-right text-sm">Tipo</label>
-                <select
-                  className="col-span-3 p-2 border rounded-md"
-                  value={novoEvento.tipo}
-                  onChange={(e) => setNovoEvento({ 
-                    ...novoEvento, 
-                    tipo: e.target.value as "visita" | "reuniao" | "outro" 
-                  })}
+              
+              <div className="space-y-2">
+                <Label htmlFor="location">Ocorrência</Label>
+                <Select
+                  value={novoEvento.location}
+                  onValueChange={(value) =>
+                    setNovoEvento({ ...novoEvento, location: value, subcategory: "" })
+                  }
                 >
-                  <option value="visita">Visita</option>
-                  <option value="reuniao">Reunião</option>
-                  <option value="outro">Outro</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a Ocorrência" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
+                    <SelectItem value="Prospecção" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                      Prospecção
+                    </SelectItem>
+                    <SelectItem value="Visitas Operacionais" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                      Visitas Operacionais
+                    </SelectItem>
+                    <SelectItem value="Visitas de Negociação" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                      Visitas de Negociação
+                    </SelectItem>
+                    <SelectItem value="Outros" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                      Outros
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {novoEvento.location !== "Outros" && novoEvento.location && (
+                <div className="space-y-2">
+                  <Label htmlFor="subcategory">Subcategoria</Label>
+                  <Select
+                    value={novoEvento.subcategory}
+                    onValueChange={(value) =>
+                      setNovoEvento({ ...novoEvento, subcategory: value })
+                    }
+                    disabled={!novoEvento.location || novoEvento.location === "Outros"}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a Subcategoria" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
+                      {novoEvento.location === "Prospecção" && (
+                        <>
+                          <SelectItem value="Prospecção Habitual" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Prospecção Habitual
+                          </SelectItem>
+                          <SelectItem value="Prospecção em Praça Presença" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Prospecção em Praça Presença
+                          </SelectItem>
+                        </>
+                      )}
+
+                      {novoEvento.location === "Visitas Operacionais" && (
+                        <>
+                          <SelectItem value="Treinamento" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Treinamento
+                          </SelectItem>
+                          <SelectItem value="Apoio Operacional" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Apoio Operacional
+                          </SelectItem>
+                          <SelectItem value="Incentivo e Engajamento" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Incentivo e Engajamento
+                          </SelectItem>
+                        </>
+                      )}
+                      {novoEvento.location === "Visitas de Negociação" && (
+                        <>
+                          <SelectItem value="Alinhamento com AG/PA" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Alinhamento com AG/PA
+                          </SelectItem>
+                          <SelectItem value="Proposta Comercial" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                            Proposta Comercial
+                          </SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {novoEvento.location === "Outros" && (
+                <div className="space-y-2">
+                  <Label htmlFor="other_description">Descreva o Evento</Label>
+                  <Input
+                    id="other_description"
+                    value={novoEvento.other_description}
+                    onChange={(e) =>
+                      setNovoEvento({ ...novoEvento, other_description: e.target.value })
+                    }
+                    placeholder="Descreva a ocorrência"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="agencia_pa_number">Número da Agência/PA</Label>
+                  <Input
+                    id="agencia_pa_number"
+                    type="text"
+                    value={novoEvento.agencia_pa_number || ""}
+                    onChange={(e) =>
+                      setNovoEvento({ ...novoEvento, agencia_pa_number: e.target.value })
+                    }
+                    placeholder="Ex: 12345"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="is_pa"
+                    checked={novoEvento.is_pa || false}
+                    onChange={(e) =>
+                      setNovoEvento({ ...novoEvento, is_pa: e.target.checked })
+                    }
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <Label htmlFor="is_pa" className="text-sm text-gray-700">
+                    Marque se for um PA
+                  </Label>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex space-x-4">
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="municipio" className="block text-sm font-medium text-gray-700">
+                      Município
+                    </Label>
+                    <Input
+                      id="municipio"
+                      value={novoEvento.municipio || ""}
+                      onChange={(e) =>
+                        setNovoEvento({ ...novoEvento, municipio: e.target.value })
+                      }
+                      placeholder="Informe o município"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="uf" className="block text-sm font-medium text-gray-700">
+                      UF
+                    </Label>
+                    <Select
+                      value={novoEvento.uf || ""}
+                      onValueChange={(value) =>
+                        setNovoEvento({ ...novoEvento, uf: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a UF" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
+                        <SelectItem value="AC">Acre</SelectItem>
+                        <SelectItem value="AL">Alagoas</SelectItem>
+                        <SelectItem value="AP">Amapá</SelectItem>
+                        <SelectItem value="AM">Amazonas</SelectItem>
+                        <SelectItem value="BA">Bahia</SelectItem>
+                        <SelectItem value="CE">Ceará</SelectItem>
+                        <SelectItem value="DF">Distrito Federal</SelectItem>
+                        <SelectItem value="ES">Espírito Santo</SelectItem>
+                        <SelectItem value="GO">Goiás</SelectItem>
+                        <SelectItem value="MA">Maranhão</SelectItem>
+                        <SelectItem value="MT">Mato Grosso</SelectItem>
+                        <SelectItem value="MS">Mato Grosso do Sul</SelectItem>
+                        <SelectItem value="MG">Minas Gerais</SelectItem>
+                        <SelectItem value="PA">Pará</SelectItem>
+                        <SelectItem value="PB">Paraíba</SelectItem>
+                        <SelectItem value="PR">Paraná</SelectItem>
+                        <SelectItem value="PE">Pernambuco</SelectItem>
+                        <SelectItem value="PI">Piauí</SelectItem>
+                        <SelectItem value="RJ">Rio de Janeiro</SelectItem>
+                        <SelectItem value="RN">Rio Grande do Norte</SelectItem>
+                        <SelectItem value="RS">Rio Grande do Sul</SelectItem>
+                        <SelectItem value="RO">Rondônia</SelectItem>
+                        <SelectItem value="RR">Roraima</SelectItem>
+                        <SelectItem value="SC">Santa Catarina</SelectItem>
+                        <SelectItem value="SP">São Paulo</SelectItem>
+                        <SelectItem value="SE">Sergipe</SelectItem>
+                        <SelectItem value="TO">Tocantins</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-4 items-start gap-4">
                 <label className="text-right text-sm">Descrição</label>
                 <Textarea
@@ -197,12 +531,17 @@ const AgendaPage = () => {
                 />
               </div>
             </div>
+            
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsDialogOpen(false);
+                setEditingEvent(null);
+                setCalendarOpen(null);
+              }}>
                 Cancelar
               </Button>
               <Button onClick={handleSalvarEvento} className="bg-bradesco-blue">
-                Salvar Evento
+                {editingEvent ? "Atualizar Evento" : "Criar Evento"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -250,8 +589,28 @@ const AgendaPage = () => {
                           <Clock className="h-4 w-4 mr-1" />
                           <span>{evento.horario}</span>
                           <span className="mx-2">•</span>
-                          <span className="capitalize">{evento.tipo}</span>
+                          <span>{formatDateRange(evento.dataInicio, evento.dataFim)}</span>
+                          {evento.location && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span>{evento.location}</span>
+                            </>
+                          )}
+                          {evento.subcategory && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <span>{evento.subcategory}</span>
+                            </>
+                          )}
                         </div>
+                        {evento.municipio && evento.uf && (
+                          <div className="mt-1 text-sm text-gray-500">
+                            {evento.municipio}, {evento.uf}
+                            {evento.agencia_pa_number && (
+                              <span> • {evento.is_pa ? "PA" : "Agência"} {evento.agencia_pa_number}</span>
+                            )}
+                          </div>
+                        )}
                         {evento.descricao && (
                           <p className="mt-2 text-sm text-gray-600">{evento.descricao}</p>
                         )}
@@ -264,6 +623,14 @@ const AgendaPage = () => {
                         )}
                       </div>
                       <div className="flex flex-col gap-2 ml-4">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditarEvento(evento.id)}
+                        >
+                          <CalendarIcon className="h-4 w-4 mr-1" />
+                          Editar
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm"

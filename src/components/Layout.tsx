@@ -5,10 +5,13 @@ import {
   ClipboardList, 
   MapPin, 
   ChartBar,
-  User
+  User,
+  LogOut
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,6 +19,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { user, logout } = useAuth();
   
   const navItems = [
     {
@@ -78,14 +82,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         {/* User Profile */}
         <div className="p-4 border-t">
-          <div className="flex items-center">
-            <div className="h-8 w-8 rounded-full bg-bradesco-blue flex items-center justify-center">
-              <User className="h-5 w-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="h-8 w-8 rounded-full bg-bradesco-blue flex items-center justify-center">
+                <User className="h-5 w-5 text-white" />
+              </div>
+              <div className="ml-2">
+                <div className="text-sm font-medium">{user?.name || "Usuário"}</div>
+                <div className="text-xs text-gray-500 capitalize">{user?.role || "Cargo"}</div>
+              </div>
             </div>
-            <div className="ml-2">
-              <div className="text-sm font-medium">João Silva</div>
-              <div className="text-xs text-gray-500">Supervisor Regional</div>
-            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={logout} 
+              className="text-gray-500 hover:text-red-500"
+              title="Sair"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
           </div>
         </div>
       </div>
