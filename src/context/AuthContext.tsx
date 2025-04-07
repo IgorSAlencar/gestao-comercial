@@ -7,6 +7,7 @@ interface User {
   name: string;
   email: string; // Mantemos para compatibilidade
   role: string;
+  subordinates?: string[]; // IDs dos supervisores subordinados (para coordenadores e gerentes)
 }
 
 interface AuthContextType {
@@ -14,6 +15,9 @@ interface AuthContextType {
   login: (user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isManager: boolean; // Indica se é coordenador ou gerente
+  isCoordinator: boolean; // Indica se é coordenador
+  isSupervisor: boolean; // Indica se é supervisor
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -21,6 +25,9 @@ const AuthContext = createContext<AuthContextType>({
   login: () => {},
   logout: () => {},
   isAuthenticated: false,
+  isManager: false,
+  isCoordinator: false,
+  isSupervisor: false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -48,9 +55,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate("/login");
   };
 
+  // Calcula os papéis com base no role do usuário
+  const isManager = user?.role === "gerente" || user?.role === "coordenador";
+  const isCoordinator = user?.role === "coordenador";
+  const isSupervisor = user?.role === "supervisor";
+
   return (
     <AuthContext.Provider
-      value={{ user, login, logout, isAuthenticated: !!user }}
+      value={{ 
+        user, 
+        login, 
+        logout, 
+        isAuthenticated: !!user,
+        isManager,
+        isCoordinator,
+        isSupervisor
+      }}
     >
       {children}
     </AuthContext.Provider>
