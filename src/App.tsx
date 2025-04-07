@@ -12,6 +12,8 @@ import AgendaPage from "@/pages/Agenda";
 import HotlistPage from "@/pages/Hotlist";
 import OpportunidadesPage from "@/pages/Oportunidades";
 import DashboardPage from "@/pages/Dashboard";
+import EstrategiaComercial from "@/pages/EstrategiaComercial";
+import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +57,22 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><DashboardPage /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/estrategia-comercial" 
+              element={
+                <PrivateRoute>
+                  <Layout><EstrategiaComercial /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/estrategia/:produto" 
+              element={
+                <PrivateRoute>
+                  <Layout><DetalhesEstrategia /></Layout>
                 </PrivateRoute>
               } 
             />

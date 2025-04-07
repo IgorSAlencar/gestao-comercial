@@ -8,7 +8,8 @@ import {
   User,
   LogOut,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  BarChart3
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       title: "Dashboard",
       icon: <ChartBar className="h-5 w-5" />,
       path: "/dashboard",
+    },
+    {
+      title: "Estratégia Comercial",
+      icon: <BarChart3 className="h-5 w-5" />,
+      path: "/estrategia-comercial",
     },
   ];
 
