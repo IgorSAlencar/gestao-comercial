@@ -14,6 +14,7 @@ import OpportunidadesPage from "@/pages/Oportunidades";
 import DashboardPage from "@/pages/Dashboard";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
+import CorrespondentesBloquadeos from "@/pages/CorrespondentesBloquadeos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -73,6 +74,14 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><DetalhesEstrategia /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/correspondentes-bloqueados" 
+              element={
+                <PrivateRoute>
+                  <Layout><CorrespondentesBloquadeos /></Layout>
                 </PrivateRoute>
               } 
             />

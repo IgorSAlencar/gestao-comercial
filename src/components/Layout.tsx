@@ -9,7 +9,8 @@ import {
   LogOut,
   Menu,
   ChevronLeft,
-  BarChart3
+  BarChart3,
+  FileX
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       title: "Estratégia Comercial",
       icon: <BarChart3 className="h-5 w-5" />,
       path: "/estrategia-comercial",
+    },
+    {
+      title: "Correspondentes Bloqueados",
+      icon: <FileX className="h-5 w-5" />,
+      path: "/correspondentes-bloqueados",
     },
   ];
 
