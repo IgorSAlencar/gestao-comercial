@@ -847,49 +847,9 @@ const AgendaPage = () => {
                           Parecer
                         </Button>
                         <Button 
-                          variant="outline" 
+                          variant="ghost" 
                           size="sm" 
-                          className="text-red-500 hover:text-red-700 hover:border-red-300"
+                          className="text-red-500 hover:text-red-700 hover:border-red-300 group opacity-50 hover:opacity-100 transition-opacity duration-300 p-1" 
                           onClick={() => handleExcluirEvento(evento.id)}
                         >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Excluir
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Adicionar Parecer/Tratativa</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Textarea
-              className="min-h-[120px]"
-              placeholder="Digite seu parecer ou tratativa sobre este evento..."
-              value={parecerText}
-              onChange={(e) => setParecerText(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsParecerDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSalvarParecer} className="bg-bradesco-blue">
-              Salvar Parecer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};
-
-export default AgendaPage;
+                          <Trash2 className="h-5
