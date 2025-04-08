@@ -3,44 +3,44 @@
  * This is a placeholder file demonstrating the backend server structure.
  * In a real implementation, this would be a separate Node.js/Express server.
  * 
- * SQL Schema for the database:
+ * SQL Server Schema for the database:
  * 
  * CREATE TABLE users (
- *   id VARCHAR(36) PRIMARY KEY,
- *   name VARCHAR(100) NOT NULL,
- *   funcional VARCHAR(20) NOT NULL UNIQUE,
- *   password VARCHAR(100) NOT NULL, -- would be hashed in real implementation
- *   role ENUM('supervisor', 'coordenador', 'gerente') NOT NULL,
- *   email VARCHAR(100)
+ *   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+ *   name NVARCHAR(100) NOT NULL,
+ *   funcional NVARCHAR(20) NOT NULL UNIQUE,
+ *   password NVARCHAR(100) NOT NULL, -- would be hashed in real implementation
+ *   role NVARCHAR(20) NOT NULL CHECK (role IN ('supervisor', 'coordenador', 'gerente')),
+ *   email NVARCHAR(100)
  * );
  * 
  * CREATE TABLE hierarchy (
- *   id VARCHAR(36) PRIMARY KEY,
- *   subordinate_id VARCHAR(36) NOT NULL,
- *   superior_id VARCHAR(36) NOT NULL,
+ *   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+ *   subordinate_id UNIQUEIDENTIFIER NOT NULL,
+ *   superior_id UNIQUEIDENTIFIER NOT NULL,
  *   FOREIGN KEY (subordinate_id) REFERENCES users(id),
  *   FOREIGN KEY (superior_id) REFERENCES users(id)
  * );
  * 
  * -- Sample data:
- * INSERT INTO users VALUES
- *   (UUID(), 'João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
- *   (UUID(), 'Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
- *   (UUID(), 'Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
- *   (UUID(), 'Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com');
+ * INSERT INTO users (name, funcional, password, role, email) VALUES
+ *   ('João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
+ *   ('Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
+ *   ('Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
+ *   ('Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com');
  * 
  * -- Create relationships: João and Ana report to Maria, Maria reports to Carlos
- * INSERT INTO hierarchy (id, subordinate_id, superior_id) VALUES
- *   (UUID(), [joão_id], [maria_id]),
- *   (UUID(), [ana_id], [maria_id]),
- *   (UUID(), [maria_id], [carlos_id]);
+ * INSERT INTO hierarchy (subordinate_id, superior_id) VALUES
+ *   ((SELECT id FROM users WHERE funcional = '12345'), (SELECT id FROM users WHERE funcional = '67890')),
+ *   ((SELECT id FROM users WHERE funcional = '98765'), (SELECT id FROM users WHERE funcional = '67890')),
+ *   ((SELECT id FROM users WHERE funcional = '67890'), (SELECT id FROM users WHERE funcional = '54321'));
  */
 
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
-const mysql = require('mysql2/promise');
+const sql = require('mssql');
 
 const app = express();
 const PORT = 3001;
@@ -50,15 +50,18 @@ const JWT_SECRET = 'your_jwt_secret'; // In production, use environment variable
 app.use(cors());
 app.use(bodyParser.json());
 
-// Database connection
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: 'password',
-  database: 'bradesco_expresso',
-  waitForConnections: true,
-  connectionLimit: 10,
-});
+// SQL Server configuration
+const dbConfig = {
+  server: 'DESKTOP-G4V6794', // Seu servidor
+  database: 'TESTE',         // Seu banco de dados
+  user: 'sa',                // Seu usuário 
+  password: 'expresso',      // Sua senha
+  options: {
+    encrypt: false,          // Para conexões locais, defina como false
+    trustServerCertificate: true, // Para desenvolvimento local
+    enableArithAbort: true
+  }
+};
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -74,22 +77,33 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Create a pool connection to SQL Server
+const pool = new sql.ConnectionPool(dbConfig);
+const poolConnect = pool.connect();
+
+// Handle connection errors
+poolConnect.catch(err => {
+  console.error('Erro ao conectar ao SQL Server:', err);
+});
+
 // Auth routes
 app.post('/api/auth/login', async (req, res) => {
   const { funcional, password } = req.body;
   
   try {
-    // Get user by funcional
-    const [rows] = await pool.query(
-      'SELECT id, name, funcional, role, email FROM users WHERE funcional = ? AND password = ?',
-      [funcional, password] // In production, compare hashed password
-    );
+    await poolConnect; // Ensure pool is connected
     
-    if (rows.length === 0) {
+    // Get user by funcional
+    const result = await pool.request()
+      .input('funcional', sql.NVarChar, funcional)
+      .input('password', sql.NVarChar, password)
+      .query('SELECT id, name, funcional, role, email FROM users WHERE funcional = @funcional AND password = @password');
+    
+    if (result.recordset.length === 0) {
       return res.status(401).json({ message: 'Funcional ou senha incorretos' });
     }
     
-    const user = rows[0];
+    const user = result.recordset[0];
     
     // Generate JWT token
     const token = jwt.sign(
@@ -119,17 +133,18 @@ app.get('/api/users/:userId/subordinates', authenticateToken, async (req, res) =
   const { userId } = req.params;
   
   try {
-    // Get user's role
-    const [userRows] = await pool.query(
-      'SELECT role FROM users WHERE id = ?',
-      [userId]
-    );
+    await poolConnect; // Ensure pool is connected
     
-    if (userRows.length === 0) {
+    // Get user's role
+    const userResult = await pool.request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query('SELECT role FROM users WHERE id = @userId');
+    
+    if (userResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
     
-    const userRole = userRows[0].role;
+    const userRole = userResult.recordset[0].role;
     
     // Only coordinators and managers can have subordinates
     if (userRole !== 'coordenador' && userRole !== 'gerente') {
@@ -137,15 +152,16 @@ app.get('/api/users/:userId/subordinates', authenticateToken, async (req, res) =
     }
     
     // Get direct subordinates
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.funcional, u.role, u.email 
-       FROM users u
-       JOIN hierarchy h ON u.id = h.subordinate_id
-       WHERE h.superior_id = ?`,
-      [userId]
-    );
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query(`
+        SELECT u.id, u.name, u.funcional, u.role, u.email 
+        FROM users u
+        JOIN hierarchy h ON u.id = h.subordinate_id
+        WHERE h.superior_id = @userId
+      `);
     
-    res.json(rows);
+    res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching subordinates:', error);
     res.status(500).json({ message: 'Erro ao buscar subordinados' });
@@ -156,20 +172,23 @@ app.get('/api/users/:userId/superior', authenticateToken, async (req, res) => {
   const { userId } = req.params;
   
   try {
-    // Get user's superior
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.funcional, u.role, u.email 
-       FROM users u
-       JOIN hierarchy h ON u.id = h.superior_id
-       WHERE h.subordinate_id = ?`,
-      [userId]
-    );
+    await poolConnect; // Ensure pool is connected
     
-    if (rows.length === 0) {
+    // Get user's superior
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query(`
+        SELECT u.id, u.name, u.funcional, u.role, u.email 
+        FROM users u
+        JOIN hierarchy h ON u.id = h.superior_id
+        WHERE h.subordinate_id = @userId
+      `);
+    
+    if (result.recordset.length === 0) {
       return res.status(404).json({ message: 'Superior não encontrado' });
     }
     
-    res.json(rows[0]);
+    res.json(result.recordset[0]);
   } catch (error) {
     console.error('Error fetching superior:', error);
     res.status(500).json({ message: 'Erro ao buscar superior' });

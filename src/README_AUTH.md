@@ -1,9 +1,9 @@
 
-# Sistema de Autenticação Hierárquica
+# Sistema de Autenticação Hierárquica com SQL Server
 
-Este sistema implementa autenticação baseada em SQL com relações hierárquicas entre usuários (supervisores, coordenadores e gerentes).
+Este sistema implementa autenticação baseada em SQL Server com relações hierárquicas entre usuários (supervisores, coordenadores e gerentes).
 
-## Estrutura do Banco de Dados
+## Estrutura do Banco de Dados SQL Server
 
 O sistema utiliza duas tabelas principais:
 
@@ -11,12 +11,12 @@ O sistema utiliza duas tabelas principais:
 
 ```sql
 CREATE TABLE users (
-  id VARCHAR(36) PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  funcional VARCHAR(20) NOT NULL UNIQUE,
-  password VARCHAR(100) NOT NULL, -- Deve ser hash em produção
-  role ENUM('supervisor', 'coordenador', 'gerente') NOT NULL,
-  email VARCHAR(100)
+  id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+  name NVARCHAR(100) NOT NULL,
+  funcional NVARCHAR(20) NOT NULL UNIQUE,
+  password NVARCHAR(100) NOT NULL, -- Deve ser hash em produção
+  role NVARCHAR(20) NOT NULL CHECK (role IN ('supervisor', 'coordenador', 'gerente')),
+  email NVARCHAR(100)
 );
 ```
 
@@ -24,9 +24,9 @@ CREATE TABLE users (
 
 ```sql
 CREATE TABLE hierarchy (
-  id VARCHAR(36) PRIMARY KEY,
-  subordinate_id VARCHAR(36) NOT NULL,
-  superior_id VARCHAR(36) NOT NULL,
+  id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+  subordinate_id UNIQUEIDENTIFIER NOT NULL,
+  superior_id UNIQUEIDENTIFIER NOT NULL,
   FOREIGN KEY (subordinate_id) REFERENCES users(id),
   FOREIGN KEY (superior_id) REFERENCES users(id)
 );
@@ -55,24 +55,37 @@ CREATE TABLE hierarchy (
 
 ```sql
 -- Inserindo usuários
-INSERT INTO users VALUES
-  (UUID(), 'João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
-  (UUID(), 'Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
-  (UUID(), 'Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
-  (UUID(), 'Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com');
+INSERT INTO users (name, funcional, password, role, email) VALUES
+  ('João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
+  ('Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
+  ('Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
+  ('Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com');
 
 -- Criando relações: João e Ana reportam a Maria, Maria reporta a Carlos
-INSERT INTO hierarchy (id, subordinate_id, superior_id) VALUES
-  (UUID(), [joão_id], [maria_id]),
-  (UUID(), [ana_id], [maria_id]),
-  (UUID(), [maria_id], [carlos_id]);
+INSERT INTO hierarchy (subordinate_id, superior_id) VALUES
+  ((SELECT id FROM users WHERE funcional = '12345'), (SELECT id FROM users WHERE funcional = '67890')),
+  ((SELECT id FROM users WHERE funcional = '98765'), (SELECT id FROM users WHERE funcional = '67890')),
+  ((SELECT id FROM users WHERE funcional = '67890'), (SELECT id FROM users WHERE funcional = '54321'));
 ```
 
-## Como Conectar ao Banco de Dados Real
+## Como Conectar ao Banco de Dados SQL Server
 
-Para conectar este sistema a um banco MySQL real:
+Para conectar este sistema a um banco SQL Server:
 
-1. Configure o servidor backend com as credenciais corretas do banco.
-2. Implemente corretamente o hash de senha para segurança.
+1. Configure o servidor backend com as credenciais corretas do banco:
+   - SERVER = "DESKTOP-G4V6794"
+   - DATABASE = "TESTE"
+   - USERNAME = "sa"
+   - PASSWORD = "expresso"
+
+2. Implemente corretamente o hash de senha para segurança em produção.
 3. Substitua o JWT_SECRET por uma variável de ambiente segura.
 4. Configure o frontend para apontar para a URL correta da API.
+
+## Instalação de Dependências
+
+Para o backend, precisamos do driver do SQL Server:
+
+```bash
+npm install mssql express jsonwebtoken cors body-parser
+```
