@@ -31,9 +31,9 @@
  * 
  * -- Create relationships: João and Ana report to Maria, Maria reports to Carlos
  * INSERT INTO hierarchy (subordinate_id, superior_id) VALUES
- *   ((SELECT id FROM users WHERE funcional = '12345'), (SELECT id FROM users WHERE funcional = '67890')),
- *   ((SELECT id FROM users WHERE funcional = '98765'), (SELECT id FROM users WHERE funcional = '67890')),
- *   ((SELECT id FROM users WHERE funcional = '67890'), (SELECT id FROM users WHERE funcional = '54321'));
+ *   ((SELECT id FROM TESTE..users WHERE funcional = '12345'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
+ *   ((SELECT id FROM TESTE..users WHERE funcional = '98765'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
+ *   ((SELECT id FROM TESTE..users WHERE funcional = '67890'), (SELECT id FROM TESTE..users WHERE funcional = '54321'));
  */
 
 const express = require('express');
@@ -97,7 +97,7 @@ app.post('/api/auth/login', async (req, res) => {
     const result = await pool.request()
       .input('funcional', sql.NVarChar, funcional)
       .input('password', sql.NVarChar, password)
-      .query('SELECT id, name, funcional, role, email FROM users WHERE funcional = @funcional AND password = @password');
+      .query('SELECT id, name, funcional, role, email FROM teste..users WHERE funcional = @funcional AND password = @password');
     
     if (result.recordset.length === 0) {
       return res.status(401).json({ message: 'Funcional ou senha incorretos' });
@@ -138,7 +138,7 @@ app.get('/api/users/:userId/subordinates', authenticateToken, async (req, res) =
     // Get user's role
     const userResult = await pool.request()
       .input('userId', sql.UniqueIdentifier, userId)
-      .query('SELECT role FROM users WHERE id = @userId');
+      .query('SELECT role FROM TESTE..users WHERE id = @userId');
     
     if (userResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
@@ -156,7 +156,7 @@ app.get('/api/users/:userId/subordinates', authenticateToken, async (req, res) =
       .input('userId', sql.UniqueIdentifier, userId)
       .query(`
         SELECT u.id, u.name, u.funcional, u.role, u.email 
-        FROM users u
+        FROM TESTE..users u
         JOIN hierarchy h ON u.id = h.subordinate_id
         WHERE h.superior_id = @userId
       `);
@@ -179,7 +179,7 @@ app.get('/api/users/:userId/superior', authenticateToken, async (req, res) => {
       .input('userId', sql.UniqueIdentifier, userId)
       .query(`
         SELECT u.id, u.name, u.funcional, u.role, u.email 
-        FROM users u
+        FROM TESTE..users u
         JOIN hierarchy h ON u.id = h.superior_id
         WHERE h.subordinate_id = @userId
       `);

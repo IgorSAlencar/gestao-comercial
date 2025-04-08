@@ -10,26 +10,27 @@ O sistema utiliza duas tabelas principais:
 ### Tabela `users`
 
 ```sql
-CREATE TABLE users (
+CREATE TABLE teste..users (
   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
   name NVARCHAR(100) NOT NULL,
   funcional NVARCHAR(20) NOT NULL UNIQUE,
   password NVARCHAR(100) NOT NULL, -- Deve ser hash em produção
   role NVARCHAR(20) NOT NULL CHECK (role IN ('supervisor', 'coordenador', 'gerente')),
   email NVARCHAR(100)
-);
+)
+
 ```
 
 ### Tabela `hierarchy`
 
 ```sql
-CREATE TABLE hierarchy (
+CREATE TABLE teste..hierarchy (
   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
   subordinate_id UNIQUEIDENTIFIER NOT NULL,
   superior_id UNIQUEIDENTIFIER NOT NULL,
   FOREIGN KEY (subordinate_id) REFERENCES users(id),
   FOREIGN KEY (superior_id) REFERENCES users(id)
-);
+)
 ```
 
 ## Relações Hierárquicas
