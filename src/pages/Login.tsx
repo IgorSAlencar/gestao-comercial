@@ -1,6 +1,5 @@
 
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { login } = useAuth();
 
@@ -23,46 +21,10 @@ const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // Simulando autenticação (em uma aplicação real, isso seria feito com um backend/SQL)
-      setTimeout(() => {
-        // Usuários de demonstração
-        const users = [
-          { id: "1", name: "João Silva", funcional: "12345", role: "supervisor" },
-          { id: "2", name: "Maria Santos", funcional: "67890", role: "gerente" },
-        ];
-
-        const user = users.find(u => u.funcional === funcional);
-        
-        if (user && password === "123456") {
-          // Login bem-sucedido
-          login({
-            id: user.id,
-            name: user.name,
-            email: `${user.funcional}@bradesco.com.br`, // Mantendo campo email para compatibilidade
-            role: user.role
-          });
-          
-          toast({
-            title: "Login realizado com sucesso",
-            description: `Bem-vindo(a), ${user.name}!`,
-          });
-          navigate("/agenda");
-        } else {
-          // Falha no login
-          toast({
-            title: "Falha no login",
-            description: "Funcional ou senha incorretos. Tente novamente.",
-            variant: "destructive",
-          });
-        }
-        setIsLoading(false);
-      }, 1000);
+      await login(funcional, password);
     } catch (error) {
-      toast({
-        title: "Erro no login",
-        description: "Ocorreu um erro durante a autenticação.",
-        variant: "destructive",
-      });
+      // Error is handled in the AuthContext
+    } finally {
       setIsLoading(false);
     }
   };
@@ -135,9 +97,10 @@ const LoginPage: React.FC = () => {
               </Button>
             </form>
             <div className="mt-4 text-center text-sm text-gray-500">
-              <p>Usuário de demonstração:</p>
-              <p>Funcional: 12345</p>
-              <p>Senha: 123456</p>
+              <p>Usuários de demonstração:</p>
+              <p>Supervisor: 12345 / senha: 123456</p>
+              <p>Coordenador: 67890 / senha: 123456</p>
+              <p>Gerente: 54321 / senha: 123456</p>
             </div>
           </CardContent>
         </Card>

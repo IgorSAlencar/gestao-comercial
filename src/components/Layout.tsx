@@ -10,12 +10,14 @@ import {
   Menu,
   ChevronLeft,
   BarChart3,
-  FileX
+  FileX,
+  Users
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import HierarchyViewer from "./HierarchyViewer";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -98,6 +100,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         {/* Nav Items */}
         <div className="flex-1 overflow-auto py-4">
+          {!isSidebarCollapsed && <HierarchyViewer />}
+          
           <nav className="px-2 space-y-1">
             {navItems.map((item) => (
               <Link
