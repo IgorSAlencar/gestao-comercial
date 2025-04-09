@@ -44,34 +44,92 @@ interface ApiError {
 // Helper function to handle API errors
 const handleApiError = (error: unknown): never => {
   console.error("API Error:", error);
-  const message = error instanceof Error ? error.message : "Erro ao comunicar com o servidor";
-  toast({
-    title: "Erro",
-    description: message,
-    variant: "destructive",
-  });
-  throw new Error(message);
+  
+  // If the error has a response and we can get text from it
+  if (error instanceof Response) {
+    error.text().then(text => {
+      console.error("Server response:", text);
+      
+      try {
+        // Try to parse as JSON
+        const data = JSON.parse(text);
+        const message = data.message || "Erro ao comunicar com o servidor";
+        toast({
+          title: "Erro",
+          description: message,
+          variant: "destructive",
+        });
+      } catch (e) {
+        // If not JSON, provide more context
+        toast({
+          title: "Erro",
+          description: "O servidor retornou uma resposta inválida. Verifique se o servidor está rodando.",
+          variant: "destructive",
+        });
+        console.error("Failed to parse server response:", e);
+      }
+    }).catch(e => {
+      toast({
+        title: "Erro",
+        description: "Falha ao processar resposta do servidor",
+        variant: "destructive",
+      });
+      console.error("Failed to read response text:", e);
+    });
+  } else {
+    // For other types of errors
+    const message = error instanceof Error ? error.message : "Erro ao comunicar com o servidor";
+    toast({
+      title: "Erro",
+      description: message,
+      variant: "destructive",
+    });
+  }
+  
+  throw new Error(typeof error === 'string' ? error : "Erro na comunicação com o servidor");
+};
+
+// Improved fetch function with proper error handling
+const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
+  try {
+    const response = await fetch(url, options);
+    
+    // Check if response is ok (status in the range 200-299)
+    if (!response.ok) {
+      return handleApiError(response);
+    }
+    
+    // Check if the content is JSON (prevent HTML parsing errors)
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") === -1) {
+      console.warn("Response is not JSON:", contentType);
+      const text = await response.text();
+      console.error("Non-JSON response:", text);
+      throw new Error("Resposta do servidor não é JSON válido");
+    }
+    
+    // Parse JSON
+    return await response.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      // JSON parse error
+      console.error("JSON Parse Error:", error);
+      throw new Error("Erro ao processar resposta do servidor: formato inválido");
+    }
+    return handleApiError(error);
+  }
 };
 
 // Authentication calls
 export const authApi = {
   login: async (funcional: string, password: string): Promise<AuthResponse> => {
-    try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ funcional, password }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Falha na autenticação");
-      }
-
-      return await response.json() as AuthResponse;
-    } catch (error) {
-      return handleApiError(error);
-    }
+    const options = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ funcional, password }),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/auth/login`, options);
   },
 };
 
@@ -79,76 +137,52 @@ export const authApi = {
 export const userApi = {
   // Get subordinates of the current user
   getSubordinates: async (userId: string): Promise<User[]> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/users/${userId}/subordinates`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao buscar subordinados");
-      }
-
-      return await response.json() as User[];
-    } catch (error) {
-      return handleApiError(error);
-    }
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/users/${userId}/subordinates`, options);
   },
 
   // Get superior(s) of the current user
   getSuperior: async (userId: string): Promise<User | null> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
-
-      const response = await fetch(`${API_URL}/users/${userId}/superior`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (response.status === 404) {
+      return await fetchWithErrorHandling(`${API_URL}/users/${userId}/superior`, options);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("404")) {
         // User has no superior (probably a top-level manager)
         return null;
       }
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao buscar superior");
-      }
-
-      return await response.json() as User;
-    } catch (error) {
-      return handleApiError(error);
+      throw error;
     }
   },
 
   // Get supervisors (for managers/coordinators)
   getSupervisors: async (userId: string): Promise<User[]> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/users/${userId}/supervisors`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao buscar supervisores");
-      }
-
-      return await response.json() as User[];
-    } catch (error) {
-      return handleApiError(error);
-    }
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/users/${userId}/supervisors`, options);
   }
 };
 
@@ -156,153 +190,115 @@ export const userApi = {
 export const eventApi = {
   // Get events (filtered by date and/or supervisor)
   getEvents: async (date?: string, supervisorId?: string): Promise<Event[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    let url = `${API_URL}/events`;
+    const params = new URLSearchParams();
+    
+    if (date) params.append("date", date);
+    if (supervisorId) params.append("supervisorId", supervisorId);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    console.log("Requesting events from:", url);
+    
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
     try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
-
-      let url = `${API_URL}/events`;
-      const params = new URLSearchParams();
-      
-      if (date) params.append("date", date);
-      if (supervisorId) params.append("supervisorId", supervisorId);
-      
-      if (params.toString()) {
-        url += `?${params.toString()}`;
-      }
-
-      const response = await fetch(url, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao buscar eventos");
-      }
-
-      return await response.json() as Event[];
+      const result = await fetchWithErrorHandling(url, options);
+      console.log("Events received:", result);
+      return result;
     } catch (error) {
-      return handleApiError(error);
+      console.error("Failed to fetch events:", error);
+      // Return empty array on error to prevent UI breakage
+      return [];
     }
   },
 
   // Get single event by ID
   getEvent: async (eventId: string): Promise<Event> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao buscar evento");
-      }
-
-      return await response.json() as Event;
-    } catch (error) {
-      return handleApiError(error);
-    }
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
   },
 
   // Create new event
   createEvent: async (eventData: Omit<Event, "id">): Promise<{ id: string }> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/events`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(eventData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao criar evento");
-      }
-
-      return await response.json() as { id: string; message: string };
-    } catch (error) {
-      return handleApiError(error);
-    }
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventData),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/events`, options);
   },
 
   // Update event
   updateEvent: async (eventId: string, eventData: Omit<Event, "id">): Promise<void> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(eventData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao atualizar evento");
-      }
-    } catch (error) {
-      handleApiError(error);
-    }
+    const options = {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(eventData),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
   },
 
   // Update event feedback/tratativa
   updateEventFeedback: async (eventId: string, tratativa: string): Promise<void> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/events/${eventId}/feedback`, {
-        method: "PATCH",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ tratativa }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao atualizar parecer");
-      }
-    } catch (error) {
-      handleApiError(error);
-    }
+    const options = {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ tratativa }),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/events/${eventId}/feedback`, options);
   },
 
   // Delete event
   deleteEvent: async (eventId: string): Promise<void> => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) throw new Error("Usuário não autenticado");
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
 
-      const response = await fetch(`${API_URL}/events/${eventId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json() as ApiError;
-        throw new Error(errorData.message || "Erro ao excluir evento");
-      }
-    } catch (error) {
-      handleApiError(error);
-    }
+    const options = {
+      method: "DELETE",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
   },
 };
