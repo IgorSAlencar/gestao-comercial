@@ -226,7 +226,7 @@ app.get('/api/events', authenticateToken, async (req, res) => {
 
     let query = `
       SELECT e.*, u.name as supervisor_name
-      FROM TESTE..events e
+      FROM TESTE..EVENTOS e
       INNER JOIN TESTE..users u ON e.supervisor_id = u.id
       WHERE 1=1
     `;
@@ -335,7 +335,7 @@ app.get('/api/events/:eventId', authenticateToken, async (req, res) => {
           u.name as supervisor_name,
           CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
           CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
-        FROM TESTE..events e
+        FROM TESTE..EVENTOS e
         INNER JOIN TESTE..users u ON e.supervisor_id = u.id
         LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
         WHERE e.id = @eventId
@@ -435,7 +435,7 @@ app.post('/api/events', authenticateToken, async (req, res) => {
       .input('state', sql.NVarChar, uf || '')
       .input('supervisor_id', sql.UniqueIdentifier, actualSupervisorId)
       .query(`
-        INSERT INTO TESTE..events (
+        INSERT INTO TESTE..EVENTOS (
           title, description, start_date, end_date, event_type, location, subcategory, 
           other_description, inform_agency, agency_number, is_pa, municipality, state, supervisor_id
         )
@@ -476,7 +476,7 @@ app.put('/api/events/:eventId', authenticateToken, async (req, res) => {
           e.supervisor_id,
           CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
           CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
-        FROM TESTE..events e
+        FROM TESTE..EVENTOS e
         LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
         WHERE e.id = @eventId
       `);
@@ -543,7 +543,7 @@ app.put('/api/events/:eventId', authenticateToken, async (req, res) => {
       .input('supervisor_id', sql.UniqueIdentifier, actualSupervisorId)
       .input('updated_at', sql.DateTime, new Date())
       .query(`
-        UPDATE TESTE..events
+        UPDATE TESTE..EVENTOS
         SET 
           title = @title,
           description = @description,
@@ -589,7 +589,7 @@ app.patch('/api/events/:eventId/feedback', authenticateToken, async (req, res) =
         SELECT 
           CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
           CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
-        FROM TESTE..events e
+        FROM TESTE..EVENTOS e
         LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
         WHERE e.id = @eventId
       `);
@@ -611,7 +611,7 @@ app.patch('/api/events/:eventId/feedback', authenticateToken, async (req, res) =
       .input('feedback', sql.NVarChar, tratativa || '')
       .input('updated_at', sql.DateTime, new Date())
       .query(`
-        UPDATE TESTE..events
+        UPDATE TESTE..EVENTOS
         SET 
           feedback = @feedback,
           updated_at = @updated_at
@@ -642,7 +642,7 @@ app.delete('/api/events/:eventId', authenticateToken, async (req, res) => {
         SELECT 
           CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
           CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
-        FROM TESTE..events e
+        FROM TESTE..EVENTOS e
         LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
         WHERE e.id = @eventId
       `);
@@ -661,7 +661,7 @@ app.delete('/api/events/:eventId', authenticateToken, async (req, res) => {
     // Delete the event
     await pool.request()
       .input('eventId', sql.UniqueIdentifier, eventId)
-      .query(`DELETE FROM TESTE..events WHERE id = @eventId`);
+      .query(`DELETE FROM TESTE..EVENTOS WHERE id = @eventId`);
     
     res.json({ message: 'Evento excluído com sucesso' });
     
