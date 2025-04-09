@@ -50,7 +50,7 @@ const App = () => (
                 </PrivateRoute>
               } 
             />
-            {/* Novas rotas para o painel de gestão de Hotlist */}
+            {/* Rotas para o painel de gestão de Hotlist */}
             <Route 
               path="/hotlist/gestao" 
               element={
