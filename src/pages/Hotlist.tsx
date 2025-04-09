@@ -7,17 +7,17 @@ const HotlistPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirecionar automaticamente para a página de gestão
-    navigate("/hotlist/gestao");
+    // Redirecionar automaticamente para a página de visualização completa de hotlist
+    navigate("/hotlist/all");
     toast({
       title: "Redirecionando",
-      description: "Você será redirecionado para o novo painel de gestão de Hotlist.",
+      description: "Você será redirecionado para a visualização completa de Hotlist.",
     });
   }, [navigate]);
 
   return (
     <div className="flex items-center justify-center h-full">
-      <p>Redirecionando para o painel de gestão de Hotlist...</p>
+      <p>Redirecionando para a visualização completa de Hotlist...</p>
     </div>
   );
 };

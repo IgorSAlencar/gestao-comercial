@@ -19,6 +19,7 @@ import HotlistGestao from "@/pages/HotlistGestao";
 import HotlistProspectados from "@/pages/HotlistProspectados";
 import HotlistTratados from "@/pages/HotlistTratados";
 import HotlistSemTratativas from "@/pages/HotlistSemTratativas";
+import HotlistAll from "@/pages/HotlistAll";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,14 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><HotlistGestao /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/hotlist/all" 
+              element={
+                <PrivateRoute>
+                  <Layout><HotlistAll /></Layout>
                 </PrivateRoute>
               } 
             />

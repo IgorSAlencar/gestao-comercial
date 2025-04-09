@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { ChartBar, Users, CheckCheck, AlertCircle } from "lucide-react";
@@ -22,7 +21,6 @@ interface Lead {
   pa?: string;
 }
 
-// Os mesmos dados que estão em Hotlist.tsx
 const leadsIniciais: Lead[] = [
   {
     id: "1",
@@ -101,7 +99,6 @@ const HotlistGestao = () => {
   const { toast } = useToast();
   const [leads, setLeads] = useState<Lead[]>(leadsIniciais);
   
-  // Estatísticas
   const totalLeads = leads.length;
   const leadsProspectados = leads.filter(lead => 
     lead.status === "em_contato" || 
@@ -117,7 +114,7 @@ const HotlistGestao = () => {
   const leadsSemTratativas = leads.filter(lead => lead.status === "novo").length;
 
   const navigateToHotlist = () => {
-    navigate("/hotlist");
+    navigate("/hotlist/all");
   };
 
   const navigateToProspectados = () => {
@@ -142,7 +139,6 @@ const HotlistGestao = () => {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* Total de Prospects */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
@@ -166,7 +162,6 @@ const HotlistGestao = () => {
           </CardFooter>
         </Card>
 
-        {/* Já Prospectados */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
@@ -190,7 +185,6 @@ const HotlistGestao = () => {
           </CardFooter>
         </Card>
 
-        {/* Tratados */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
@@ -214,7 +208,6 @@ const HotlistGestao = () => {
           </CardFooter>
         </Card>
 
-        {/* Sem Tratativas */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">
@@ -240,7 +233,6 @@ const HotlistGestao = () => {
       </div>
       
       <div className="grid gap-4 mt-6">
-        {/* Gráfico ou visualização adicional aqui se necessário */}
         <Card>
           <CardHeader>
             <CardTitle>Progresso de Prospecção</CardTitle>
