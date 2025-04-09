@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, Filter } from "lucide-react";
@@ -238,7 +237,7 @@ const HotlistAll = () => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Todos</SelectItem>
+                        <SelectItem value="todos">Todos</SelectItem>
                         <SelectItem value="novo">Novo Lead</SelectItem>
                         <SelectItem value="em_contato">Em Contato</SelectItem>
                         <SelectItem value="negociacao">Em Negociação</SelectItem>
