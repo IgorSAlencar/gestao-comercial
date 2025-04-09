@@ -172,6 +172,11 @@ const HotlistAll = () => {
     });
   };
 
+  // Adicionar um console log para depuração
+  useEffect(() => {
+    console.log("HotlistAll montado, quantidade de leads:", leadsIniciais.length);
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">

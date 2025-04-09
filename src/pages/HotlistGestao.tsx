@@ -115,6 +115,7 @@ const HotlistGestao = () => {
 
   const navigateToHotlist = () => {
     navigate("/hotlist/all");
+    console.log("Navigating to /hotlist/all");
   };
 
   const navigateToProspectados = () => {
