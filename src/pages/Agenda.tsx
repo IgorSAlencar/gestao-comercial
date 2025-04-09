@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Label } from "@/components/ui/label";
 import { 
@@ -36,90 +36,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-interface Supervisor {
-  id: string;
-  name: string;
-}
-
-interface Evento {
-  id: string;
-  titulo: string;
-  descricao: string;
-  dataInicio: Date;
-  dataFim: Date;
-  tipo: "visita" | "reuniao" | "outro";
-  tratativa?: string;
-  location?: string;
-  subcategory?: string;
-  other_description?: string;
-  informar_agencia_pa?: boolean;
-  agencia_pa_number?: string;
-  is_pa?: boolean;
-  municipio?: string;
-  uf?: string;
-  supervisorId?: string;
-}
-
-const supervisoresMock: Supervisor[] = [
-  { id: "1", name: "Ana Silva" },
-  { id: "2", name: "Carlos Santos" },
-  { id: "3", name: "Mariana Oliveira" },
-  { id: "4", name: "Paulo Henrique" },
-  { id: "5", name: "Juliana Costa" },
-];
-
-const eventosIniciais: Evento[] = [
-  {
-    id: "1",
-    titulo: "Visita à Loja ABC",
-    descricao: "",
-    dataInicio: new Date(),
-    dataFim: new Date(),
-    tipo: "visita",
-    location: "Visitas Operacionais",
-    subcategory: "Treinamento",
-    municipio: "São Paulo",
-    uf: "SP",
-    informar_agencia_pa: true,
-    agencia_pa_number: "12345",
-    is_pa: true,
-    supervisorId: "1"
-  },
-  {
-    id: "2",
-    titulo: "Treinamento da Equipe",
-    descricao: "",
-    dataInicio: new Date(),
-    dataFim: new Date(new Date().setDate(new Date().getDate() + 2)),
-    tipo: "reuniao",
-    location: "Outros",
-    other_description: "Reunião de equipe trimestral",
-    informar_agencia_pa: false,
-    municipio: "Rio de Janeiro",
-    uf: "RJ",
-    supervisorId: "2"
-  },
-  {
-    id: "3",
-    titulo: "Visita a Agência Central",
-    descricao: "",
-    dataInicio: new Date(),
-    dataFim: new Date(),
-    tipo: "visita",
-    location: "Visitas de Negociação",
-    subcategory: "Proposta Comercial",
-    municipio: "Belo Horizonte",
-    uf: "MG",
-    informar_agencia_pa: true,
-    agencia_pa_number: "5678",
-    is_pa: false,
-    supervisorId: "3"
-  },
-];
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { eventApi, userApi, Event } from "@/services/api";
 
 const AgendaPage = () => {
-  const [eventos, setEventos] = useState<Evento[]>(eventosIniciais);
   const [date, setDate] = useState<Date>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
@@ -131,7 +51,7 @@ const AgendaPage = () => {
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
   
-  const [novoEvento, setNovoEvento] = useState<Omit<Evento, "id">>({
+  const [novoEvento, setNovoEvento] = useState<Omit<Event, "id">>({
     titulo: "",
     descricao: "",
     dataInicio: new Date(),
@@ -150,63 +70,110 @@ const AgendaPage = () => {
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const { user, isManager, isSupervisor } = useAuth();
+  const { user, isManager, isCoordinator } = useAuth();
+  const queryClient = useQueryClient();
 
-  const eventosFiltrados = eventos.filter(evento => {
-    if (isManager && selectedSupervisor && evento.supervisorId !== selectedSupervisor) {
-      return false;
-    }
-    
-    if (isSupervisor && user && evento.supervisorId !== user.id) {
-      return false;
-    }
-    
-    const currentDate = format(date, "yyyy-MM-dd");
-    const startDate = format(evento.dataInicio, "yyyy-MM-dd");
-    const endDate = format(evento.dataFim, "yyyy-MM-dd");
-    
-    const eventDate = new Date(currentDate);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    return eventDate >= start && eventDate <= end;
+  // Fetch supervisors (only for managers/coordinators)
+  const { data: supervisors = [] } = useQuery({
+    queryKey: ['supervisors', user?.id],
+    queryFn: () => user?.id ? userApi.getSupervisors(user.id) : Promise.resolve([]),
+    enabled: !!(user?.id && (isManager || isCoordinator)),
   });
-  
-  const handleSalvarEvento = () => {
-    if (!novoEvento.titulo || !novoEvento.location) {
+
+  // Fetch events based on date and selected supervisor
+  const { data: eventos = [], isLoading, error } = useQuery({
+    queryKey: ['events', format(date, 'yyyy-MM-dd'), selectedSupervisor],
+    queryFn: () => eventApi.getEvents(
+      format(date, 'yyyy-MM-dd'),
+      selectedSupervisor || undefined
+    ),
+    enabled: !!user?.id,
+  });
+
+  // Mutations for event operations
+  const createEventMutation = useMutation({
+    mutationFn: eventApi.createEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
       toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios",
+        title: "Evento adicionado",
+        description: "O evento foi adicionado à agenda com sucesso!",
+      });
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao adicionar evento",
         variant: "destructive",
       });
-      return;
     }
-    
-    const supervisorId = isManager && selectedSupervisor ? selectedSupervisor : user?.id;
-    
-    if (editingEvent) {
-      const novosEventos = eventos.map(evento => {
-        if (evento.id === editingEvent) {
-          return { ...novoEvento, id: editingEvent, supervisorId };
-        }
-        return evento;
-      });
-      
-      setEventos(novosEventos);
+  });
+
+  const updateEventMutation = useMutation({
+    mutationFn: ({ eventId, data }: { eventId: string, data: Omit<Event, "id"> }) => 
+      eventApi.updateEvent(eventId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
       toast({
         title: "Evento atualizado",
         description: "O evento foi atualizado com sucesso!",
       });
-    } else {
-      const novoId = Math.random().toString(36).substring(7);
-      setEventos([...eventos, { ...novoEvento, id: novoId, supervisorId }]);
-      
+      setIsDialogOpen(false);
+      resetForm();
+    },
+    onError: (error: Error) => {
       toast({
-        title: "Evento adicionado",
-        description: "O evento foi adicionado à sua agenda com sucesso!",
+        title: "Erro",
+        description: error.message || "Erro ao atualizar evento",
+        variant: "destructive",
       });
     }
-    
+  });
+
+  const updateFeedbackMutation = useMutation({
+    mutationFn: ({ eventId, tratativa }: { eventId: string, tratativa: string }) => 
+      eventApi.updateEventFeedback(eventId, tratativa),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast({
+        title: "Parecer adicionado",
+        description: "O parecer foi adicionado ao evento com sucesso!",
+      });
+      setIsParecerDialogOpen(false);
+      setCurrentEventId(null);
+      setParecerText("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao adicionar parecer",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: eventApi.deleteEvent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast({
+        title: "Evento excluído",
+        description: "O evento foi removido da agenda com sucesso!",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao excluir evento",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Reset form
+  const resetForm = () => {
     setNovoEvento({
       titulo: "",
       descricao: "",
@@ -222,21 +189,38 @@ const AgendaPage = () => {
       municipio: "",
       uf: ""
     });
-    
-    setIsDialogOpen(false);
     setEditingEvent(null);
+    setSelectedRange(undefined);
   };
 
-  const handleExcluirEvento = (id: string) => {
-    const novosEventos = eventos.filter(evento => evento.id !== id);
-    setEventos(novosEventos);
+  // Handle form submission for creating/updating events
+  const handleSalvarEvento = () => {
+    if (!novoEvento.titulo || !novoEvento.location) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    toast({
-      title: "Evento excluído",
-      description: "O evento foi removido da sua agenda com sucesso!",
-    });
+    // Add user's ID or selected supervisor ID to the event
+    const eventData = {
+      ...novoEvento,
+      supervisorId: isManager && selectedSupervisor ? selectedSupervisor : user?.id
+    };
+    
+    if (editingEvent) {
+      updateEventMutation.mutate({ 
+        eventId: editingEvent, 
+        data: eventData 
+      });
+    } else {
+      createEventMutation.mutate(eventData);
+    }
   };
 
+  // Handle opening the feedback dialog
   const handleAbrirParecerDialog = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
@@ -246,37 +230,26 @@ const AgendaPage = () => {
     }
   };
 
+  // Handle saving feedback
   const handleSalvarParecer = () => {
     if (!currentEventId) return;
-    
-    const novosEventos = eventos.map(evento => {
-      if (evento.id === currentEventId) {
-        return { ...evento, tratativa: parecerText };
-      }
-      return evento;
+    updateFeedbackMutation.mutate({ 
+      eventId: currentEventId, 
+      tratativa: parecerText 
     });
-    
-    setEventos(novosEventos);
-    
-    toast({
-      title: "Parecer adicionado",
-      description: "O parecer foi adicionado ao evento com sucesso!",
-    });
-    
-    setIsParecerDialogOpen(false);
-    setCurrentEventId(null);
-    setParecerText("");
   };
   
+  // Handle editing an event
   const handleEditarEvento = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
       setNovoEvento({
         titulo: evento.titulo,
         descricao: evento.descricao,
-        dataInicio: evento.dataInicio,
-        dataFim: evento.dataFim,
+        dataInicio: new Date(evento.dataInicio),
+        dataFim: new Date(evento.dataFim),
         tipo: evento.tipo,
+        tratativa: evento.tratativa,
         location: evento.location || "",
         subcategory: evento.subcategory || "",
         other_description: evento.other_description || "",
@@ -287,10 +260,23 @@ const AgendaPage = () => {
         uf: evento.uf || ""
       });
       setEditingEvent(id);
+      
+      // Set selected range for the date picker
+      setSelectedRange({
+        from: new Date(evento.dataInicio),
+        to: new Date(evento.dataFim),
+      });
+      
       setIsDialogOpen(true);
     }
   };
+
+  // Handle deleting an event
+  const handleExcluirEvento = (id: string) => {
+    deleteEventMutation.mutate(id);
+  };
   
+  // Format date range for display
   const formatDateRange = (inicio: Date, fim: Date) => {
     if (format(inicio, "yyyy-MM-dd") === format(fim, "yyyy-MM-dd")) {
       return format(inicio, "dd 'de' MMMM", { locale: ptBR });
@@ -299,11 +285,22 @@ const AgendaPage = () => {
     return `${format(inicio, "dd/MM", { locale: ptBR })} - ${format(fim, "dd/MM", { locale: ptBR })}`;
   };
 
-  const getSupervisorName = (supervisorId?: string) => {
-    if (!supervisorId) return "Não atribuído";
-    const supervisor = supervisoresMock.find(s => s.id === supervisorId);
-    return supervisor ? supervisor.name : "Supervisor desconhecido";
-  };
+  // Filtered events based on date
+  const eventosFiltrados = eventos.filter(evento => {
+    const currentDate = format(date, "yyyy-MM-dd");
+    const startDate = format(evento.dataInicio instanceof Date 
+      ? evento.dataInicio 
+      : new Date(evento.dataInicio), "yyyy-MM-dd");
+    const endDate = format(evento.dataFim instanceof Date 
+      ? evento.dataFim 
+      : new Date(evento.dataFim), "yyyy-MM-dd");
+    
+    const eventDate = new Date(currentDate);
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    return eventDate >= start && eventDate <= end;
+  });
   
   return (
     <div className="space-y-4">
@@ -311,7 +308,7 @@ const AgendaPage = () => {
         <h1 className="text-2xl font-bold">Agenda de Atividades</h1>
         
         <div className="flex space-x-2">
-          {isManager && (
+          {(isManager || isCoordinator) && (
             <Drawer open={isFilterDrawerOpen} onOpenChange={setIsFilterDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
@@ -328,7 +325,7 @@ const AgendaPage = () => {
                 </DrawerHeader>
                 <div className="p-4">
                   <div className="grid gap-4">
-                    {supervisoresMock.map((supervisor) => (
+                    {supervisors.map((supervisor) => (
                       <div 
                         key={supervisor.id} 
                         className={`p-3 border rounded-md cursor-pointer transition-colors ${
@@ -393,7 +390,9 @@ const AgendaPage = () => {
                     <div className="flex-1">
                       <Input
                         type="text"
-                        value={novoEvento.dataInicio ? format(novoEvento.dataInicio, "dd/MM/yyyy") : ""}
+                        value={novoEvento.dataInicio ? format(novoEvento.dataInicio instanceof Date 
+                          ? novoEvento.dataInicio 
+                          : new Date(novoEvento.dataInicio), "dd/MM/yyyy") : ""}
                         onClick={() => setCalendarOpen("start")}
                         readOnly
                         placeholder="Data inicial"
@@ -402,7 +401,9 @@ const AgendaPage = () => {
                     <div className="flex-1">
                       <Input
                         type="text"
-                        value={novoEvento.dataFim ? format(novoEvento.dataFim, "dd/MM/yyyy") : ""}
+                        value={novoEvento.dataFim ? format(novoEvento.dataFim instanceof Date 
+                          ? novoEvento.dataFim 
+                          : new Date(novoEvento.dataFim), "dd/MM/yyyy") : ""}
                         onClick={() => setCalendarOpen("end")}
                         readOnly
                         placeholder="Data final"
@@ -662,6 +663,7 @@ const AgendaPage = () => {
                   setIsDialogOpen(false);
                   setEditingEvent(null);
                   setCalendarOpen(null);
+                  resetForm();
                 }}>
                   Cancelar
                 </Button>
@@ -674,12 +676,14 @@ const AgendaPage = () => {
         </div>
       </div>
 
-      {isManager && selectedSupervisor && (
+      {selectedSupervisor && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3 flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-bradesco-blue" />
             <span className="font-medium">
-              Visualizando agenda de: {getSupervisorName(selectedSupervisor)}
+              Visualizando agenda de: {
+                supervisors.find(s => s.id === selectedSupervisor)?.name || "Supervisor"
+              }
             </span>
           </div>
           <Button 
@@ -709,7 +713,7 @@ const AgendaPage = () => {
               />
             </div>
             
-            {isManager && (
+            {(isManager || isCoordinator) && supervisors.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
                   <Users className="h-4 w-4" /> 
@@ -725,7 +729,7 @@ const AgendaPage = () => {
                     Todos os supervisores
                   </div>
                   
-                  {supervisoresMock.map((supervisor) => (
+                  {supervisors.map((supervisor) => (
                     <div 
                       key={supervisor.id} 
                       className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
@@ -775,10 +779,22 @@ const AgendaPage = () => {
             </DropdownMenu>
           </CardHeader>
           <CardContent>
-            {eventosFiltrados.length === 0 ? (
+            {isLoading && (
+              <div className="py-8 text-center text-gray-500">
+                Carregando eventos...
+              </div>
+            )}
+            
+            {error && (
+              <div className="py-8 text-center text-red-500">
+                Erro ao carregar eventos: {error instanceof Error ? error.message : "Erro desconhecido"}
+              </div>
+            )}
+            
+            {!isLoading && !error && eventosFiltrados.length === 0 ? (
               <div className="py-8 text-center text-gray-500">
                 {selectedSupervisor 
-                  ? `Nenhum evento agendado para ${getSupervisorName(selectedSupervisor)} nesta data.`
+                  ? `Nenhum evento agendado para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este supervisor"} nesta data.`
                   : "Nenhum evento agendado para esta data."
                 }
               </div>
@@ -793,7 +809,10 @@ const AgendaPage = () => {
                       <div className="flex-grow">
                         <h3 className="font-medium">{evento.titulo}</h3>
                         <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <span>{formatDateRange(evento.dataInicio, evento.dataFim)}</span>
+                          <span>{formatDateRange(
+                            evento.dataInicio instanceof Date ? evento.dataInicio : new Date(evento.dataInicio),
+                            evento.dataFim instanceof Date ? evento.dataFim : new Date(evento.dataFim)
+                          )}</span>
                           {evento.location && (
                             <>
                               <span className="mx-2">•</span>
@@ -816,10 +835,10 @@ const AgendaPage = () => {
                           </div>
                         )}
                         
-                        {isManager && (
+                        {(isManager || isCoordinator) && evento.supervisorName && (
                           <div className="mt-1 text-xs font-medium text-bradesco-blue flex items-center gap-1">
                             <Users className="h-3 w-3" />
-                            {getSupervisorName(evento.supervisorId)}
+                            {evento.supervisorName}
                           </div>
                         )}
                         
