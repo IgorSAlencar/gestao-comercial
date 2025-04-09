@@ -15,6 +15,10 @@ import DashboardPage from "@/pages/Dashboard";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import CorrespondentesBloquadeos from "@/pages/CorrespondentesBloquadeos";
+import HotlistGestao from "@/pages/HotlistGestao";
+import HotlistProspectados from "@/pages/HotlistProspectados";
+import HotlistTratados from "@/pages/HotlistTratados";
+import HotlistSemTratativas from "@/pages/HotlistSemTratativas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +46,39 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><HotlistPage /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            {/* Novas rotas para o painel de gestão de Hotlist */}
+            <Route 
+              path="/hotlist/gestao" 
+              element={
+                <PrivateRoute>
+                  <Layout><HotlistGestao /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/hotlist/prospectados" 
+              element={
+                <PrivateRoute>
+                  <Layout><HotlistProspectados /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/hotlist/tratados" 
+              element={
+                <PrivateRoute>
+                  <Layout><HotlistTratados /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/hotlist/sem-tratativas" 
+              element={
+                <PrivateRoute>
+                  <Layout><HotlistSemTratativas /></Layout>
                 </PrivateRoute>
               } 
             />
