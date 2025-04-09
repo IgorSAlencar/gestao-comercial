@@ -1,4 +1,3 @@
-
 // API service for handling backend requests
 import { toast } from "@/hooks/use-toast";
 
@@ -135,7 +134,6 @@ export const authApi = {
 
 // User hierarchy APIs
 export const userApi = {
-  // Get subordinates of the current user
   getSubordinates: async (userId: string): Promise<User[]> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -149,7 +147,6 @@ export const userApi = {
     return await fetchWithErrorHandling(`${API_URL}/users/${userId}/subordinates`, options);
   },
 
-  // Get superior(s) of the current user
   getSuperior: async (userId: string): Promise<User | null> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -171,7 +168,6 @@ export const userApi = {
     }
   },
 
-  // Get supervisors (for managers/coordinators)
   getSupervisors: async (userId: string): Promise<User[]> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -188,7 +184,6 @@ export const userApi = {
 
 // Events API
 export const eventApi = {
-  // Get events (filtered by date and/or supervisor)
   getEvents: async (date?: string, supervisorId?: string): Promise<Event[]> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -217,12 +212,10 @@ export const eventApi = {
       return result;
     } catch (error) {
       console.error("Failed to fetch events:", error);
-      // Return empty array on error to prevent UI breakage
       return [];
     }
   },
 
-  // Get single event by ID
   getEvent: async (eventId: string): Promise<Event> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -236,7 +229,6 @@ export const eventApi = {
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
   },
 
-  // Create new event
   createEvent: async (eventData: Omit<Event, "id">): Promise<{ id: string }> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -253,7 +245,6 @@ export const eventApi = {
     return await fetchWithErrorHandling(`${API_URL}/events`, options);
   },
 
-  // Update event
   updateEvent: async (eventId: string, eventData: Omit<Event, "id">): Promise<void> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -270,7 +261,6 @@ export const eventApi = {
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
   },
 
-  // Update event feedback/tratativa
   updateEventFeedback: async (eventId: string, tratativa: string): Promise<void> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -287,7 +277,6 @@ export const eventApi = {
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}/feedback`, options);
   },
 
-  // Delete event
   deleteEvent: async (eventId: string): Promise<void> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -300,5 +289,48 @@ export const eventApi = {
     };
     
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
+  },
+};
+
+// Hotlist API - Adicionando funções específicas para a Hotlist
+export const hotlistApi = {
+  getLeads: async (): Promise<any[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      const result = await fetchWithErrorHandling(`${API_URL}/hotlist/leads`, options);
+      return result;
+    } catch (error) {
+      console.error("Failed to fetch hotlist leads:", error);
+      return [];
+    }
+  },
+  
+  updateLeadStatus: async (leadId: string, status: string, observacoes: string): Promise<void> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status, observacoes }),
+    };
+    
+    try {
+      await fetchWithErrorHandling(`${API_URL}/hotlist/leads/${leadId}/status`, options);
+    } catch (error) {
+      console.error("Failed to update lead status:", error);
+      throw error;
+    }
   },
 };

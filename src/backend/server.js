@@ -224,6 +224,17 @@ app.get('/api/events', authenticateToken, async (req, res) => {
     const { userId } = req.user;
     const { date, supervisorId } = req.query;
 
+    // Verifica se a tabela EVENTOS existe
+    const tableCheck = await pool.request()
+      .query(`SELECT OBJECT_ID('TESTE..EVENTOS') as tableExists`);
+    
+    if (!tableCheck.recordset[0].tableExists) {
+      return res.status(404).json({ 
+        message: 'Tabela EVENTOS não encontrada. Por favor, crie a tabela antes de continuar.',
+        details: 'Execute o script de criação da tabela fornecido nos comentários do server.js'
+      });
+    }
+
     let query = `
       SELECT e.*, u.name as supervisor_name
       FROM TESTE..EVENTOS e
@@ -242,6 +253,10 @@ app.get('/api/events', authenticateToken, async (req, res) => {
       const userRoleResult = await pool.request()
         .input('userId', sql.UniqueIdentifier, userId)
         .query('SELECT role FROM TESTE..users WHERE id = @userId');
+      
+      if (userRoleResult.recordset.length === 0) {
+        return res.status(404).json({ message: 'Usuário não encontrado' });
+      }
       
       const userRole = userRoleResult.recordset[0].role;
       
@@ -285,6 +300,8 @@ app.get('/api/events', authenticateToken, async (req, res) => {
     }
     
     query += ` ORDER BY e.start_date ASC`;
+    
+    console.log("Executing SQL query:", query);
     
     const result = await request.query(query);
     
@@ -738,6 +755,80 @@ app.get('/api/users/:userId/supervisors', authenticateToken, async (req, res) =>
   } catch (error) {
     console.error('Error fetching supervisors:', error);
     res.status(500).json({ message: 'Erro ao buscar supervisores' });
+  }
+});
+
+// Hotlist Routes
+// Endpoints básicos para hotlist (usando dados mockados por enquanto)
+app.get('/api/hotlist/leads', authenticateToken, async (req, res) => {
+  try {
+    // Dados mockados para desenvolvimento
+    const mockLeads = [
+      {
+        id: "1",
+        nome: "Mercado São Paulo",
+        endereco: "Av. Paulista, 1000 - São Paulo/SP",
+        telefone: "(11) 91234-5678",
+        segmento: "Varejo Alimentício",
+        status: "novo",
+        observacoes: "",
+        municipio: "São Paulo",
+        uf: "SP",
+        cnpj: "12.345.678/0001-01",
+        agencia: "1234",
+        pa: ""
+      },
+      {
+        id: "2",
+        nome: "Farmácia Saúde Total",
+        endereco: "Rua Augusta, 500 - São Paulo/SP",
+        telefone: "(11) 97890-1234",
+        segmento: "Farmácia",
+        status: "em_contato",
+        observacoes: "Cliente mostrou interesse, retornar próxima semana.",
+        municipio: "São Paulo",
+        uf: "SP",
+        cnpj: "23.456.789/0001-02",
+        agencia: "1234",
+        pa: "5678"
+      }
+      // Mais dados mockados podem ser adicionados aqui
+    ];
+    
+    // No futuro, buscar esses dados do SQL Server
+    // const result = await pool.request().query(`SELECT * FROM TESTE..hotlist_leads`);
+    // res.json(result.recordset);
+    
+    res.json(mockLeads);
+  } catch (error) {
+    console.error('Error fetching hotlist leads:', error);
+    res.status(500).json({ message: 'Erro ao buscar leads da hotlist' });
+  }
+});
+
+app.patch('/api/hotlist/leads/:leadId/status', authenticateToken, async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    const { status, observacoes } = req.body;
+    
+    // Validar input
+    if (!status) {
+      return res.status(400).json({ message: 'Status é obrigatório' });
+    }
+    
+    // No futuro, atualizar no SQL Server
+    // await pool.request()
+    //   .input('leadId', sql.UniqueIdentifier, leadId)
+    //   .input('status', sql.NVarChar, status)
+    //   .input('observacoes', sql.NVarChar, observacoes || '')
+    //   .query(`UPDATE TESTE..hotlist_leads 
+    //          SET status = @status, observacoes = @observacoes, updated_at = GETDATE() 
+    //          WHERE id = @leadId`);
+    
+    res.json({ message: 'Status do lead atualizado com sucesso' });
+  } catch (error) {
+    console.error('Error updating lead status:', error);
+    res.status(500).json({ message: 'Erro ao atualizar status do lead' });
   }
 });
 
