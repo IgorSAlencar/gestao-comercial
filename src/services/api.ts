@@ -6,7 +6,7 @@ const API_URL = "http://localhost:3001/api"; // Change to your actual backend UR
 export interface User {
   id: string;
   name: string;
-  role: "supervisor" | "coordenador" | "gerente";
+  role: "supervisor" | "coordenador" | "gerente" | "admin";
   email?: string;
   funcional: string;
 }
@@ -179,6 +179,19 @@ export const userApi = {
     };
     
     return await fetchWithErrorHandling(`${API_URL}/users/${userId}/supervisors`, options);
+  },
+  
+  getAllUsers: async (): Promise<User[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/users/all`, options);
   }
 };
 

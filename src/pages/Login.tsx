@@ -101,6 +101,7 @@ const LoginPage: React.FC = () => {
               <p>Supervisor: 12345 / senha: 123456</p>
               <p>Coordenador: 67890 / senha: 123456</p>
               <p>Gerente: 54321 / senha: 123456</p>
+              <p>Administrador: admin / senha: 123456</p>
             </div>
           </CardContent>
         </Card>

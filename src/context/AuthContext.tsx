@@ -13,11 +13,15 @@ interface AuthContextType {
   isManager: boolean;
   isCoordinator: boolean;
   isSupervisor: boolean;
+  isAdmin: boolean;
   subordinates: User[];
   loadingSubordinates: boolean;
   superior: User | null;
   loadingSuperior: boolean;
   refreshSubordinates: () => Promise<void>;
+  allUsers: User[];
+  loadingAllUsers: boolean;
+  refreshAllUsers: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,11 +33,15 @@ const AuthContext = createContext<AuthContextType>({
   isManager: false,
   isCoordinator: false,
   isSupervisor: false,
+  isAdmin: false,
   subordinates: [],
   loadingSubordinates: false,
   superior: null,
   loadingSuperior: false,
   refreshSubordinates: async () => {},
+  allUsers: [],
+  loadingAllUsers: false,
+  refreshAllUsers: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -45,6 +53,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loadingSubordinates, setLoadingSubordinates] = useState(false);
   const [superior, setSuperior] = useState<User | null>(null);
   const [loadingSuperior, setLoadingSuperior] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
   const navigate = useNavigate();
 
   // Verificar se já existe um usuário e token no localStorage ao iniciar
@@ -69,6 +79,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (user && user.role === "supervisor") {
       fetchSuperior();
+    }
+  }, [user]);
+
+  // Carregar todos os usuários se for admin
+  useEffect(() => {
+    if (user && user.role === "admin") {
+      fetchAllUsers();
     }
   }, [user]);
 
@@ -107,6 +124,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Nova função para buscar todos os usuários
+  const fetchAllUsers = async () => {
+    if (!user || user.role !== "admin") return;
+    
+    setLoadingAllUsers(true);
+    try {
+      const data = await userApi.getAllUsers();
+      setAllUsers(data);
+    } catch (error) {
+      console.error("Erro ao carregar todos os usuários:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de usuários",
+        variant: "destructive",
+      });
+      setAllUsers([]);
+    } finally {
+      setLoadingAllUsers(false);
+    }
+  };
+
   const login = async (funcional: string, password: string) => {
     try {
       const { user: userData, token: authToken } = await authApi.login(funcional, password);
@@ -134,6 +172,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     setSubordinates([]);
     setSuperior(null);
+    setAllUsers([]);
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     navigate("/login");
@@ -143,6 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isManager = user?.role === "gerente" || user?.role === "coordenador";
   const isCoordinator = user?.role === "coordenador";
   const isSupervisor = user?.role === "supervisor";
+  const isAdmin = user?.role === "admin";
 
   return (
     <AuthContext.Provider
@@ -155,11 +195,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isManager,
         isCoordinator,
         isSupervisor,
+        isAdmin,
         subordinates,
         loadingSubordinates,
         superior,
         loadingSuperior,
-        refreshSubordinates: fetchSubordinates
+        refreshSubordinates: fetchSubordinates,
+        allUsers,
+        loadingAllUsers,
+        refreshAllUsers: fetchAllUsers
       }}
     >
       {children}
