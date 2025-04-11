@@ -106,7 +106,7 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = "TableCaption"
 
-// Adiciona componente de status para a tabela
+// Componente de status para a tabela
 interface TableStatusProps {
   status: 'pendente' | 'realizar' | 'tratada';
   label?: string;

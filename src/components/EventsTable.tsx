@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -28,8 +27,14 @@ import {
   Edit2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Event } from "@/services/api";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EventsTableProps {
   events: Event[];
@@ -46,114 +51,135 @@ const EventsTable = ({
   onAddFeedback,
   isManagerView = false,
 }: EventsTableProps) => {
-  const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [supervisorFilter, setSupervisorFilter] = useState<string | null>(null);
+  const [locationFilter, setLocationFilter] = useState<string | null>(null);
 
-  // Função para determinar o status do evento
+  const uniqueSupervisors = Array.from(new Set(events.map(e => e.supervisorName).filter(Boolean)));
+  const uniqueLocations = Array.from(new Set(events.map(e => e.location).filter(Boolean)));
+  const uniqueCategories = Array.from(new Set(events.map(e => e.subcategory).filter(Boolean)));
+  const uniqueMunicipios = Array.from(new Set(events.map(e => e.municipio ? `${e.municipio}${e.uf ? `, ${e.uf}` : ''}` : null).filter(Boolean)));
+
   const getEventStatus = (event: Event): 'pendente' | 'realizar' | 'tratada' => {
-    // Se tem tratativa preenchida, está tratada
     if (event.tratativa && event.tratativa.trim() !== "") {
       return "tratada";
     }
     
-    // Se a data de início é futura, é "a realizar"
     const startDate = new Date(event.dataInicio);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normaliza para o início do dia
+    today.setHours(0, 0, 0, 0);
     
     if (startDate >= today) {
       return "realizar";
     }
     
-    // Se já passou a data e não tem tratativa, está pendente
     return "pendente";
   };
 
-  // Filtra os eventos
   const filteredEvents = events
     .filter((event) => {
-      // Filtro de busca
-      const searchLower = searchText.toLowerCase();
-      const matchesSearch =
-        searchText === "" ||
-        event.titulo.toLowerCase().includes(searchLower) ||
-        (event.location && event.location.toLowerCase().includes(searchLower)) ||
-        (event.municipio && event.municipio.toLowerCase().includes(searchLower)) ||
-        (event.supervisorName && event.supervisorName.toLowerCase().includes(searchLower));
-
-      // Filtro de status
       const status = getEventStatus(event);
       const matchesStatus = statusFilter === null || status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory = categoryFilter === null || event.subcategory === categoryFilter;
+      
+      const matchesSupervisor = supervisorFilter === null || event.supervisorName === supervisorFilter;
+      
+      const eventLocation = event.municipio ? `${event.municipio}${event.uf ? `, ${event.uf}` : ''}` : '';
+      const matchesLocation = locationFilter === null || eventLocation === locationFilter;
+
+      return matchesStatus && matchesCategory && matchesSupervisor && matchesLocation;
     })
     .sort((a, b) => {
-      // Ordena por data de início, mais próxima primeiro
       return new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime();
     });
+
+  const clearAllFilters = () => {
+    setStatusFilter(null);
+    setCategoryFilter(null);
+    setSupervisorFilter(null);
+    setLocationFilter(null);
+  };
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="relative w-full sm:w-auto max-w-sm">
-          <Input
-            type="search"
-            placeholder="Buscar eventos..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="pl-10 w-full sm:w-64"
-          />
-          <div className="absolute left-3 top-2.5 text-gray-400">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-5 h-5"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-                clipRule="evenodd"
-              />
-            </svg>
+        <div className="flex flex-wrap gap-3 w-full">
+          <div className="w-full sm:w-auto">
+            <Select value={statusFilter || ""} onValueChange={(value) => setStatusFilter(value || null)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos os status</SelectItem>
+                <SelectItem value="realizar">A realizar</SelectItem>
+                <SelectItem value="pendente">Pendentes</SelectItem>
+                <SelectItem value="tratada">Tratadas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={statusFilter === null ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter(null)}
-          >
-            Todos
-          </Button>
-          <Button
-            variant={statusFilter === "realizar" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("realizar")}
-            className="flex items-center gap-1"
-          >
-            <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-            A realizar
-          </Button>
-          <Button
-            variant={statusFilter === "pendente" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("pendente")}
-            className="flex items-center gap-1"
-          >
-            <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-            Pendentes
-          </Button>
-          <Button
-            variant={statusFilter === "tratada" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setStatusFilter("tratada")}
-            className="flex items-center gap-1"
-          >
-            <div className="h-2 w-2 rounded-full bg-green-500"></div>
-            Tratadas
-          </Button>
+          
+          <div className="w-full sm:w-auto">
+            <Select value={categoryFilter || ""} onValueChange={(value) => setCategoryFilter(value || null)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todas as categorias</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="w-full sm:w-auto">
+            <Select value={locationFilter || ""} onValueChange={(value) => setLocationFilter(value || null)}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Município/UF" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos os municípios</SelectItem>
+                {uniqueMunicipios.map((municipio) => (
+                  <SelectItem key={municipio} value={municipio}>
+                    {municipio}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {isManagerView && (
+            <div className="w-full sm:w-auto">
+              <Select value={supervisorFilter || ""} onValueChange={(value) => setSupervisorFilter(value || null)}>
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Supervisor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos os supervisores</SelectItem>
+                  {uniqueSupervisors.map((supervisor) => (
+                    <SelectItem key={supervisor} value={supervisor}>
+                      {supervisor}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          
+          {(statusFilter || categoryFilter || supervisorFilter || locationFilter) && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="ml-auto"
+              onClick={clearAllFilters}
+            >
+              Limpar filtros
+            </Button>
+          )}
         </div>
       </div>
 
