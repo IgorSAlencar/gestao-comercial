@@ -4,16 +4,17 @@
  * 
  * SQL Server Schema for the database:
  * 
- * CREATE TABLE users (
- *   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
- *   name NVARCHAR(100) NOT NULL,
- *   funcional NVARCHAR(20) NOT NULL UNIQUE,
- *   password NVARCHAR(100) NOT NULL, -- would be hashed in real implementation
- *   role NVARCHAR(20) NOT NULL CHECK (role IN ('supervisor', 'coordenador', 'gerente')),
- *   email NVARCHAR(100)
+ * CREATE TABLE TESTE..users (
+ * id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+ * name NVARCHAR(100) NOT NULL,
+ * funcional NVARCHAR(20) NOT NULL UNIQUE,
+ * password NVARCHAR(100) NOT NULL, 
+ * role NVARCHAR(20) NOT NULL CHECK (role IN ('supervisor', 'coordenador', 'gerente', 'admin')),
+ * email NVARCHAR(100)
  * );
+ *  
  * 
- * CREATE TABLE hierarchy (
+ * CREATE TABLE TESTE..hierarchy (
  *   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
  *   subordinate_id UNIQUEIDENTIFIER NOT NULL,
  *   superior_id UNIQUEIDENTIFIER NOT NULL,
@@ -21,7 +22,7 @@
  *   FOREIGN KEY (superior_id) REFERENCES users(id)
  * );
  * 
- * CREATE TABLE events (
+ * CREATE TABLE TESTE..EVENTOS (
  *   id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
  *   title NVARCHAR(200) NOT NULL,
  *   description NVARCHAR(MAX),
@@ -44,19 +45,20 @@
  * );
  * 
  * -- Sample data:
- * INSERT INTO users (name, funcional, password, role, email) VALUES
- *   ('João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
- *   ('Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
- *   ('Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
- *   ('Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com');
- * 
+  INSERT INTO teste..users (name, funcional, password, role, email) VALUES
+    ('João Silva', '12345', 'hashed_password', 'supervisor', 'joao.silva@example.com'),
+    ('Maria Santos', '67890', 'hashed_password', 'coordenador', 'maria.santos@example.com'),
+    ('Carlos Oliveira', '54321', 'hashed_password', 'gerente', 'carlos.oliveira@example.com'),
+    ('Ana Costa', '98765', 'hashed_password', 'supervisor', 'ana.costa@example.com'),
+	('Igor Alencar', '9444168', 'hashed_password', 'admin', 'igor.alencar@example.com');
+  
  * -- Create relationships: João and Ana report to Maria, Maria reports to Carlos
- * INSERT INTO hierarchy (subordinate_id, superior_id) VALUES
- *   ((SELECT id FROM TESTE..users WHERE funcional = '12345'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
- *   ((SELECT id FROM TESTE..users WHERE funcional = '98765'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
- *   ((SELECT id FROM TESTE..users WHERE funcional = '67890'), (SELECT id FROM TESTE..users WHERE funcional = '54321'));
- */
+  INSERT INTO teste..hierarchy (subordinate_id, superior_id) VALUES
+    ((SELECT id FROM TESTE..users WHERE funcional = '12345'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
+    ((SELECT id FROM TESTE..users WHERE funcional = '98765'), (SELECT id FROM TESTE..users WHERE funcional = '67890')),
+    ((SELECT id FROM TESTE..users WHERE funcional = '67890'), (SELECT id FROM TESTE..users WHERE funcional = '54321'));
 
+**/
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -126,16 +128,19 @@ app.post('/api/auth/login', async (req, res) => {
     
     const user = result.recordset[0];
     
+    // Ensure the ID is in the correct format
+    const userId = user.id.toString().toUpperCase();
+    
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, funcional: user.funcional, role: user.role },
+      { id: userId, funcional: user.funcional, role: user.role },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
     
     res.json({
       user: {
-        id: user.id,
+        id: userId,
         name: user.name,
         role: user.role,
         funcional: user.funcional,
@@ -155,12 +160,13 @@ app.get('/api/users/:userId/subordinates', authenticateToken, async (req, res) =
   
   try {
     await poolConnect; // Ensure pool is connected
-    
-    // Get user's role
+  
+    console.log('userId:', userId); // 🔍 Aqui você vê o valor que será enviado para o banco
+  
     const userResult = await pool.request()
       .input('userId', sql.UniqueIdentifier, userId)
       .query('SELECT role FROM TESTE..users WHERE id = @userId');
-    
+      
     if (userResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
@@ -221,115 +227,129 @@ app.get('/api/users/:userId/superior', authenticateToken, async (req, res) => {
 app.get('/api/events', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
-    const { userId } = req.user;
-    const { date, supervisorId } = req.query;
+    const { id: userId, role: userRole } = req.user;
+    const formattedUserId = userId.toUpperCase();
 
-    // Verifica se a tabela EVENTOS existe
-    const tableCheck = await pool.request()
-      .query(`SELECT OBJECT_ID('TESTE..EVENTOS') as tableExists`);
-    
-    if (!tableCheck.recordset[0].tableExists) {
-      return res.status(404).json({ 
-        message: 'Tabela EVENTOS não encontrada. Por favor, crie a tabela antes de continuar.',
-        details: 'Execute o script de criação da tabela fornecido nos comentários do server.js'
-      });
-    }
+    console.log('Buscando eventos para:', {
+      userId: formattedUserId,
+      role: userRole,
+      rawUserId: userId
+    });
 
     let query = `
-      SELECT e.*, u.name as supervisor_name
+      SELECT 
+        e.id,
+        e.title as titulo,
+        e.description as descricao,
+        e.start_date as dataInicio,
+        e.end_date as dataFim,
+        e.event_type as tipo,
+        e.location,
+        e.subcategory,
+        e.other_description,
+        e.inform_agency as informar_agencia_pa,
+        e.agency_number as agencia_pa_number,
+        e.is_pa,
+        e.municipality as municipio,
+        e.state as uf,
+        e.feedback as tratativa,
+        e.supervisor_id as supervisorId,
+        u.name as supervisorName,
+        CASE 
+          WHEN e.supervisor_id = @userId THEN 1
+          ELSE 0
+        END as is_owner
       FROM TESTE..EVENTOS e
-      INNER JOIN TESTE..users u ON e.supervisor_id = u.id
-      WHERE 1=1
+      LEFT JOIN TESTE..users u ON e.supervisor_id = u.id
     `;
-    
-    const request = pool.request();
-    
-    // Filter by specific user or all subordinates if manager/coordinator
-    if (supervisorId) {
-      query += ` AND e.supervisor_id = @supervisorId`;
-      request.input('supervisorId', sql.UniqueIdentifier, supervisorId);
-    } else {
-      // Get user role
-      const userRoleResult = await pool.request()
-        .input('userId', sql.UniqueIdentifier, userId)
-        .query('SELECT role FROM TESTE..users WHERE id = @userId');
-      
-      if (userRoleResult.recordset.length === 0) {
-        return res.status(404).json({ message: 'Usuário não encontrado' });
-      }
-      
-      const userRole = userRoleResult.recordset[0].role;
-      
-      if (userRole === 'gerente' || userRole === 'coordenador') {
-        // Get all subordinates (direct and indirect for manager)
-        query += `
-          AND (
-            e.supervisor_id = @userId
-            OR e.supervisor_id IN (
-              SELECT subordinate_id FROM TESTE..hierarchy WHERE superior_id = @userId
-            )
-        `;
-        
-        // For manager, also get subordinates of subordinates (coordinators)
-        if (userRole === 'gerente') {
-          query += `
-            OR e.supervisor_id IN (
-              SELECT h2.subordinate_id 
-              FROM TESTE..hierarchy h1
-              JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
-              WHERE h1.superior_id = @userId
-            )
-          `;
-        }
-        
-        query += `)`;
-      } else {
-        // Regular supervisor only sees their own events
-        query += ` AND e.supervisor_id = @userId`;
-      }
-      
-      request.input('userId', sql.UniqueIdentifier, userId);
+
+    // Admin vê todos os eventos
+    if (userRole === 'admin') {
+      console.log('Usuário é admin, buscando todos os eventos');
+      // Não adiciona WHERE clause para admin ver todos os eventos
     }
-    
-    // Date filtering if provided
-    if (date) {
-      query += ` AND (
-        (CONVERT(date, e.start_date) <= @date AND CONVERT(date, e.end_date) >= @date)
-      )`;
-      request.input('date', sql.Date, new Date(date));
+    // Gerente vê seus eventos e os eventos de todos os subordinados (diretos e indiretos)
+    else if (userRole === 'gerente') {
+      query += `
+        WHERE (
+          e.supervisor_id = @userId
+          OR e.supervisor_id IN (
+            SELECT subordinate_id 
+            FROM TESTE..hierarchy 
+            WHERE superior_id = @userId
+          )
+          OR e.supervisor_id IN (
+            SELECT h2.subordinate_id 
+            FROM TESTE..hierarchy h1
+            JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
+            WHERE h1.superior_id = @userId
+          )
+        )
+      `;
     }
-    
-    query += ` ORDER BY e.start_date ASC`;
-    
-    console.log("Executing SQL query:", query);
-    
-    const result = await request.query(query);
-    
-    // Transform data to match frontend model
-    const events = result.recordset.map(event => ({
-      id: event.id,
-      titulo: event.title,
-      descricao: event.description || '',
-      dataInicio: new Date(event.start_date),
-      dataFim: new Date(event.end_date),
-      tipo: event.event_type,
-      tratativa: event.feedback,
-      location: event.location,
-      subcategory: event.subcategory,
-      other_description: event.other_description,
-      informar_agencia_pa: Boolean(event.inform_agency),
-      agencia_pa_number: event.agency_number,
-      is_pa: Boolean(event.is_pa),
-      municipio: event.municipality,
-      uf: event.state,
-      supervisorId: event.supervisor_id,
-      supervisorName: event.supervisor_name
-    }));
-    
+    // Coordenador vê seus eventos e os eventos dos supervisores subordinados
+    else if (userRole === 'coordenador') {
+      query += `
+        WHERE (
+          e.supervisor_id = @userId
+          OR e.supervisor_id IN (
+            SELECT subordinate_id 
+            FROM TESTE..hierarchy 
+            WHERE superior_id = @userId
+          )
+        )
+      `;
+    }
+    // Supervisor vê apenas seus próprios eventos
+    else {
+      query += ` WHERE e.supervisor_id = @userId`;
+    }
+
+    query += ` ORDER BY e.start_date DESC`;
+
+    console.log('Executando query com userId:', formattedUserId);
+    console.log('Query:', query);
+
+    const result = await pool.request()
+      .input('userId', sql.UniqueIdentifier, formattedUserId)
+      .query(query);
+
+    console.log('Eventos encontrados:', result.recordset.length);
+
+    // Garantir que todos os campos necessários estejam presentes e com o formato correto
+    const events = result.recordset.map(event => {
+      // Garantir que as datas sejam strings ISO
+      const dataInicio = event.dataInicio ? new Date(event.dataInicio).toISOString() : null;
+      const dataFim = event.dataFim ? new Date(event.dataFim).toISOString() : null;
+
+      return {
+        id: event.id,
+        titulo: event.titulo || '',
+        descricao: event.descricao || '',
+        dataInicio: dataInicio,
+        dataFim: dataFim,
+        tipo: event.tipo || '',
+        tratativa: event.tratativa || '',
+        location: event.location || '',
+        subcategory: event.subcategory || '',
+        other_description: event.other_description || '',
+        informar_agencia_pa: Boolean(event.informar_agencia_pa),
+        agencia_pa_number: event.agencia_pa_number || '',
+        is_pa: Boolean(event.is_pa),
+        municipio: event.municipio || '',
+        uf: event.uf || '',
+        supervisorId: event.supervisorId || '',
+        supervisorName: event.supervisorName || '',
+        is_owner: Boolean(event.is_owner)
+      };
+    });
+
+    console.log('Primeiro evento transformado (exemplo):', events[0]);
+
     res.json(events);
-    
   } catch (error) {
-    console.error('Error fetching events:', error);
+    console.error('Erro ao buscar eventos:', error);
+    console.error('Stack trace:', error.stack);
     res.status(500).json({ message: 'Erro ao buscar eventos' });
   }
 });
@@ -416,20 +436,20 @@ app.post('/api/events', authenticateToken, async (req, res) => {
     // Determine the supervisor_id 
     // If user is manager/coordinator and specified a supervisorId, use that
     // Otherwise use the current user's ID
-    let actualSupervisorId = userId;
+    let actualSupervisorId = userId.toUpperCase();
     
     if (supervisorId && supervisorId !== userId && (userRole === 'gerente' || userRole === 'coordenador')) {
       // Check if the specified supervisor is actually a subordinate
       const checkSubordinate = await pool.request()
-        .input('supervisorId', sql.UniqueIdentifier, supervisorId)
-        .input('userId', sql.UniqueIdentifier, userId)
+        .input('supervisorId', sql.UniqueIdentifier, supervisorId.toUpperCase())
+        .input('userId', sql.UniqueIdentifier, userId.toUpperCase())
         .query(`
           SELECT COUNT(*) as count FROM TESTE..hierarchy 
           WHERE subordinate_id = @supervisorId AND superior_id = @userId
         `);
       
       if (checkSubordinate.recordset[0].count > 0) {
-        actualSupervisorId = supervisorId;
+        actualSupervisorId = supervisorId.toUpperCase();
       } else {
         return res.status(403).json({ message: 'Sem permissão para criar evento para este supervisor' });
       }
