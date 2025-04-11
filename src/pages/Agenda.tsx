@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListView, PanelsTopLeft } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -82,15 +81,12 @@ const AgendaPage = () => {
   const { user, isManager, isCoordinator, isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch supervisors (only for managers/coordinators)
   const { data: supervisors = [] } = useQuery({
     queryKey: ['supervisors', user?.id],
     queryFn: () => {
-      // Se for admin, busca todos os usuários
       if (isAdmin && user?.id) {
         return userApi.getAllUsers();
       } 
-      // Se for manager/coordinator, busca os supervisores
       else if ((isManager || isCoordinator) && user?.id) {
         return userApi.getSupervisors(user.id);
       }
@@ -99,17 +95,15 @@ const AgendaPage = () => {
     enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
   });
 
-  // Fetch events based on date and selected supervisor
   const { data: eventos = [], isLoading, error } = useQuery({
     queryKey: ['events', selectedSupervisor],
     queryFn: () => eventApi.getEvents(
-      undefined, // Não passa a data para buscar todos os eventos
+      undefined, 
       selectedSupervisor || undefined
     ),
     enabled: !!user?.id,
   });
 
-  // Mutations for event operations
   const createEventMutation = useMutation({
     mutationFn: eventApi.createEvent,
     onSuccess: () => {
@@ -191,7 +185,6 @@ const AgendaPage = () => {
     }
   });
 
-  // Reset form
   const resetForm = () => {
     setNovoEvento({
       titulo: "",
@@ -212,7 +205,6 @@ const AgendaPage = () => {
     setSelectedRange(undefined);
   };
 
-  // Handle form submission for creating/updating events
   const handleSalvarEvento = () => {
     if (!novoEvento.titulo || !novoEvento.location) {
       toast({
@@ -223,7 +215,6 @@ const AgendaPage = () => {
       return;
     }
     
-    // Add user's ID or selected supervisor ID to the event
     const eventData = {
       ...novoEvento,
       supervisorId: (isManager || isCoordinator || isAdmin) && selectedSupervisor ? selectedSupervisor : user?.id
@@ -239,7 +230,6 @@ const AgendaPage = () => {
     }
   };
 
-  // Handle opening the feedback dialog
   const handleAbrirParecerDialog = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
@@ -249,7 +239,6 @@ const AgendaPage = () => {
     }
   };
 
-  // Handle saving feedback
   const handleSalvarParecer = () => {
     if (!currentEventId) return;
     updateFeedbackMutation.mutate({ 
@@ -257,8 +246,7 @@ const AgendaPage = () => {
       tratativa: parecerText 
     });
   };
-  
-  // Handle editing an event
+
   const handleEditarEvento = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
@@ -280,7 +268,6 @@ const AgendaPage = () => {
       });
       setEditingEvent(id);
       
-      // Set selected range for the date picker
       setSelectedRange({
         from: new Date(evento.dataInicio),
         to: new Date(evento.dataFim),
@@ -290,12 +277,10 @@ const AgendaPage = () => {
     }
   };
 
-  // Handle deleting an event
   const handleExcluirEvento = (id: string) => {
     deleteEventMutation.mutate(id);
   };
-  
-  // Format date range for display
+
   const formatDateRange = (inicio: Date, fim: Date) => {
     if (format(inicio, "yyyy-MM-dd") === format(fim, "yyyy-MM-dd")) {
       return format(inicio, "dd 'de' MMMM", { locale: ptBR });
@@ -304,7 +289,6 @@ const AgendaPage = () => {
     return `${format(inicio, "dd/MM", { locale: ptBR })} - ${format(fim, "dd/MM", { locale: ptBR })}`;
   };
 
-  // Filtered events based on date and selected supervisor
   const eventosFiltrados = eventos.filter(evento => {
     const currentDate = format(date, "yyyy-MM-dd");
     const startDate = format(evento.dataInicio instanceof Date 
@@ -318,7 +302,6 @@ const AgendaPage = () => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    // Se um supervisor foi selecionado, filtra apenas os eventos dele
     if (selectedSupervisor) {
       return eventDate >= start && eventDate <= end && evento.supervisorId === selectedSupervisor;
     }
@@ -332,7 +315,6 @@ const AgendaPage = () => {
     const selectedDate = new Date(date);
 
     if (calendarOpen === "start") {
-      // Se já existe uma data fim e a nova data início é maior, limpa a data fim
       if (novoEvento.dataFim && selectedDate > new Date(novoEvento.dataFim)) {
         setNovoEvento(prev => ({
           ...prev,
@@ -348,7 +330,6 @@ const AgendaPage = () => {
         setDateError("");
       }
     } else if (calendarOpen === "end") {
-      // Verifica se a data fim é anterior à data início
       if (novoEvento.dataInicio && selectedDate < new Date(novoEvento.dataInicio)) {
         setDateError("A data final não pode ser anterior à data inicial");
         return;
@@ -769,7 +750,7 @@ const AgendaPage = () => {
             Calendário
           </TabsTrigger>
           <TabsTrigger value="table" className="flex items-center gap-2">
-            <ListView className="h-4 w-4" />
+            <ListFilter className="h-4 w-4" />
             Tabela
           </TabsTrigger>
         </TabsList>
