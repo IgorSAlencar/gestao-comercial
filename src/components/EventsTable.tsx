@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -112,7 +113,7 @@ const EventsTable = ({
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os status</SelectItem>
+                <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="realizar">A realizar</SelectItem>
                 <SelectItem value="pendente">Pendentes</SelectItem>
                 <SelectItem value="tratada">Tratadas</SelectItem>
@@ -126,7 +127,7 @@ const EventsTable = ({
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as categorias</SelectItem>
+                <SelectItem value="all">Todas as categorias</SelectItem>
                 {uniqueCategories.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
@@ -142,7 +143,7 @@ const EventsTable = ({
                 <SelectValue placeholder="Município/UF" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos os municípios</SelectItem>
+                <SelectItem value="all">Todos os municípios</SelectItem>
                 {uniqueMunicipios.map((municipio) => (
                   <SelectItem key={municipio} value={municipio}>
                     {municipio}
@@ -159,7 +160,7 @@ const EventsTable = ({
                   <SelectValue placeholder="Supervisor" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os supervisores</SelectItem>
+                  <SelectItem value="all">Todos os supervisores</SelectItem>
                   {uniqueSupervisors.map((supervisor) => (
                     <SelectItem key={supervisor} value={supervisor}>
                       {supervisor}

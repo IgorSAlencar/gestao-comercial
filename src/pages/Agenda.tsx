@@ -343,6 +343,14 @@ const AgendaPage = () => {
     setCalendarOpen(null);
   };
 
+  const handleFilterChange = (value: string, setFilterFunction: React.Dispatch<React.SetStateAction<string | null>>) => {
+    if (value === "all") {
+      setFilterFunction(null);
+    } else {
+      setFilterFunction(value);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -819,19 +827,19 @@ const AgendaPage = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("all", setSelectedSupervisor)}>
                       Todas as visitas
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("operacional", setSelectedSupervisor)}>
                       Visitas operacionais
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("negociacao", setSelectedSupervisor)}>
                       Visitas de negociação
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("prospeccao", setSelectedSupervisor)}>
                       Prospecção
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("outros", setSelectedSupervisor)}>
                       Outros eventos
                     </DropdownMenuItem>
                   </DropdownMenuContent>
