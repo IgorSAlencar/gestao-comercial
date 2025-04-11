@@ -285,7 +285,7 @@ const AgendaPage = () => {
     return `${format(inicio, "dd/MM", { locale: ptBR })} - ${format(fim, "dd/MM", { locale: ptBR })}`;
   };
 
-  // Filtered events based on date
+  // Filtered events based on date and selected supervisor
   const eventosFiltrados = eventos.filter(evento => {
     const currentDate = format(date, "yyyy-MM-dd");
     const startDate = format(evento.dataInicio instanceof Date 
@@ -298,6 +298,11 @@ const AgendaPage = () => {
     const eventDate = new Date(currentDate);
     const start = new Date(startDate);
     const end = new Date(endDate);
+    
+    // Se um supervisor foi selecionado, filtra apenas os eventos dele
+    if (selectedSupervisor) {
+      return eventDate >= start && eventDate <= end && evento.supervisorId === selectedSupervisor;
+    }
     
     return eventDate >= start && eventDate <= end;
   });
