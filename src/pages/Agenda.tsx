@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListView, PanelsTopLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -35,8 +36,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventApi, userApi, Event } from "@/services/api";
+import EventsTable from "@/components/EventsTable";
 
 const AgendaPage = () => {
   const [date, setDate] = useState<Date>(new Date());
@@ -46,6 +54,7 @@ const AgendaPage = () => {
   const [parecerText, setParecerText] = useState("");
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
@@ -70,21 +79,31 @@ const AgendaPage = () => {
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
   
   const { toast } = useToast();
-  const { user, isManager, isCoordinator } = useAuth();
+  const { user, isManager, isCoordinator, isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
   // Fetch supervisors (only for managers/coordinators)
   const { data: supervisors = [] } = useQuery({
     queryKey: ['supervisors', user?.id],
-    queryFn: () => user?.id ? userApi.getSupervisors(user.id) : Promise.resolve([]),
-    enabled: !!(user?.id && (isManager || isCoordinator)),
+    queryFn: () => {
+      // Se for admin, busca todos os usuários
+      if (isAdmin && user?.id) {
+        return userApi.getAllUsers();
+      } 
+      // Se for manager/coordinator, busca os supervisores
+      else if ((isManager || isCoordinator) && user?.id) {
+        return userApi.getSupervisors(user.id);
+      }
+      return Promise.resolve([]);
+    },
+    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
   });
 
   // Fetch events based on date and selected supervisor
   const { data: eventos = [], isLoading, error } = useQuery({
-    queryKey: ['events', format(date, 'yyyy-MM-dd'), selectedSupervisor],
+    queryKey: ['events', selectedSupervisor],
     queryFn: () => eventApi.getEvents(
-      format(date, 'yyyy-MM-dd'),
+      undefined, // Não passa a data para buscar todos os eventos
       selectedSupervisor || undefined
     ),
     enabled: !!user?.id,
@@ -207,7 +226,7 @@ const AgendaPage = () => {
     // Add user's ID or selected supervisor ID to the event
     const eventData = {
       ...novoEvento,
-      supervisorId: isManager && selectedSupervisor ? selectedSupervisor : user?.id
+      supervisorId: (isManager || isCoordinator || isAdmin) && selectedSupervisor ? selectedSupervisor : user?.id
     };
     
     if (editingEvent) {
@@ -349,19 +368,19 @@ const AgendaPage = () => {
         <h1 className="text-2xl font-bold">Agenda de Atividades</h1>
         
         <div className="flex space-x-2">
-          {(isManager || isCoordinator) && (
+          {(isManager || isCoordinator || isAdmin) && (
             <Drawer open={isFilterDrawerOpen} onOpenChange={setIsFilterDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
-                  <span>Filtrar por Supervisor</span>
+                  <span>Filtrar por Usuário</span>
                 </Button>
               </DrawerTrigger>
               <DrawerContent>
                 <DrawerHeader>
-                  <DrawerTitle>Filtrar por Supervisor</DrawerTitle>
+                  <DrawerTitle>Filtrar por Usuário</DrawerTitle>
                   <DrawerDescription>
-                    Selecione um supervisor para visualizar sua agenda
+                    Selecione um usuário para visualizar sua agenda
                   </DrawerDescription>
                 </DrawerHeader>
                 <div className="p-4">
@@ -380,7 +399,7 @@ const AgendaPage = () => {
                           </div>
                           <div>
                             <p className="font-medium">{supervisor.name}</p>
-                            <p className="text-sm opacity-70">Supervisor</p>
+                            <p className="text-sm opacity-70">{supervisor.role.charAt(0).toUpperCase() + supervisor.role.slice(1)}</p>
                           </div>
                         </div>
                       </div>
@@ -391,7 +410,7 @@ const AgendaPage = () => {
                       onClick={() => setSelectedSupervisor(null)}
                       className="mt-2"
                     >
-                      Ver todos os supervisores
+                      Ver todos os usuários
                     </Button>
                   </div>
                 </div>
@@ -728,7 +747,7 @@ const AgendaPage = () => {
             <Users className="h-5 w-5 text-bradesco-blue" />
             <span className="font-medium">
               Visualizando agenda de: {
-                supervisors.find(s => s.id === selectedSupervisor)?.name || "Supervisor"
+                supervisors.find(s => s.id === selectedSupervisor)?.name || "Usuário"
               }
             </span>
           </div>
@@ -743,192 +762,224 @@ const AgendaPage = () => {
         </div>
       )}
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Calendário</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="border rounded-md p-2 bg-white shadow-sm">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={(newDate) => newDate && setDate(newDate)}
-                className="rounded-md border pointer-events-auto max-w-full"
-                locale={ptBR}
-              />
-            </div>
-            
-            {(isManager || isCoordinator) && supervisors.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
-                  <Users className="h-4 w-4" /> 
-                  Supervisores
-                </h3>
-                <div className="space-y-2">
-                  <div 
-                    className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
-                      !selectedSupervisor ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
-                    }`}
-                    onClick={() => setSelectedSupervisor(null)}
-                  >
-                    Todos os supervisores
-                  </div>
-                  
-                  {supervisors.map((supervisor) => (
-                    <div 
-                      key={supervisor.id} 
-                      className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
-                        selectedSupervisor === supervisor.id ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
-                      }`}
-                      onClick={() => setSelectedSupervisor(supervisor.id)}
-                    >
-                      {supervisor.name}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="calendar" onValueChange={(value) => setViewMode(value as "calendar" | "table")}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="calendar" className="flex items-center gap-2">
+            <CalendarIcon className="h-4 w-4" />
+            Calendário
+          </TabsTrigger>
+          <TabsTrigger value="table" className="flex items-center gap-2">
+            <ListView className="h-4 w-4" />
+            Tabela
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="md:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>
-              Eventos de {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </CardTitle>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="flex items-center gap-1">
-                  <Filter className="h-4 w-4" />
-                  <span>Filtros</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
-                  Todas as visitas
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
-                  Visitas operacionais
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
-                  Visitas de negociação
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
-                  Prospecção
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
-                  Outros eventos
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </CardHeader>
-          <CardContent>
-            {isLoading && (
-              <div className="py-8 text-center text-gray-500">
-                Carregando eventos...
-              </div>
-            )}
-            
-            {error && (
-              <div className="py-8 text-center text-red-500">
-                Erro ao carregar eventos: {error instanceof Error ? error.message : "Erro desconhecido"}
-              </div>
-            )}
-            
-            {!isLoading && !error && eventosFiltrados.length === 0 ? (
-              <div className="py-8 text-center text-gray-500">
-                {selectedSupervisor 
-                  ? `Nenhum evento agendado para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este supervisor"} nesta data.`
-                  : "Nenhum evento agendado para esta data."
-                }
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {eventosFiltrados.map((evento) => (
-                  <div
-                    key={evento.id}
-                    className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-grow">
-                        <h3 className="font-medium">{evento.titulo}</h3>
-                        <div className="flex items-center text-sm text-gray-500 mt-1">
-                          <span>{formatDateRange(
-                            evento.dataInicio instanceof Date ? evento.dataInicio : new Date(evento.dataInicio),
-                            evento.dataFim instanceof Date ? evento.dataFim : new Date(evento.dataFim)
-                          )}</span>
-                          {evento.location && (
-                            <>
-                              <span className="mx-2">•</span>
-                              <span>{evento.location}</span>
-                            </>
-                          )}
-                          {evento.subcategory && (
-                            <>
-                              <span className="mx-2">•</span>
-                              <span>{evento.subcategory}</span>
-                            </>
-                          )}
+        <TabsContent value="calendar" className="mt-0">
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="md:col-span-1">
+              <CardHeader>
+                <CardTitle>Calendário</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="border rounded-md p-2 bg-white shadow-sm">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={(newDate) => newDate && setDate(newDate)}
+                    className="rounded-md border pointer-events-auto max-w-full"
+                    locale={ptBR}
+                  />
+                </div>
+                
+                {(isManager || isCoordinator || isAdmin) && supervisors.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                      <Users className="h-4 w-4" /> 
+                      Usuários
+                    </h3>
+                    <div className="space-y-2">
+                      <div 
+                        className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
+                          !selectedSupervisor ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
+                        }`}
+                        onClick={() => setSelectedSupervisor(null)}
+                      >
+                        Todos os usuários
+                      </div>
+                      
+                      {supervisors.map((supervisor) => (
+                        <div 
+                          key={supervisor.id} 
+                          className={`p-2 text-sm rounded-md cursor-pointer transition-colors ${
+                            selectedSupervisor === supervisor.id ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
+                          }`}
+                          onClick={() => setSelectedSupervisor(supervisor.id)}
+                        >
+                          {supervisor.name}
                         </div>
-                        {evento.municipio && evento.uf && (
-                          <div className="mt-1 text-sm text-gray-500">
-                            {evento.municipio}, {evento.uf}
-                            {evento.informar_agencia_pa && evento.agencia_pa_number && (
-                              <span> • {evento.is_pa ? "PA" : "Agência"} {evento.agencia_pa_number}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="md:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>
+                  Eventos de {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </CardTitle>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-1">
+                      <Filter className="h-4 w-4" />
+                      <span>Filtros</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                      Todas as visitas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                      Visitas operacionais
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                      Visitas de negociação
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                      Prospecção
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => {}}>
+                      Outros eventos
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardHeader>
+              <CardContent>
+                {isLoading && (
+                  <div className="py-8 text-center text-gray-500">
+                    Carregando eventos...
+                  </div>
+                )}
+                
+                {error && (
+                  <div className="py-8 text-center text-red-500">
+                    Erro ao carregar eventos: {error instanceof Error ? error.message : "Erro desconhecido"}
+                  </div>
+                )}
+                
+                {!isLoading && !error && eventosFiltrados.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500">
+                    {selectedSupervisor 
+                      ? `Nenhum evento agendado para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este usuário"} nesta data.`
+                      : "Nenhum evento agendado para esta data."
+                    }
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {eventosFiltrados.map((evento) => (
+                      <div
+                        key={evento.id}
+                        className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-grow">
+                            <h3 className="font-medium">{evento.titulo}</h3>
+                            <div className="flex items-center text-sm text-gray-500 mt-1">
+                              <span>{formatDateRange(
+                                evento.dataInicio instanceof Date ? evento.dataInicio : new Date(evento.dataInicio),
+                                evento.dataFim instanceof Date ? evento.dataFim : new Date(evento.dataFim)
+                              )}</span>
+                              {evento.location && (
+                                <>
+                                  <span className="mx-2">•</span>
+                                  <span>{evento.location}</span>
+                                </>
+                              )}
+                              {evento.subcategory && (
+                                <>
+                                  <span className="mx-2">•</span>
+                                  <span>{evento.subcategory}</span>
+                                </>
+                              )}
+                            </div>
+                            {evento.municipio && evento.uf && (
+                              <div className="mt-1 text-sm text-gray-500">
+                                {evento.municipio}, {evento.uf}
+                                {evento.informar_agencia_pa && evento.agencia_pa_number && (
+                                  <span> • {evento.is_pa ? "PA" : "Agência"} {evento.agencia_pa_number}</span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {(isManager || isCoordinator || isAdmin) && evento.supervisorName && (
+                              <div className="mt-1 text-xs font-medium text-bradesco-blue flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {evento.supervisorName}
+                              </div>
+                            )}
+                            
+                            {evento.tratativa && (
+                              <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                                <p className="text-sm font-medium text-gray-700">Parecer / Tratativa:</p>
+                                <p className="text-sm text-gray-600">{evento.tratativa}</p>
+                              </div>
                             )}
                           </div>
-                        )}
-                        
-                        {(isManager || isCoordinator) && evento.supervisorName && (
-                          <div className="mt-1 text-xs font-medium text-bradesco-blue flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            {evento.supervisorName}
+                          <div className="flex flex-col gap-2 ml-4">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleEditarEvento(evento.id)}
+                            >
+                              <CalendarIcon className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleAbrirParecerDialog(evento.id)}
+                            >
+                              <MessageSquare className="h-4 w-4 mr-1" />
+                              Parecer
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-red-500 hover:text-red-700 hover:border-red-300 group opacity-50 hover:opacity-100 transition-opacity duration-300 p-1" 
+                              onClick={() => handleExcluirEvento(evento.id)}
+                            >
+                              <Trash2 className="h-5 w-5" />
+                            </Button>
                           </div>
-                        )}
-                        
-                        {evento.tratativa && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                            <p className="text-sm font-medium text-gray-700">Parecer / Tratativa:</p>
-                            <p className="text-sm text-gray-600">{evento.tratativa}</p>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-2 ml-4">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditarEvento(evento.id)}
-                        >
-                          <CalendarIcon className="h-4 w-4 mr-1" />
-                          Editar
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleAbrirParecerDialog(evento.id)}
-                        >
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Parecer
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-red-500 hover:text-red-700 hover:border-red-300 group opacity-50 hover:opacity-100 transition-opacity duration-300 p-1" 
-                          onClick={() => handleExcluirEvento(evento.id)}
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </Button>
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="table" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lista de Eventos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EventsTable 
+                events={eventos}
+                onEditEvent={handleEditarEvento}
+                onDeleteEvent={handleExcluirEvento}
+                onAddFeedback={handleAbrirParecerDialog}
+                isManagerView={isManager || isCoordinator || isAdmin}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
         <DialogContent>

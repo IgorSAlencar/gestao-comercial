@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -105,6 +106,50 @@ const TableCaption = React.forwardRef<
 ))
 TableCaption.displayName = "TableCaption"
 
+// Adiciona componente de status para a tabela
+interface TableStatusProps {
+  status: 'pendente' | 'realizar' | 'tratada';
+  label?: string;
+}
+
+const TableStatus = ({ status, label }: TableStatusProps) => {
+  const statusConfig = {
+    pendente: {
+      bgColor: "bg-amber-100",
+      textColor: "text-amber-800",
+      borderColor: "border-amber-200",
+      icon: "hourglass",
+      text: label || "Pendente de tratativa"
+    },
+    realizar: {
+      bgColor: "bg-blue-100",
+      textColor: "text-blue-800",
+      borderColor: "border-blue-200",
+      icon: "clock",
+      text: label || "Visita a realizar"
+    },
+    tratada: {
+      bgColor: "bg-green-100",
+      textColor: "text-green-800",
+      borderColor: "border-green-200",
+      icon: "check",
+      text: label || "Visita tratada"
+    }
+  };
+
+  const config = statusConfig[status];
+
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${config.bgColor} ${config.textColor} ${config.borderColor} border text-xs font-medium w-fit`}>
+      <span className="relative flex h-2 w-2">
+        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.textColor} opacity-75`}></span>
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${config.textColor}`}></span>
+      </span>
+      {config.text}
+    </div>
+  );
+};
+
 export {
   Table,
   TableHeader,
@@ -114,4 +159,5 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  TableStatus
 }
