@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +49,7 @@ const AgendaPage = () => {
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
+  const [dateError, setDateError] = useState<string>("");
   
   const [novoEvento, setNovoEvento] = useState<Omit<Event, "id">>({
     titulo: "",
@@ -301,7 +301,43 @@ const AgendaPage = () => {
     
     return eventDate >= start && eventDate <= end;
   });
-  
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+
+    const selectedDate = new Date(date);
+
+    if (calendarOpen === "start") {
+      // Se já existe uma data fim e a nova data início é maior, limpa a data fim
+      if (novoEvento.dataFim && selectedDate > new Date(novoEvento.dataFim)) {
+        setNovoEvento(prev => ({
+          ...prev,
+          dataInicio: selectedDate,
+          dataFim: undefined
+        }));
+        setDateError("A data final deve ser igual ou posterior à data inicial");
+      } else {
+        setNovoEvento(prev => ({
+          ...prev,
+          dataInicio: selectedDate
+        }));
+        setDateError("");
+      }
+    } else if (calendarOpen === "end") {
+      // Verifica se a data fim é anterior à data início
+      if (novoEvento.dataInicio && selectedDate < new Date(novoEvento.dataInicio)) {
+        setDateError("A data final não pode ser anterior à data inicial");
+        return;
+      }
+      setNovoEvento(prev => ({
+        ...prev,
+        dataFim: selectedDate
+      }));
+      setDateError("");
+    }
+    setCalendarOpen(null);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -386,29 +422,34 @@ const AgendaPage = () => {
                 
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label className="text-right text-sm">Intervalo de Datas</label>
-                  <div className="col-span-3 flex space-x-4">
-                    <div className="flex-1">
-                      <Input
-                        type="text"
-                        value={novoEvento.dataInicio ? format(novoEvento.dataInicio instanceof Date 
-                          ? novoEvento.dataInicio 
-                          : new Date(novoEvento.dataInicio), "dd/MM/yyyy") : ""}
-                        onClick={() => setCalendarOpen("start")}
-                        readOnly
-                        placeholder="Data inicial"
-                      />
+                  <div className="col-span-3 flex flex-col space-y-2">
+                    <div className="flex space-x-4">
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={novoEvento.dataInicio ? format(novoEvento.dataInicio instanceof Date 
+                            ? novoEvento.dataInicio 
+                            : new Date(novoEvento.dataInicio), "dd/MM/yyyy") : ""}
+                          onClick={() => setCalendarOpen("start")}
+                          readOnly
+                          placeholder="Data inicial"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={novoEvento.dataFim ? format(novoEvento.dataFim instanceof Date 
+                            ? novoEvento.dataFim 
+                            : new Date(novoEvento.dataFim), "dd/MM/yyyy") : ""}
+                          onClick={() => setCalendarOpen("end")}
+                          readOnly
+                          placeholder="Data final"
+                        />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <Input
-                        type="text"
-                        value={novoEvento.dataFim ? format(novoEvento.dataFim instanceof Date 
-                          ? novoEvento.dataFim 
-                          : new Date(novoEvento.dataFim), "dd/MM/yyyy") : ""}
-                        onClick={() => setCalendarOpen("end")}
-                        readOnly
-                        placeholder="Data final"
-                      />
-                    </div>
+                    {dateError && (
+                      <p className="text-sm text-red-500">{dateError}</p>
+                    )}
                   </div>
                 </div>
                 
