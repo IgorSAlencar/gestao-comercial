@@ -26,6 +26,7 @@ import {
   MoreHorizontal,
   Trash2,
   Edit2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Event } from "@/services/api";
@@ -36,6 +37,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { DateRange } from "react-day-picker";
 
 interface EventsTableProps {
   events: Event[];
@@ -56,6 +65,8 @@ const EventsTable = ({
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [supervisorFilter, setSupervisorFilter] = useState<string | null>(null);
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [dateFilterOpen, setDateFilterOpen] = useState(false);
 
   const uniqueSupervisors = Array.from(new Set(events.map(e => e.supervisorName).filter(Boolean)));
   const uniqueLocations = Array.from(new Set(events.map(e => e.location).filter(Boolean)));
@@ -78,6 +89,29 @@ const EventsTable = ({
     return "pendente";
   };
 
+  const isEventInDateRange = (event: Event): boolean => {
+    if (!dateRange) return true;
+    
+    const eventStartDate = new Date(event.dataInicio);
+    const eventEndDate = new Date(event.dataFim);
+    
+    // Reset time component for comparison
+    eventStartDate.setHours(0, 0, 0, 0);
+    eventEndDate.setHours(23, 59, 59, 999);
+    
+    const rangeStart = dateRange.from;
+    const rangeEnd = dateRange.to || dateRange.from;
+    
+    if (!rangeStart) return true;
+    
+    // Check if event overlaps with the selected range
+    // Event starts before range ends AND event ends after range starts
+    return (
+      eventStartDate <= rangeEnd && 
+      eventEndDate >= rangeStart
+    );
+  };
+
   const filteredEvents = events
     .filter((event) => {
       const status = getEventStatus(event);
@@ -90,7 +124,9 @@ const EventsTable = ({
       const eventLocation = event.municipio ? `${event.municipio}${event.uf ? `, ${event.uf}` : ''}` : '';
       const matchesLocation = locationFilter === null || eventLocation === locationFilter;
 
-      return matchesStatus && matchesCategory && matchesSupervisor && matchesLocation;
+      const matchesDateRange = isEventInDateRange(event);
+
+      return matchesStatus && matchesCategory && matchesSupervisor && matchesLocation && matchesDateRange;
     })
     .sort((a, b) => {
       return new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime();
@@ -101,6 +137,17 @@ const EventsTable = ({
     setCategoryFilter(null);
     setSupervisorFilter(null);
     setLocationFilter(null);
+    setDateRange(undefined);
+  };
+
+  const formatDateString = () => {
+    if (!dateRange?.from) return "Filtrar por data";
+    
+    if (!dateRange.to) {
+      return format(dateRange.from, "dd/MM/yyyy");
+    }
+    
+    return `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`;
   };
 
   return (
@@ -108,7 +155,7 @@ const EventsTable = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="flex flex-wrap gap-3 w-full">
           <div className="w-full sm:w-auto">
-            <Select value={statusFilter || ""} onValueChange={(value) => setStatusFilter(value || null)}>
+            <Select value={statusFilter || ""} onValueChange={(value) => setStatusFilter(value === "all" ? null : value)}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -122,7 +169,7 @@ const EventsTable = ({
           </div>
           
           <div className="w-full sm:w-auto">
-            <Select value={categoryFilter || ""} onValueChange={(value) => setCategoryFilter(value || null)}>
+            <Select value={categoryFilter || ""} onValueChange={(value) => setCategoryFilter(value === "all" ? null : value)}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
@@ -138,7 +185,7 @@ const EventsTable = ({
           </div>
           
           <div className="w-full sm:w-auto">
-            <Select value={locationFilter || ""} onValueChange={(value) => setLocationFilter(value || null)}>
+            <Select value={locationFilter || ""} onValueChange={(value) => setLocationFilter(value === "all" ? null : value)}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Município/UF" />
               </SelectTrigger>
@@ -153,9 +200,58 @@ const EventsTable = ({
             </Select>
           </div>
           
+          <div className="w-full sm:w-auto">
+            <Popover open={dateFilterOpen} onOpenChange={setDateFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline"
+                  className={cn(
+                    "w-full sm:w-[200px] justify-start text-left",
+                    dateRange && "text-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <span className="truncate">{formatDateString()}</span>
+                  {dateRange && (
+                    <X 
+                      className="ml-auto h-4 w-4 opacity-50 hover:opacity-100" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDateRange(undefined);
+                      }}
+                    />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto bg-background shadow-none w-full")}
+                />
+                <div className="p-3 border-t border-border flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    {dateRange?.from && !dateRange?.to && "Selecione a data final"}
+                    {dateRange?.from && dateRange?.to && `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`}
+                  </div>
+                  <Button 
+                    size="sm"
+                    onClick={() => setDateFilterOpen(false)}
+                    className="ml-auto"
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+          
           {isManagerView && (
             <div className="w-full sm:w-auto">
-              <Select value={supervisorFilter || ""} onValueChange={(value) => setSupervisorFilter(value || null)}>
+              <Select value={supervisorFilter || ""} onValueChange={(value) => setSupervisorFilter(value === "all" ? null : value)}>
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Supervisor" />
                 </SelectTrigger>
@@ -171,7 +267,7 @@ const EventsTable = ({
             </div>
           )}
           
-          {(statusFilter || categoryFilter || supervisorFilter || locationFilter) && (
+          {(statusFilter || categoryFilter || supervisorFilter || locationFilter || dateRange) && (
             <Button 
               variant="outline" 
               size="sm" 
