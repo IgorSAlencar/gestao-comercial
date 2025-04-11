@@ -1,15 +1,13 @@
-
 import React, { useState } from "react";
 import { 
   Calendar, 
   ClipboardList, 
   MapPin, 
-  ChartBar,
+  BarChart3,
   User,
   LogOut,
   Menu,
   ChevronLeft,
-  BarChart3,
   FileX,
   Users
 } from "lucide-react";
@@ -43,11 +41,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       title: "Oportunidades",
       icon: <MapPin className="h-5 w-5" />,
       path: "/oportunidades",
-    },
-    {
-      title: "Dashboard",
-      icon: <ChartBar className="h-5 w-5" />,
-      path: "/dashboard",
     },
     {
       title: "Estratégia Comercial",

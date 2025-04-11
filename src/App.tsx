@@ -11,7 +11,6 @@ import LoginPage from "@/pages/Login";
 import AgendaPage from "@/pages/Agenda";
 import HotlistPage from "@/pages/Hotlist";
 import OpportunidadesPage from "@/pages/Oportunidades";
-import DashboardPage from "@/pages/Dashboard";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import CorrespondentesBloquadeos from "@/pages/CorrespondentesBloquadeos";
@@ -96,14 +95,6 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><OpportunidadesPage /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <Layout><DashboardPage /></Layout>
                 </PrivateRoute>
               } 
             />
