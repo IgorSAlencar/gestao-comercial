@@ -34,7 +34,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-gray-100">
+    <div className="flex h-screen w-full items-center justify-center bg-gray-100 relative">
       <div className="w-full max-w-md p-4">
         <div className="mb-8 text-center">
           <div className="mx-auto h-16 w-16 rounded-full bradesco-gradient flex items-center justify-center mb-4">
@@ -96,16 +96,14 @@ const LoginPage: React.FC = () => {
                 {isLoading ? "Autenticando..." : "Entrar"}
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm text-gray-500">
-              <p>Usuários de demonstração:</p>
-              <p>Supervisor: 12345 / senha: 123456</p>
-              <p>Coordenador: 67890 / senha: 123456</p>
-              <p>Gerente: 54321 / senha: 123456</p>
-              <p>Administrador: admin / senha: 123456</p>
-            </div>
           </CardContent>
         </Card>
       </div>
+      
+      {/* Footer with credits */}
+      <footer className="absolute bottom-0 w-full text-center py-4 bg-gray-200 text-sm text-gray-600">
+        Desenvolvido pela Equipe de Estratégia | Desenvolvedor - Igor da Silva Alencar
+      </footer>
     </div>
   );
 };
