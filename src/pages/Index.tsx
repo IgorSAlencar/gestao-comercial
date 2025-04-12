@@ -15,7 +15,7 @@ import {
   Calendar, 
   ClipboardList, 
   MapPin, 
-  Tool, 
+  Wrench, 
   CheckSquare, 
   Bell, 
   Activity, 
@@ -283,7 +283,7 @@ const Index = () => {
                 onClick={() => navigateTo('/oportunidades')}
               />
               <QuickAccessButton 
-                icon={<Tool className="h-6 w-6" />}
+                icon={<Wrench className="h-6 w-6" />}
                 label="Pós-venda"
                 onClick={() => navigateTo('/correspondentes-bloqueados')}
               />
