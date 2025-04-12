@@ -105,13 +105,283 @@ interface FiltrosLoja {
 
 const dadosSimulados: Record<string, DadosEstrategia> = {
   "credito": {
-    // ... keep existing data
+    titulo: "Estratégia de Crédito",
+    visaoGeral: "Aumentar a oferta de produtos de crédito para clientes com bom histórico financeiro.",
+    oportunidades: [
+      {
+        titulo: "Expansão de Crédito Pessoal",
+        descricao: "Foco em ofertas personalizadas para clientes com bom histórico."
+      },
+      {
+        titulo: "Consignado em Empresas Parceiras",
+        descricao: "Ampliar parcerias com empresas para oferta de crédito consignado."
+      }
+    ],
+    acoes: [
+      {
+        titulo: "Campanha de Marketing Direcionada",
+        descricao: "Implementar campanha de marketing focada em crédito pessoal.",
+        prioridade: "alta"
+      },
+      {
+        titulo: "Treinamento da Equipe de Vendas",
+        descricao: "Realizar treinamento específico sobre produtos de crédito.",
+        prioridade: "media"
+      }
+    ],
+    desempenho: {
+      meta: 100,
+      realizado: 75,
+      anterior: 60
+    }
   },
   "abertura-conta": {
-    // ... keep existing data
+    titulo: "Estratégia de Abertura de Contas",
+    visaoGeral: "Aumentar o número de novas contas abertas com foco em jovens e pequenos empresários.",
+    oportunidades: [
+      {
+        titulo: "Universitários",
+        descricao: "Parcerias com universidades para abertura de contas para estudantes."
+      },
+      {
+        titulo: "Pequenos Empresários",
+        descricao: "Foco em facilitar abertura de contas para pequenos negócios."
+      },
+      {
+        titulo: "Indicações de Clientes",
+        descricao: "Programa de recompensas para clientes que indicarem novos correntistas."
+      }
+    ],
+    acoes: [
+      {
+        titulo: "Campanha Digital",
+        descricao: "Implementar campanha em redes sociais voltada para público jovem.",
+        prioridade: "alta"
+      },
+      {
+        titulo: "Visitas a Universidades",
+        descricao: "Agendar visitas promocionais em universidades parceiras.",
+        prioridade: "media"
+      },
+      {
+        titulo: "Simplificação de Processos",
+        descricao: "Revisar e simplificar processo de abertura de conta digital.",
+        prioridade: "baixa"
+      }
+    ],
+    desempenho: {
+      meta: 100,
+      realizado: 60,
+      anterior: 45
+    },
+    dadosAnaliticos: [
+      {
+        chaveLoja: "5001",
+        cnpj: "12.345.678/0001-99",
+        nomeLoja: "Loja Centro",
+        mesM3: 12,
+        mesM2: 10,
+        mesM1: 15,
+        mesM0: 14,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-25"),
+        dataUltTrxNegocio: new Date("2023-03-27"),
+        dataInauguracao: new Date("2020-05-15"),
+        agencia: "0001",
+        telefoneLoja: "(11) 3456-7890",
+        nomeContato: "João Silva",
+        gerenciaRegional: "São Paulo Centro",
+        diretoriaRegional: "Sudeste",
+        tendencia: "estavel",
+        endereco: "Av. Paulista, 1000 - Centro, São Paulo/SP",
+        nomePdv: "Centro SP",
+        multiplicadorResponsavel: "Carlos Oliveira",
+        dataCertificacao: new Date("2022-10-05"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: false
+        }
+      },
+      {
+        chaveLoja: "5002",
+        cnpj: "23.456.789/0001-88",
+        nomeLoja: "Loja Shopping Vila Olímpia",
+        mesM3: 8,
+        mesM2: 6,
+        mesM1: 4,
+        mesM0: 5,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-26"),
+        dataUltTrxNegocio: new Date("2023-03-28"),
+        dataInauguracao: new Date("2021-11-20"),
+        agencia: "0002",
+        telefoneLoja: "(11) 3456-7891",
+        nomeContato: "Maria Santos",
+        gerenciaRegional: "São Paulo Zona Sul",
+        diretoriaRegional: "Sudeste",
+        tendencia: "queda",
+        endereco: "Shopping Vila Olímpia, Loja 42 - São Paulo/SP",
+        nomePdv: "Vila Olímpia",
+        multiplicadorResponsavel: "Ana Pereira",
+        dataCertificacao: new Date("2022-09-15"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: false,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5003",
+        cnpj: "34.567.890/0001-77",
+        nomeLoja: "Loja Campinas Shopping",
+        mesM3: 5,
+        mesM2: 7,
+        mesM1: 9,
+        mesM0: 13,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-25"),
+        dataUltTrxNegocio: new Date("2023-03-25"),
+        dataInauguracao: new Date("2019-03-10"),
+        agencia: "0015",
+        telefoneLoja: "(19) 3456-7892",
+        nomeContato: "Pedro Almeida",
+        gerenciaRegional: "Campinas",
+        diretoriaRegional: "Interior SP",
+        tendencia: "comecando",
+        endereco: "Campinas Shopping, Loja 67 - Campinas/SP",
+        nomePdv: "Campinas Shop",
+        multiplicadorResponsavel: "Roberto Costa",
+        dataCertificacao: new Date("2022-11-20"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5004",
+        cnpj: "45.678.901/0001-66",
+        nomeLoja: "Loja Rio Branco",
+        mesM3: 10,
+        mesM2: 8,
+        mesM1: 6,
+        mesM0: 5,
+        situacao: "bloqueada",
+        dataUltTrxContabil: new Date("2023-03-01"),
+        dataUltTrxNegocio: new Date("2023-03-01"),
+        dataBloqueio: new Date("2023-03-02"),
+        dataInauguracao: new Date("2018-06-05"),
+        agencia: "0032",
+        telefoneLoja: "(21) 3456-7893",
+        nomeContato: "Fernanda Lima",
+        gerenciaRegional: "Rio de Janeiro Centro",
+        diretoriaRegional: "Rio de Janeiro",
+        tendencia: "queda",
+        endereco: "Av. Rio Branco, 156 - Centro, Rio de Janeiro/RJ",
+        nomePdv: "Rio Branco",
+        multiplicadorResponsavel: "Paulo Mendes",
+        dataCertificacao: new Date("2021-05-10"),
+        situacaoTablet: "Retirado",
+        produtosHabilitados: {
+          consignado: false,
+          microsseguro: false,
+          lime: false
+        }
+      },
+      {
+        chaveLoja: "5005",
+        cnpj: "56.789.012/0001-55",
+        nomeLoja: "Loja Salvador Shopping",
+        mesM3: 7,
+        mesM2: 7,
+        mesM1: 8,
+        mesM0: 6,
+        situacao: "em processo de encerramento",
+        dataUltTrxContabil: new Date("2023-03-10"),
+        dataUltTrxNegocio: new Date("2023-03-15"),
+        dataInauguracao: new Date("2017-09-22"),
+        agencia: "0048",
+        telefoneLoja: "(71) 3456-7894",
+        nomeContato: "Luciana Costa",
+        gerenciaRegional: "Salvador",
+        diretoriaRegional: "Nordeste",
+        tendencia: "queda",
+        endereco: "Salvador Shopping, Loja 33 - Salvador/BA",
+        nomePdv: "Salvador Shop",
+        multiplicadorResponsavel: "Marcos Vieira",
+        dataCertificacao: new Date("2020-11-05"),
+        situacaoTablet: "S.Tablet",
+        produtosHabilitados: {
+          consignado: false,
+          microsseguro: true,
+          lime: false
+        }
+      },
+      {
+        chaveLoja: "5006",
+        cnpj: "67.890.123/0001-44",
+        nomeLoja: "Loja Belo Horizonte",
+        mesM3: 9,
+        mesM2: 11,
+        mesM1: 10,
+        mesM0: 12,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-29"),
+        dataUltTrxNegocio: new Date("2023-03-29"),
+        dataInauguracao: new Date("2019-12-10"),
+        agencia: "0056",
+        telefoneLoja: "(31) 3456-7895",
+        nomeContato: "Ricardo Souza",
+        gerenciaRegional: "Belo Horizonte",
+        diretoriaRegional: "Minas Gerais",
+        tendencia: "estavel",
+        endereco: "Av. Afonso Pena, 1500 - Centro, Belo Horizonte/MG",
+        nomePdv: "BH Centro",
+        multiplicadorResponsavel: "Camila Rocha",
+        dataCertificacao: new Date("2022-07-15"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
+      }
+    ]
   },
   "seguro": {
-    // ... keep existing data
+    titulo: "Estratégia de Seguros",
+    visaoGeral: "Ampliar carteira de seguros com foco em microsseguros e seguros residenciais.",
+    oportunidades: [
+      {
+        titulo: "Microsseguros para Baixa Renda",
+        descricao: "Pacotes acessíveis para segmentos de menor poder aquisitivo."
+      },
+      {
+        titulo: "Seguros Residenciais Simplificados",
+        descricao: "Produtos simplificados para proteção residencial."
+      }
+    ],
+    acoes: [
+      {
+        titulo: "Treinamento em Microsseguros",
+        descricao: "Capacitar equipe para oferta adequada de microsseguros.",
+        prioridade: "alta"
+      },
+      {
+        titulo: "Parcerias com Imobiliárias",
+        descricao: "Estabelecer parcerias para oferta de seguros residenciais.",
+        prioridade: "media"
+      }
+    ],
+    desempenho: {
+      meta: 100,
+      realizado: 40,
+      anterior: 35
+    }
   }
 };
 
