@@ -13,7 +13,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Table,
@@ -36,6 +36,7 @@ interface DadosLoja {
   mesM3: number;
   mesM2: number;
   mesM1: number;
+  mesM0: number; // Adicionando o novo campo M0
   situacao: "ativa" | "bloqueada" | "em processo de encerramento";
   dataUltTrxContabil: Date;
   dataUltTrxNegocio: Date;
@@ -47,6 +48,17 @@ interface DadosLoja {
   gerenciaRegional: string;
   diretoriaRegional: string;
   tendencia: "queda" | "atencao" | "estavel" | "comecando";
+  // Campos adicionais para detalhes expandidos
+  endereco?: string;
+  nomePdv?: string;
+  multiplicadorResponsavel?: string;
+  dataCertificacao?: Date;
+  situacaoTablet?: "Instalado" | "Retirado" | "S.Tablet";
+  produtosHabilitados?: {
+    consignado: boolean;
+    microsseguro: boolean;
+    lime: boolean;
+  };
 }
 
 // Interface para dados de estratégia
@@ -118,6 +130,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         mesM3: 12,
         mesM2: 14,
         mesM1: 8,
+        mesM0: 10, // Adicionando dados para M0
         situacao: "ativa",
         dataUltTrxContabil: new Date(2024, 3, 8),
         dataUltTrxNegocio: new Date(2024, 3, 10),
@@ -127,7 +140,18 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         nomeContato: "Pedro Silva",
         gerenciaRegional: "São Paulo Centro",
         diretoriaRegional: "SP Capital",
-        tendencia: "queda"
+        tendencia: "queda",
+        // Adicionando campos extras para detalhes
+        endereco: "Av. Paulista, 1000, Centro, São Paulo/SP",
+        nomePdv: "SP Centro 01",
+        multiplicadorResponsavel: "Carlos Mendes",
+        dataCertificacao: new Date(2022, 6, 20),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: false
+        }
       },
       {
         chaveLoja: "20387",
@@ -136,6 +160,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         mesM3: 5,
         mesM2: 7,
         mesM1: 9,
+        mesM0: 12, // Adicionando dados para M0
         situacao: "ativa",
         dataUltTrxContabil: new Date(2024, 3, 11),
         dataUltTrxNegocio: new Date(2024, 3, 11),
@@ -145,7 +170,18 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         nomeContato: "Maria Oliveira",
         gerenciaRegional: "São Paulo Leste",
         diretoriaRegional: "SP Capital",
-        tendencia: "comecando"
+        tendencia: "comecando",
+        // Adicionando campos extras para detalhes
+        endereco: "Rua das Flores, 300, Tatuapé, São Paulo/SP",
+        nomePdv: "SP Leste 05",
+        multiplicadorResponsavel: "Ana Sousa",
+        dataCertificacao: new Date(2023, 2, 15),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
       },
       {
         chaveLoja: "30125",
@@ -154,6 +190,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         mesM3: 18,
         mesM2: 19,
         mesM1: 17,
+        mesM0: 16, // Adicionando dados para M0
         situacao: "ativa",
         dataUltTrxContabil: new Date(2024, 3, 10),
         dataUltTrxNegocio: new Date(2024, 3, 9),
@@ -163,7 +200,18 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         nomeContato: "João Pereira",
         gerenciaRegional: "São Paulo Centro",
         diretoriaRegional: "SP Capital",
-        tendencia: "estavel"
+        tendencia: "estavel",
+        // Adicionando campos extras para detalhes
+        endereco: "Av. Brigadeiro Faria Lima, 500, Pinheiros, São Paulo/SP",
+        nomePdv: "SP Centro 12",
+        multiplicadorResponsavel: "Roberto Alves",
+        dataCertificacao: new Date(2021, 9, 5),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: false,
+          lime: true
+        }
       },
       {
         chaveLoja: "40563",
@@ -172,6 +220,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         mesM3: 8,
         mesM2: 6,
         mesM1: 3,
+        mesM0: 0, // Adicionando dados para M0
         situacao: "bloqueada",
         dataUltTrxContabil: new Date(2024, 3, 1),
         dataUltTrxNegocio: new Date(2024, 2, 28),
@@ -182,7 +231,18 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         nomeContato: "Ana Santos",
         gerenciaRegional: "São Paulo Sul",
         diretoriaRegional: "SP Capital",
-        tendencia: "atencao"
+        tendencia: "atencao",
+        // Adicionando campos extras para detalhes
+        endereco: "Rua Augusta, 200, Consolação, São Paulo/SP",
+        nomePdv: "SP Sul 03",
+        multiplicadorResponsavel: "Fernanda Lima",
+        dataCertificacao: new Date(2022, 4, 10),
+        situacaoTablet: "Retirado",
+        produtosHabilitados: {
+          consignado: false,
+          microsseguro: true,
+          lime: false
+        }
       },
       {
         chaveLoja: "50892",
@@ -191,6 +251,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         mesM3: 10,
         mesM2: 10,
         mesM1: 11,
+        mesM0: 5, // Adicionando dados para M0
         situacao: "em processo de encerramento",
         dataUltTrxContabil: new Date(2024, 3, 2),
         dataUltTrxNegocio: new Date(2024, 2, 25),
@@ -201,7 +262,18 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         nomeContato: "Carlos Ferreira",
         gerenciaRegional: "São Paulo Norte",
         diretoriaRegional: "SP Capital",
-        tendencia: "queda"
+        tendencia: "queda",
+        // Adicionando campos extras para detalhes
+        endereco: "Av. Ibirapuera, 1200, Moema, São Paulo/SP",
+        nomePdv: "SP Norte 08",
+        multiplicadorResponsavel: "Marcos Santos",
+        dataCertificacao: new Date(2022, 0, 20),
+        situacaoTablet: "S.Tablet",
+        produtosHabilitados: {
+          consignado: false,
+          microsseguro: false,
+          lime: true
+        }
       }
     ]
   },
@@ -229,6 +301,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
 const DetalhesEstrategia: React.FC = () => {
   const { produto } = useParams<{ produto: string }>();
   const [dados, setDados] = useState<DadosEstrategia | null>(null);
+  const [lojaExpandida, setLojaExpandida] = useState<string | null>(null);
   const { user, isManager } = useAuth();
 
   useEffect(() => {
@@ -268,6 +341,15 @@ const DetalhesEstrategia: React.FC = () => {
   const formatDate = (date: Date) => {
     if (!date) return "—";
     return format(date, "dd/MM/yyyy", {locale: ptBR});
+  };
+  
+  // Toggle para expandir detalhes da loja
+  const toggleLojaExpandida = (chaveLoja: string) => {
+    if (lojaExpandida === chaveLoja) {
+      setLojaExpandida(null);
+    } else {
+      setLojaExpandida(chaveLoja);
+    }
   };
 
   return (
@@ -371,52 +453,110 @@ const DetalhesEstrategia: React.FC = () => {
                         <TableRow>
                           <TableHead className="w-[120px]">Chave Loja</TableHead>
                           <TableHead>Nome Loja</TableHead>
-                          <TableHead className="text-center">M-3</TableHead>
-                          <TableHead className="text-center">M-2</TableHead>
-                          <TableHead className="text-center">M-1</TableHead>
-                          <TableHead>Situação</TableHead>
-                          <TableHead>Últ. Contábil</TableHead>
-                          <TableHead>Últ. Negócio</TableHead>
+                          <TableHead className="text-center" colSpan={4}>
+                            <div className="mb-1">Qtd. Contas</div>
+                            <div className="grid grid-cols-4 gap-2 text-xs font-normal">
+                              <div>M-3</div>
+                              <div>M-2</div>
+                              <div>M-1</div>
+                              <div>M0</div>
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-center">Situação</TableHead>
+                          <TableHead className="text-center">Últ. Contábil</TableHead>
+                          <TableHead className="text-center">Últ. Negócio</TableHead>
                           <TableHead className="text-center">Tendência</TableHead>
-                          <TableHead className="w-[80px] text-right">Ação</TableHead>
+                          <TableHead className="w-[120px] text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {dados.dadosAnaliticos.map((loja) => (
-                          <TableRow key={loja.chaveLoja}>
-                            <TableCell className="font-medium">
-                              <div>{loja.chaveLoja}</div>
-                              <div className="text-xs text-gray-500">{loja.cnpj}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{loja.nomeLoja}</div>
-                              <div className="text-xs text-gray-500">
-                                Ag: {loja.agencia}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">{loja.mesM3}</TableCell>
-                            <TableCell className="text-center">{loja.mesM2}</TableCell>
-                            <TableCell className="text-center">{loja.mesM1}</TableCell>
-                            <TableCell>
-                              {loja.situacao === "ativa" ? (
-                                <TableStatus status="realizar" label="Ativa" />
-                              ) : loja.situacao === "bloqueada" ? (
-                                <TableStatus status="pendente" label="Bloqueada" />
-                              ) : (
-                                <TableStatus status="pendente" label="Em encerramento" />
-                              )}
-                            </TableCell>
-                            <TableCell>{formatDate(loja.dataUltTrxContabil)}</TableCell>
-                            <TableCell>{formatDate(loja.dataUltTrxNegocio)}</TableCell>
-                            <TableCell className="text-center">
-                              {renderTendenciaIcon(loja.tendencia)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" title="Adicionar tratativa">
-                                <Plus size={16} />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                          <React.Fragment key={loja.chaveLoja}>
+                            <TableRow>
+                              <TableCell className="font-medium">
+                                <div>{loja.chaveLoja}</div>
+                                <div className="text-xs text-gray-500">{loja.cnpj}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{loja.nomeLoja}</div>
+                                <div className="text-xs text-gray-500">
+                                  Ag: {loja.agencia}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM3}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM2}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM1}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM0}</TableCell>
+                              <TableCell className="text-center">
+                                {loja.situacao === "ativa" ? (
+                                  <TableStatus status="realizar" label="Ativa" />
+                                ) : loja.situacao === "bloqueada" ? (
+                                  <TableStatus status="pendente" label="Bloqueada" />
+                                ) : (
+                                  <TableStatus status="pendente" label="Em encerramento" />
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">{formatDate(loja.dataUltTrxContabil)}</TableCell>
+                              <TableCell className="text-center">{formatDate(loja.dataUltTrxNegocio)}</TableCell>
+                              <TableCell className="text-center">
+                                {renderTendenciaIcon(loja.tendencia)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title="Ver detalhes"
+                                    onClick={() => toggleLojaExpandida(loja.chaveLoja)}
+                                    className="bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                  >
+                                    <Info size={16} className="text-blue-600" />
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title="Adicionar tratativa"
+                                    className="bg-green-50 border-green-200 hover:bg-green-100"
+                                  >
+                                    <Plus size={16} className="text-green-600" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {lojaExpandida === loja.chaveLoja && (
+                              <TableRow className="bg-gray-50">
+                                <TableCell colSpan={10} className="py-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <h4 className="font-medium mb-2">Informações Detalhadas</h4>
+                                      <ul className="space-y-1.5">
+                                        <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
+                                        <li className="text-sm"><span className="font-medium">Nome PDV:</span> {loja.nomePdv}</li>
+                                        <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
+                                        <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
+                                        <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
+                                        <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h4 className="font-medium mb-2">Produtos Habilitados</h4>
+                                      <div className="flex space-x-4">
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Consignado
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Microsseguro
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Lime
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
                         ))}
                       </TableBody>
                     </Table>
