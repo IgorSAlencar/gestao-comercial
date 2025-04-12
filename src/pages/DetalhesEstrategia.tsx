@@ -13,8 +13,41 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableStatus,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+// Interface para dados da loja
+interface DadosLoja {
+  chaveLoja: string;
+  cnpj: string;
+  nomeLoja: string;
+  mesM3: number;
+  mesM2: number;
+  mesM1: number;
+  situacao: "ativa" | "bloqueada" | "em processo de encerramento";
+  dataUltTrxContabil: Date;
+  dataUltTrxNegocio: Date;
+  dataBloqueio?: Date;
+  dataInauguracao: Date;
+  agencia: string;
+  telefoneLoja: string;
+  nomeContato: string;
+  gerenciaRegional: string;
+  diretoriaRegional: string;
+  tendencia: "queda" | "atencao" | "estavel" | "comecando";
+}
 
 // Interface para dados de estratégia
 interface DadosEstrategia {
@@ -34,6 +67,8 @@ interface DadosEstrategia {
     realizado: number;
     anterior: number;
   };
+  // Dados para tabela analítica (apenas para abertura-conta)
+  dadosAnaliticos?: DadosLoja[];
 }
 
 // Dados simulados para cada produto
@@ -74,7 +109,101 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
       meta: 100,
       realizado: 85,
       anterior: 70
-    }
+    },
+    dadosAnaliticos: [
+      {
+        chaveLoja: "10254",
+        cnpj: "12.345.678/0001-90",
+        nomeLoja: "Mercado São Pedro",
+        mesM3: 12,
+        mesM2: 14,
+        mesM1: 8,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date(2024, 3, 8),
+        dataUltTrxNegocio: new Date(2024, 3, 10),
+        dataInauguracao: new Date(2022, 5, 15),
+        agencia: "0123",
+        telefoneLoja: "(11) 3456-7890",
+        nomeContato: "Pedro Silva",
+        gerenciaRegional: "São Paulo Centro",
+        diretoriaRegional: "SP Capital",
+        tendencia: "queda"
+      },
+      {
+        chaveLoja: "20387",
+        cnpj: "23.456.789/0001-12",
+        nomeLoja: "Farmácia Saúde Total",
+        mesM3: 5,
+        mesM2: 7,
+        mesM1: 9,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date(2024, 3, 11),
+        dataUltTrxNegocio: new Date(2024, 3, 11),
+        dataInauguracao: new Date(2023, 1, 20),
+        agencia: "0456",
+        telefoneLoja: "(11) 2345-6789",
+        nomeContato: "Maria Oliveira",
+        gerenciaRegional: "São Paulo Leste",
+        diretoriaRegional: "SP Capital",
+        tendencia: "comecando"
+      },
+      {
+        chaveLoja: "30125",
+        cnpj: "34.567.890/0001-23",
+        nomeLoja: "Lojas Eletrônicos Já",
+        mesM3: 18,
+        mesM2: 19,
+        mesM1: 17,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date(2024, 3, 10),
+        dataUltTrxNegocio: new Date(2024, 3, 9),
+        dataInauguracao: new Date(2021, 8, 10),
+        agencia: "0789",
+        telefoneLoja: "(11) 9876-5432",
+        nomeContato: "João Pereira",
+        gerenciaRegional: "São Paulo Centro",
+        diretoriaRegional: "SP Capital",
+        tendencia: "estavel"
+      },
+      {
+        chaveLoja: "40563",
+        cnpj: "45.678.901/0001-34",
+        nomeLoja: "Restaurante Sabor Brasileiro",
+        mesM3: 8,
+        mesM2: 6,
+        mesM1: 3,
+        situacao: "bloqueada",
+        dataUltTrxContabil: new Date(2024, 3, 1),
+        dataUltTrxNegocio: new Date(2024, 2, 28),
+        dataBloqueio: new Date(2024, 3, 5),
+        dataInauguracao: new Date(2022, 3, 5),
+        agencia: "0234",
+        telefoneLoja: "(11) 8765-4321",
+        nomeContato: "Ana Santos",
+        gerenciaRegional: "São Paulo Sul",
+        diretoriaRegional: "SP Capital",
+        tendencia: "atencao"
+      },
+      {
+        chaveLoja: "50892",
+        cnpj: "56.789.012/0001-45",
+        nomeLoja: "Auto Peças Velozes",
+        mesM3: 10,
+        mesM2: 10,
+        mesM1: 11,
+        situacao: "em processo de encerramento",
+        dataUltTrxContabil: new Date(2024, 3, 2),
+        dataUltTrxNegocio: new Date(2024, 2, 25),
+        dataBloqueio: new Date(2024, 3, 12),
+        dataInauguracao: new Date(2021, 11, 15),
+        agencia: "0567",
+        telefoneLoja: "(11) 7654-3210",
+        nomeContato: "Carlos Ferreira",
+        gerenciaRegional: "São Paulo Norte",
+        diretoriaRegional: "SP Capital",
+        tendencia: "queda"
+      }
+    ]
   },
   "seguro": {
     titulo: "Seguro",
@@ -118,6 +247,28 @@ const DetalhesEstrategia: React.FC = () => {
 
   const percentualRealizado = Math.round((dados.desempenho.realizado / dados.desempenho.meta) * 100);
   const tendencia = dados.desempenho.realizado > dados.desempenho.anterior ? "positiva" : "negativa";
+
+  // Função para renderizar o ícone de tendência
+  const renderTendenciaIcon = (tendencia: string) => {
+    switch(tendencia) {
+      case "queda":
+        return <TrendingDown size={16} className="text-red-500" />;
+      case "atencao":
+        return <AlertTriangle size={16} className="text-amber-500" />;
+      case "estavel":
+        return <Activity size={16} className="text-blue-500" />;
+      case "comecando":
+        return <TrendingUp size={16} className="text-green-500" />;
+      default:
+        return null;
+    }
+  };
+
+  // Função para formatar a data
+  const formatDate = (date: Date) => {
+    if (!date) return "—";
+    return format(date, "dd/MM/yyyy", {locale: ptBR});
+  };
 
   return (
     <div className="container mx-auto">
@@ -208,18 +359,84 @@ const DetalhesEstrategia: React.FC = () => {
           </TabsList>
 
           <TabsContent value="oportunidades">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {dados.oportunidades.map((oportunidade, index) => (
-                <Card key={index}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{oportunidade.titulo}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p>{oportunidade.descricao}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {produto === "abertura-conta" && dados.dadosAnaliticos ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quadro Analítico de Oportunidades</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[120px]">Chave Loja</TableHead>
+                          <TableHead>Nome Loja</TableHead>
+                          <TableHead className="text-center">M-3</TableHead>
+                          <TableHead className="text-center">M-2</TableHead>
+                          <TableHead className="text-center">M-1</TableHead>
+                          <TableHead>Situação</TableHead>
+                          <TableHead>Últ. Contábil</TableHead>
+                          <TableHead>Últ. Negócio</TableHead>
+                          <TableHead className="text-center">Tendência</TableHead>
+                          <TableHead className="w-[80px] text-right">Ação</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dados.dadosAnaliticos.map((loja) => (
+                          <TableRow key={loja.chaveLoja}>
+                            <TableCell className="font-medium">
+                              <div>{loja.chaveLoja}</div>
+                              <div className="text-xs text-gray-500">{loja.cnpj}</div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{loja.nomeLoja}</div>
+                              <div className="text-xs text-gray-500">
+                                Ag: {loja.agencia}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">{loja.mesM3}</TableCell>
+                            <TableCell className="text-center">{loja.mesM2}</TableCell>
+                            <TableCell className="text-center">{loja.mesM1}</TableCell>
+                            <TableCell>
+                              {loja.situacao === "ativa" ? (
+                                <TableStatus status="realizar" label="Ativa" />
+                              ) : loja.situacao === "bloqueada" ? (
+                                <TableStatus status="pendente" label="Bloqueada" />
+                              ) : (
+                                <TableStatus status="pendente" label="Em encerramento" />
+                              )}
+                            </TableCell>
+                            <TableCell>{formatDate(loja.dataUltTrxContabil)}</TableCell>
+                            <TableCell>{formatDate(loja.dataUltTrxNegocio)}</TableCell>
+                            <TableCell className="text-center">
+                              {renderTendenciaIcon(loja.tendencia)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" title="Adicionar tratativa">
+                                <Plus size={16} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {dados.oportunidades.map((oportunidade, index) => (
+                  <Card key={index}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">{oportunidade.titulo}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>{oportunidade.descricao}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="acoes">
