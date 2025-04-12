@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,11 +12,35 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<{
+    funcional?: string;
+    password?: string;
+  }>({});
   const { toast } = useToast();
   const { login } = useAuth();
 
+  const validateForm = () => {
+    const newErrors: { funcional?: string; password?: string } = {};
+
+    if (!funcional.trim()) {
+      newErrors.funcional = "O funcional é obrigatório";
+    }
+
+    if (!password.trim()) {
+      newErrors.password = "A senha é obrigatória";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -58,12 +81,19 @@ const LoginPage: React.FC = () => {
                     id="funcional"
                     type="text"
                     placeholder="Digite seu funcional"
-                    className="pl-10"
+                    className={`pl-10 ${errors.funcional ? 'border-red-500' : ''}`}
                     value={funcional}
-                    onChange={(e) => setFuncional(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setFuncional(e.target.value);
+                      if (errors.funcional) {
+                        setErrors(prev => ({ ...prev, funcional: undefined }));
+                      }
+                    }}
                   />
                 </div>
+                {errors.funcional && (
+                  <p className="text-sm text-red-500 mt-1">{errors.funcional}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Senha</Label>
@@ -73,10 +103,14 @@ const LoginPage: React.FC = () => {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="pl-10 pr-10"
+                    className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (errors.password) {
+                        setErrors(prev => ({ ...prev, password: undefined }));
+                      }
+                    }}
                   />
                   <button
                     type="button"
@@ -87,6 +121,9 @@ const LoginPage: React.FC = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {errors.password && (
+                  <p className="text-sm text-red-500 mt-1">{errors.password}</p>
+                )}
               </div>
               <Button 
                 type="submit" 

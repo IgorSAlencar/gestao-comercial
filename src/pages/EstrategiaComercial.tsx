@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Card, 
@@ -18,20 +17,25 @@ interface ProdutoCardProps {
   onClick: () => void;
 }
 
-const ProdutoCard: React.FC<ProdutoCardProps> = ({ titulo, descricao, icon, onClick }) => (
-  <Card className="hover:shadow-lg transition-all duration-200">
-    <CardHeader className="pb-2">
-      <div className="flex justify-between items-center mb-2">
-        <CardTitle>{titulo}</CardTitle>
-        <div className="text-primary">{icon}</div>
+const ProdutoCard = ({ titulo, descricao, icon, onClick }: ProdutoCardProps) => {
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-6 flex flex-col h-[220px] justify-between">
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="text-xl font-semibold">{titulo}</h3>
+        </div>
+        <p className="text-gray-600 text-sm">{descricao}</p>
       </div>
-      <CardDescription>{descricao}</CardDescription>
-    </CardHeader>
-    <CardContent>
-      <Button onClick={onClick} className="w-full">Selecionar</Button>
-    </CardContent>
-  </Card>
-);
+      <Button 
+        onClick={onClick} 
+        className="w-full bg-bradesco-blue hover:bg-bradesco-blue/90 mt-3"
+      >
+        Selecionar
+      </Button>
+    </div>
+  );
+};
 
 const EstrategiaComercial: React.FC = () => {
   const navigate = useNavigate();
