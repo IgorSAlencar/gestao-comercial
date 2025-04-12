@@ -8,6 +8,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import PrivateRoute from "@/components/PrivateRoute";
 import Layout from "@/components/Layout";
 import LoginPage from "@/pages/Login";
+import IndexPage from "@/pages/Index";
 import AgendaPage from "@/pages/Agenda";
 import HotlistPage from "@/pages/Hotlist";
 import OpportunidadesPage from "@/pages/Oportunidades";
@@ -32,7 +33,11 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/" element={<Navigate to="/agenda" replace />} />
+            <Route path="/" element={
+              <PrivateRoute>
+                <Layout><IndexPage /></Layout>
+              </PrivateRoute>
+            } />
             <Route 
               path="/agenda" 
               element={
