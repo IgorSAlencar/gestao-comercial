@@ -160,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: `Bem-vindo(a), ${userData.name}!`,
       });
       
-      navigate("/agenda");
+      navigate("/"); // Modificado para redirecionar para a página inicial
     } catch (error) {
       console.error("Login error:", error);
       // Toast já exibido pelo manipulador de erros da API

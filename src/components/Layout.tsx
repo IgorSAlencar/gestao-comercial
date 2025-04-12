@@ -1,5 +1,7 @@
+
 import React, { useState } from "react";
 import { 
+  Home,
   Calendar, 
   ClipboardList, 
   MapPin, 
@@ -27,6 +29,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const navItems = [
+    {
+      title: "Home",
+      icon: <Home className="h-5 w-5" />,
+      path: "/",
+    },
     {
       title: "Agenda",
       icon: <Calendar className="h-5 w-5" />,
