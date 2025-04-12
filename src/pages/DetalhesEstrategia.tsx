@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { 
@@ -13,7 +12,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Table,
@@ -27,8 +26,22 @@ import {
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Input } from "@/components/ui/input";
+import { 
+  Form,
+  FormField,
+  FormItem,
+  FormControl
+} from "@/components/ui/form";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useForm } from "react-hook-form";
 
-// Interface para dados da loja
 interface DadosLoja {
   chaveLoja: string;
   cnpj: string;
@@ -36,7 +49,7 @@ interface DadosLoja {
   mesM3: number;
   mesM2: number;
   mesM1: number;
-  mesM0: number; // Adicionando o novo campo M0
+  mesM0: number;
   situacao: "ativa" | "bloqueada" | "em processo de encerramento";
   dataUltTrxContabil: Date;
   dataUltTrxNegocio: Date;
@@ -48,7 +61,6 @@ interface DadosLoja {
   gerenciaRegional: string;
   diretoriaRegional: string;
   tendencia: "queda" | "atencao" | "estavel" | "comecando";
-  // Campos adicionais para detalhes expandidos
   endereco?: string;
   nomePdv?: string;
   multiplicadorResponsavel?: string;
@@ -61,7 +73,6 @@ interface DadosLoja {
   };
 }
 
-// Interface para dados de estratégia
 interface DadosEstrategia {
   titulo: string;
   visaoGeral: string;
@@ -79,222 +90,28 @@ interface DadosEstrategia {
     realizado: number;
     anterior: number;
   };
-  // Dados para tabela analítica (apenas para abertura-conta)
   dadosAnaliticos?: DadosLoja[];
 }
 
-// Dados simulados para cada produto
+interface FiltrosLoja {
+  chaveLoja: string;
+  cnpj: string;
+  nomeLoja: string;
+  situacao: string;
+  agencia: string;
+  gerenciaRegional: string;
+  diretoriaRegional: string;
+}
+
 const dadosSimulados: Record<string, DadosEstrategia> = {
   "credito": {
-    titulo: "Crédito",
-    visaoGeral: "Estratégia focada em ampliar a base de clientes com crédito ativo, aumentando o ticket médio e reduzindo a inadimplência na região.",
-    oportunidades: [
-      { titulo: "Renovação de crédito", descricao: "125 clientes com perfil para renovação de crédito nos próximos 30 dias." },
-      { titulo: "Aumento de limite", descricao: "78 clientes com potencial para aumento de limite de crédito baseado na análise de risco." },
-      { titulo: "Crédito consignado", descricao: "43 clientes recentemente aposentados com potencial para crédito consignado." }
-    ],
-    acoes: [
-      { titulo: "Campanha Crédito Fácil", descricao: "Foco em clientes com mais de 1 ano de relacionamento e bom histórico de pagamento.", prioridade: "alta" },
-      { titulo: "Pré-aprovados", descricao: "Contatar clientes com crédito pré-aprovado pelo sistema de análise.", prioridade: "alta" },
-      { titulo: "Negociação de taxas", descricao: "Oferecer taxas reduzidas para clientes de alto valor.", prioridade: "media" }
-    ],
-    desempenho: {
-      meta: 100,
-      realizado: 65,
-      anterior: 50
-    }
+    // ... keep existing data
   },
   "abertura-conta": {
-    titulo: "Abertura de Conta",
-    visaoGeral: "Estratégia focada em ampliar a base de clientes através da abertura de novas contas, priorizando o público jovem e pequenos empresários da região.",
-    oportunidades: [
-      { titulo: "Universitários", descricao: "Campanha em 3 faculdades da região com potencial de 200 novas contas." },
-      { titulo: "Pequenos empresários", descricao: "Parceria com associação comercial para oferta de contas PJ." },
-      { titulo: "Indicações de clientes", descricao: "Programa de indicação com benefícios para quem trouxer novos correntistas." }
-    ],
-    acoes: [
-      { titulo: "Conta Digital Zero", descricao: "Promover a conta digital sem taxas para novos clientes.", prioridade: "alta" },
-      { titulo: "Parcerias locais", descricao: "Estabelecer parcerias com comércios locais para ofertas exclusivas.", prioridade: "media" },
-      { titulo: "Workshop para MEIs", descricao: "Realizar workshop sobre gestão financeira para microempreendedores.", prioridade: "baixa" }
-    ],
-    desempenho: {
-      meta: 100,
-      realizado: 85,
-      anterior: 70
-    },
-    dadosAnaliticos: [
-      {
-        chaveLoja: "10254",
-        cnpj: "12.345.678/0001-90",
-        nomeLoja: "Mercado São Pedro",
-        mesM3: 12,
-        mesM2: 14,
-        mesM1: 8,
-        mesM0: 10, // Adicionando dados para M0
-        situacao: "ativa",
-        dataUltTrxContabil: new Date(2024, 3, 8),
-        dataUltTrxNegocio: new Date(2024, 3, 10),
-        dataInauguracao: new Date(2022, 5, 15),
-        agencia: "0123",
-        telefoneLoja: "(11) 3456-7890",
-        nomeContato: "Pedro Silva",
-        gerenciaRegional: "São Paulo Centro",
-        diretoriaRegional: "SP Capital",
-        tendencia: "queda",
-        // Adicionando campos extras para detalhes
-        endereco: "Av. Paulista, 1000, Centro, São Paulo/SP",
-        nomePdv: "SP Centro 01",
-        multiplicadorResponsavel: "Carlos Mendes",
-        dataCertificacao: new Date(2022, 6, 20),
-        situacaoTablet: "Instalado",
-        produtosHabilitados: {
-          consignado: true,
-          microsseguro: true,
-          lime: false
-        }
-      },
-      {
-        chaveLoja: "20387",
-        cnpj: "23.456.789/0001-12",
-        nomeLoja: "Farmácia Saúde Total",
-        mesM3: 5,
-        mesM2: 7,
-        mesM1: 9,
-        mesM0: 12, // Adicionando dados para M0
-        situacao: "ativa",
-        dataUltTrxContabil: new Date(2024, 3, 11),
-        dataUltTrxNegocio: new Date(2024, 3, 11),
-        dataInauguracao: new Date(2023, 1, 20),
-        agencia: "0456",
-        telefoneLoja: "(11) 2345-6789",
-        nomeContato: "Maria Oliveira",
-        gerenciaRegional: "São Paulo Leste",
-        diretoriaRegional: "SP Capital",
-        tendencia: "comecando",
-        // Adicionando campos extras para detalhes
-        endereco: "Rua das Flores, 300, Tatuapé, São Paulo/SP",
-        nomePdv: "SP Leste 05",
-        multiplicadorResponsavel: "Ana Sousa",
-        dataCertificacao: new Date(2023, 2, 15),
-        situacaoTablet: "Instalado",
-        produtosHabilitados: {
-          consignado: true,
-          microsseguro: true,
-          lime: true
-        }
-      },
-      {
-        chaveLoja: "30125",
-        cnpj: "34.567.890/0001-23",
-        nomeLoja: "Lojas Eletrônicos Já",
-        mesM3: 18,
-        mesM2: 19,
-        mesM1: 17,
-        mesM0: 16, // Adicionando dados para M0
-        situacao: "ativa",
-        dataUltTrxContabil: new Date(2024, 3, 10),
-        dataUltTrxNegocio: new Date(2024, 3, 9),
-        dataInauguracao: new Date(2021, 8, 10),
-        agencia: "0789",
-        telefoneLoja: "(11) 9876-5432",
-        nomeContato: "João Pereira",
-        gerenciaRegional: "São Paulo Centro",
-        diretoriaRegional: "SP Capital",
-        tendencia: "estavel",
-        // Adicionando campos extras para detalhes
-        endereco: "Av. Brigadeiro Faria Lima, 500, Pinheiros, São Paulo/SP",
-        nomePdv: "SP Centro 12",
-        multiplicadorResponsavel: "Roberto Alves",
-        dataCertificacao: new Date(2021, 9, 5),
-        situacaoTablet: "Instalado",
-        produtosHabilitados: {
-          consignado: true,
-          microsseguro: false,
-          lime: true
-        }
-      },
-      {
-        chaveLoja: "40563",
-        cnpj: "45.678.901/0001-34",
-        nomeLoja: "Restaurante Sabor Brasileiro",
-        mesM3: 8,
-        mesM2: 6,
-        mesM1: 3,
-        mesM0: 0, // Adicionando dados para M0
-        situacao: "bloqueada",
-        dataUltTrxContabil: new Date(2024, 3, 1),
-        dataUltTrxNegocio: new Date(2024, 2, 28),
-        dataBloqueio: new Date(2024, 3, 5),
-        dataInauguracao: new Date(2022, 3, 5),
-        agencia: "0234",
-        telefoneLoja: "(11) 8765-4321",
-        nomeContato: "Ana Santos",
-        gerenciaRegional: "São Paulo Sul",
-        diretoriaRegional: "SP Capital",
-        tendencia: "atencao",
-        // Adicionando campos extras para detalhes
-        endereco: "Rua Augusta, 200, Consolação, São Paulo/SP",
-        nomePdv: "SP Sul 03",
-        multiplicadorResponsavel: "Fernanda Lima",
-        dataCertificacao: new Date(2022, 4, 10),
-        situacaoTablet: "Retirado",
-        produtosHabilitados: {
-          consignado: false,
-          microsseguro: true,
-          lime: false
-        }
-      },
-      {
-        chaveLoja: "50892",
-        cnpj: "56.789.012/0001-45",
-        nomeLoja: "Auto Peças Velozes",
-        mesM3: 10,
-        mesM2: 10,
-        mesM1: 11,
-        mesM0: 5, // Adicionando dados para M0
-        situacao: "em processo de encerramento",
-        dataUltTrxContabil: new Date(2024, 3, 2),
-        dataUltTrxNegocio: new Date(2024, 2, 25),
-        dataBloqueio: new Date(2024, 3, 12),
-        dataInauguracao: new Date(2021, 11, 15),
-        agencia: "0567",
-        telefoneLoja: "(11) 7654-3210",
-        nomeContato: "Carlos Ferreira",
-        gerenciaRegional: "São Paulo Norte",
-        diretoriaRegional: "SP Capital",
-        tendencia: "queda",
-        // Adicionando campos extras para detalhes
-        endereco: "Av. Ibirapuera, 1200, Moema, São Paulo/SP",
-        nomePdv: "SP Norte 08",
-        multiplicadorResponsavel: "Marcos Santos",
-        dataCertificacao: new Date(2022, 0, 20),
-        situacaoTablet: "S.Tablet",
-        produtosHabilitados: {
-          consignado: false,
-          microsseguro: false,
-          lime: true
-        }
-      }
-    ]
+    // ... keep existing data
   },
   "seguro": {
-    titulo: "Seguro",
-    visaoGeral: "Estratégia focada em aumentar a penetração de produtos de seguro na base atual de clientes e explorar novos nichos de mercado na região.",
-    oportunidades: [
-      { titulo: "Seguro residencial", descricao: "157 clientes com financiamento imobiliário sem seguro residencial contratado." },
-      { titulo: "Seguro de vida", descricao: "93 clientes recém-casados com potencial para contratação de seguro de vida." },
-      { titulo: "Seguro auto", descricao: "112 clientes que adquiriram veículos nos últimos 6 meses sem seguro vinculado." }
-    ],
-    acoes: [
-      { titulo: "Campanha Proteção Total", descricao: "Oferecer pacotes completos com descontos progressivos.", prioridade: "alta" },
-      { titulo: "Cross-selling", descricao: "Identificar clientes com produtos de crédito sem seguros associados.", prioridade: "alta" },
-      { titulo: "Microsseguros", descricao: "Introduzir produtos de baixo ticket para clientes de menor renda.", prioridade: "media" }
-    ],
-    desempenho: {
-      meta: 100,
-      realizado: 45,
-      anterior: 30
-    }
+    // ... keep existing data
   }
 };
 
@@ -302,13 +119,54 @@ const DetalhesEstrategia: React.FC = () => {
   const { produto } = useParams<{ produto: string }>();
   const [dados, setDados] = useState<DadosEstrategia | null>(null);
   const [lojaExpandida, setLojaExpandida] = useState<string | null>(null);
+  const [dadosFiltrados, setDadosFiltrados] = useState<DadosLoja[]>([]);
   const { user, isManager } = useAuth();
+
+  const form = useForm<FiltrosLoja>({
+    defaultValues: {
+      chaveLoja: "",
+      cnpj: "",
+      nomeLoja: "",
+      situacao: "",
+      agencia: "",
+      gerenciaRegional: "",
+      diretoriaRegional: "",
+    }
+  });
 
   useEffect(() => {
     if (produto && produto in dadosSimulados) {
       setDados(dadosSimulados[produto]);
+      if (dadosSimulados[produto].dadosAnaliticos) {
+        setDadosFiltrados(dadosSimulados[produto].dadosAnaliticos || []);
+      }
     }
   }, [produto]);
+
+  const aplicarFiltros = (values: FiltrosLoja) => {
+    if (!dados?.dadosAnaliticos) return;
+    
+    const filtrados = dados.dadosAnaliticos.filter(loja => {
+      if (values.chaveLoja && !loja.chaveLoja.includes(values.chaveLoja)) return false;
+      if (values.cnpj && !loja.cnpj.includes(values.cnpj)) return false;
+      if (values.nomeLoja && !loja.nomeLoja.toLowerCase().includes(values.nomeLoja.toLowerCase())) return false;
+      if (values.situacao && loja.situacao !== values.situacao) return false;
+      if (values.agencia && !loja.agencia.includes(values.agencia)) return false;
+      if (values.gerenciaRegional && !loja.gerenciaRegional.includes(values.gerenciaRegional)) return false;
+      if (values.diretoriaRegional && !loja.diretoriaRegional.includes(values.diretoriaRegional)) return false;
+      
+      return true;
+    });
+    
+    setDadosFiltrados(filtrados);
+  };
+
+  const limparFiltros = () => {
+    form.reset();
+    if (dados?.dadosAnaliticos) {
+      setDadosFiltrados(dados.dadosAnaliticos);
+    }
+  };
 
   if (!dados) {
     return (
@@ -321,7 +179,6 @@ const DetalhesEstrategia: React.FC = () => {
   const percentualRealizado = Math.round((dados.desempenho.realizado / dados.desempenho.meta) * 100);
   const tendencia = dados.desempenho.realizado > dados.desempenho.anterior ? "positiva" : "negativa";
 
-  // Função para renderizar o ícone de tendência
   const renderTendenciaIcon = (tendencia: string) => {
     switch(tendencia) {
       case "queda":
@@ -337,13 +194,11 @@ const DetalhesEstrategia: React.FC = () => {
     }
   };
 
-  // Função para formatar a data
   const formatDate = (date: Date) => {
     if (!date) return "—";
     return format(date, "dd/MM/yyyy", {locale: ptBR});
   };
   
-  // Toggle para expandir detalhes da loja
   const toggleLojaExpandida = (chaveLoja: string) => {
     if (lojaExpandida === chaveLoja) {
       setLojaExpandida(null);
@@ -351,6 +206,15 @@ const DetalhesEstrategia: React.FC = () => {
       setLojaExpandida(chaveLoja);
     }
   };
+
+  const getOpcoesUnicas = (campo: keyof DadosLoja) => {
+    if (!dados?.dadosAnaliticos) return [];
+    return Array.from(new Set(dados.dadosAnaliticos.map(loja => loja[campo] as string))).filter(Boolean);
+  };
+
+  const situacoes = ["ativa", "bloqueada", "em processo de encerramento"];
+  const gerenciasRegionais = getOpcoesUnicas("gerenciaRegional");
+  const diretoriasRegionais = getOpcoesUnicas("diretoriaRegional");
 
   return (
     <div className="container mx-auto">
@@ -447,6 +311,151 @@ const DetalhesEstrategia: React.FC = () => {
                   <CardTitle>Quadro Analítico de Oportunidades</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-6 bg-gray-50 rounded-lg p-4">
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(aplicarFiltros)} className="space-y-4">
+                        <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                          <Search size={16} />
+                          Filtrar lojas
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="chaveLoja"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input placeholder="Chave Loja" {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="cnpj"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input placeholder="CNPJ" {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="nomeLoja"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input placeholder="Nome da Loja" {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="situacao"
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select 
+                                  onValueChange={field.onChange} 
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Situação" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="">Todas</SelectItem>
+                                    {situacoes.map(situacao => (
+                                      <SelectItem key={situacao} value={situacao}>
+                                        {situacao === "ativa" ? "Ativa" : 
+                                         situacao === "bloqueada" ? "Bloqueada" : 
+                                         "Em encerramento"}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="agencia"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                  <Input placeholder="Agência" {...field} />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="gerenciaRegional"
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select 
+                                  onValueChange={field.onChange} 
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Gerência Regional" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="">Todas</SelectItem>
+                                    {gerenciasRegionais.map(gr => (
+                                      <SelectItem key={gr} value={gr}>{gr}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="diretoriaRegional"
+                            render={({ field }) => (
+                              <FormItem>
+                                <Select 
+                                  onValueChange={field.onChange} 
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Diretoria Regional" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="">Todas</SelectItem>
+                                    {diretoriasRegionais.map(dr => (
+                                      <SelectItem key={dr} value={dr}>{dr}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={limparFiltros}
+                          >
+                            Limpar
+                          </Button>
+                          <Button type="submit">
+                            Aplicar Filtros
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  </div>
+
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -470,7 +479,7 @@ const DetalhesEstrategia: React.FC = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dados.dadosAnaliticos.map((loja) => (
+                        {dadosFiltrados.map((loja) => (
                           <React.Fragment key={loja.chaveLoja}>
                             <TableRow>
                               <TableCell className="font-medium">
@@ -536,6 +545,8 @@ const DetalhesEstrategia: React.FC = () => {
                                         <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
                                         <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
                                         <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
+                                        <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                        <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
                                       </ul>
                                     </div>
                                     <div>
@@ -614,7 +625,6 @@ const DetalhesEstrategia: React.FC = () => {
                     <p>Esta seção contém informações gerenciais detalhadas sobre o desempenho da sua equipe neste produto.</p>
                     <p className="text-amber-600">Disponível apenas para coordenadores e gerentes.</p>
                     
-                    {/* Aqui entrariam gráficos e dados mais detalhados que só gestores podem ver */}
                     <div className="py-4 px-6 bg-gray-50 rounded-lg">
                       <p className="text-gray-500 text-sm italic text-center">
                         Dados detalhados de equipe seriam exibidos aqui em uma implementação completa.
