@@ -420,10 +420,10 @@ const DetalhesEstrategia: React.FC = () => {
       if (values.chaveLoja && !loja.chaveLoja.includes(values.chaveLoja)) return false;
       if (values.cnpj && !loja.cnpj.includes(values.cnpj)) return false;
       if (values.nomeLoja && !loja.nomeLoja.toLowerCase().includes(values.nomeLoja.toLowerCase())) return false;
-      if (values.situacao && loja.situacao !== values.situacao) return false;
+      if (values.situacao && values.situacao !== "all" && loja.situacao !== values.situacao) return false;
       if (values.agencia && !loja.agencia.includes(values.agencia)) return false;
-      if (values.gerenciaRegional && !loja.gerenciaRegional.includes(values.gerenciaRegional)) return false;
-      if (values.diretoriaRegional && !loja.diretoriaRegional.includes(values.diretoriaRegional)) return false;
+      if (values.gerenciaRegional && values.gerenciaRegional !== "all" && !loja.gerenciaRegional.includes(values.gerenciaRegional)) return false;
+      if (values.diretoriaRegional && values.diretoriaRegional !== "all" && !loja.diretoriaRegional.includes(values.diretoriaRegional)) return false;
       
       return true;
     });
@@ -637,7 +637,7 @@ const DetalhesEstrategia: React.FC = () => {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="">Todas</SelectItem>
+                                    <SelectItem value="all">Todas</SelectItem>
                                     {situacoes.map(situacao => (
                                       <SelectItem key={situacao} value={situacao}>
                                         {situacao === "ativa" ? "Ativa" : 
@@ -676,7 +676,7 @@ const DetalhesEstrategia: React.FC = () => {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="">Todas</SelectItem>
+                                    <SelectItem value="all">Todas</SelectItem>
                                     {gerenciasRegionais.map(gr => (
                                       <SelectItem key={gr} value={gr}>{gr}</SelectItem>
                                     ))}
@@ -700,7 +700,7 @@ const DetalhesEstrategia: React.FC = () => {
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="">Todas</SelectItem>
+                                    <SelectItem value="all">Todas</SelectItem>
                                     {diretoriasRegionais.map(dr => (
                                       <SelectItem key={dr} value={dr}>{dr}</SelectItem>
                                     ))}
