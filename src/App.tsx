@@ -9,15 +9,9 @@ import Layout from "@/components/Layout";
 import LoginPage from "@/pages/Login";
 import IndexPage from "@/pages/Index";
 import AgendaPage from "@/pages/Agenda";
-import HotlistPage from "@/pages/Hotlist";
-import OpportunidadesPage from "@/pages/Oportunidades";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
-import HotlistGestao from "@/pages/HotlistGestao";
-import HotlistProspectados from "@/pages/HotlistProspectados";
-import HotlistTratados from "@/pages/HotlistTratados";
-import HotlistSemTratativas from "@/pages/HotlistSemTratativas";
-import HotlistAll from "@/pages/HotlistAll";
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,63 +38,7 @@ const App = () => (
                 </PrivateRoute>
               } 
             />
-            <Route 
-              path="/hotlist" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistPage /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            {/* Rotas para o painel de gestão de Hotlist */}
-            <Route 
-              path="/hotlist/gestao" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistGestao /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/hotlist/all" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistAll /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/hotlist/prospectados" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistProspectados /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/hotlist/tratados" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistTratados /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/hotlist/sem-tratativas" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotlistSemTratativas /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/oportunidades" 
-              element={
-                <PrivateRoute>
-                  <Layout><OpportunidadesPage /></Layout>
-                </PrivateRoute>
-              } 
-            />
+
             <Route 
               path="/estrategia-comercial" 
               element={

@@ -716,22 +716,51 @@ const DetalhesEstrategia: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-amber-50">
+          <Card className="bg-gray-50">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Atenção</CardTitle>
-                <AlertTriangle size={24} className="text-amber-500" />
+                <div>
+                  <CardTitle className="text-lg">Lojas Sem Abertura</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">Lojas ativas sem movimentação de contas</p>
+                </div>
+                <AlertTriangle size={24} className="text-gray-500" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col space-y-1">
-                {percentualRealizado < 50 ? (
-                  <p>Meta atual muito distante. Intensifique as ações prioritárias.</p>
-                ) : percentualRealizado < 80 ? (
-                  <p>Meta em andamento. Mantenha o foco nas ações de alta prioridade.</p>
-                ) : (
-                  <p>Excelente desempenho! Continue com a estratégia atual.</p>
-                )}
+              <div className="space-y-4">
+                <div className="bg-white p-4 rounded-lg border border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-gray-800">Análise de Inatividade</h4>
+                      <p className="text-sm text-gray-600">Identificação de lojas que precisam de atenção</p>
+                    </div>
+                    <div className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                      {dados?.dadosAnaliticos?.filter(loja => 
+                        loja.situacao === "ativa" && 
+                        loja.mesM0 === 0 && 
+                        loja.mesM1 === 0 && 
+                        loja.mesM2 === 0 && 
+                        loja.mesM3 === 0
+                      ).length || 0} Lojas
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Situação:</span> Lojas ativas sem movimentação nos últimos 4 meses
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    className="bg-gray-600 hover:bg-gray-700"
+                    onClick={() => window.location.href = '/analise-inatividade'}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Ver Análise Detalhada
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

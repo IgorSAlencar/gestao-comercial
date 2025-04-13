@@ -39,20 +39,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       path: "/agenda",
     },
     {
-      title: "Hotlist",
-      icon: <ClipboardList className="h-5 w-5" />,
-      path: "/hotlist",
-    },
-    {
       title: "Estratégia Comercial",
       icon: <BarChart3 className="h-5 w-5" />,
       path: "/estrategia-comercial",
-    },
-
-    {
-      title: "Oportunidades",
-      icon: <MapPin className="h-5 w-5" />,
-      path: "/oportunidades",
     },
 
   

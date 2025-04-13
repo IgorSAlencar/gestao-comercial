@@ -272,11 +272,6 @@ const Index = () => {
                 onClick={() => navigateTo('/agenda')}
               />
               <QuickAccessButton 
-                icon={<ClipboardList className="h-6 w-6" />}
-                label="Hotlist"
-                onClick={() => navigateTo('/hotlist')}
-              />
-              <QuickAccessButton 
                 icon={<MapPin className="h-6 w-6" />}
                 label="Prospecção"
                 onClick={() => navigateTo('/oportunidades')}
