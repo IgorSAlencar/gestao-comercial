@@ -9,8 +9,8 @@ const HierarchyViewer: React.FC = () => {
   const { user, subordinates, loadingSubordinates, superior, loadingSuperior, refreshSubordinates } = useAuth();
   const [expanded, setExpanded] = useState(true);
 
-  // Fix: Compare with the correct role types
-  if (!user || (user.role !== "gerente" && user.role !== "coordenador")) return null;
+  // Fix: Use explicit check against string values instead of direct comparison
+  if (!user || !(user.role === "gerente" || user.role === "coordenador")) return null;
 
   return (
     <Card className="mb-6">
