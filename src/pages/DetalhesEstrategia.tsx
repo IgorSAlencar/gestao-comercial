@@ -12,7 +12,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search, Pin, Download, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Table,
@@ -47,6 +47,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import * as XLSX from 'xlsx';
 
 interface DadosLoja {
   chaveLoja: string;
@@ -108,6 +109,7 @@ interface FiltrosLoja {
   agencia: string;
   gerenciaRegional: string;
   diretoriaRegional: string;
+  tendencia: string;
 }
 
 const dadosSimulados: Record<string, DadosEstrategia> = {
@@ -144,7 +146,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   },
   "abertura-conta": {
     titulo: "Estratégia de Abertura de Contas",
-    visaoGeral: "Estimular a abertura de contas nos pontos sob sua gestão.",
+    visaoGeral: "Cada ação no dia a dia fortalece sua gestão. Atue com estratégia e transforme desafios em resultados!",
     oportunidades: [
       {
         titulo: "Universitários",
@@ -410,6 +412,7 @@ const DetalhesEstrategia: React.FC = () => {
     isOpen: false,
     loja: null
   });
+  const [lojasMarcadas, setLojasMarcadas] = useState<Set<string>>(new Set());
 
   const form = useForm<FiltrosLoja>({
     defaultValues: {
@@ -420,6 +423,7 @@ const DetalhesEstrategia: React.FC = () => {
       agencia: "",
       gerenciaRegional: "",
       diretoriaRegional: "",
+      tendencia: "",
     }
   });
 
@@ -443,6 +447,7 @@ const DetalhesEstrategia: React.FC = () => {
       if (values.agencia && !loja.agencia.includes(values.agencia)) return false;
       if (values.gerenciaRegional && values.gerenciaRegional !== "all" && !loja.gerenciaRegional.includes(values.gerenciaRegional)) return false;
       if (values.diretoriaRegional && values.diretoriaRegional !== "all" && !loja.diretoriaRegional.includes(values.diretoriaRegional)) return false;
+      if (values.tendencia && values.tendencia !== "all" && loja.tendencia !== values.tendencia) return false;
       
       return true;
     });
@@ -477,6 +482,34 @@ const DetalhesEstrategia: React.FC = () => {
       return ordenacao.direcao === 'asc' ? comparacao : -comparacao;
     });
   }, [dadosFiltrados, ordenacao]);
+
+  const exportarParaExcel = () => {
+    // Preparar os dados para exportação
+    const dadosParaExportar = dadosOrdenados.map(loja => ({
+      'Chave Loja': loja.chaveLoja,
+      'CNPJ': loja.cnpj,
+      'Nome Loja': loja.nomeLoja,
+      'Agência': loja.agencia,
+      'M-3': loja.mesM3,
+      'M-2': loja.mesM2,
+      'M-1': loja.mesM1,
+      'M0': loja.mesM0,
+      'Situação': loja.situacao,
+      'Últ. Contábil': formatDate(loja.dataUltTrxContabil),
+      'Últ. Negócio': formatDate(loja.dataUltTrxNegocio),
+      'Tendência': loja.tendencia,
+      'Gerência Regional': loja.gerenciaRegional,
+      'Diretoria Regional': loja.diretoriaRegional
+    }));
+
+    // Criar uma nova planilha
+    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Dados");
+
+    // Gerar o arquivo Excel
+    XLSX.writeFile(wb, `Analítico BE (Abertura De Contas) - ${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+  };
 
   if (!dados) {
     return (
@@ -526,6 +559,18 @@ const DetalhesEstrategia: React.FC = () => {
   const gerenciasRegionais = getOpcoesUnicas("gerenciaRegional");
   const diretoriasRegionais = getOpcoesUnicas("diretoriaRegional");
 
+  const toggleLojaMarcada = (chaveLoja: string) => {
+    setLojasMarcadas(prev => {
+      const novoSet = new Set(prev);
+      if (novoSet.has(chaveLoja)) {
+        novoSet.delete(chaveLoja);
+      } else {
+        novoSet.add(chaveLoja);
+      }
+      return novoSet;
+    });
+  };
+
   return (
     <div className="container mx-auto">
       <div className="flex flex-col space-y-6">
@@ -544,43 +589,128 @@ const DetalhesEstrategia: React.FC = () => {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="bg-blue-50">
+          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Desempenho</CardTitle>
-                <ChartBar size={24} className="text-blue-500" />
+                <div>
+                  <CardTitle className="text-xl text-blue-800">Ação Diária</CardTitle>
+                  <p className="text-sm text-blue-600 mt-1">Loja que necessita atenção hoje</p>
+                </div>
+                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                  Hoje
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col space-y-3">
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div 
-                    className={`h-4 rounded-full ${percentualRealizado >= 70 ? 'bg-green-500' : percentualRealizado >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                    style={{ width: `${percentualRealizado}%` }}
-                  ></div>
+              <div className="bg-white p-4 rounded-lg border border-blue-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-blue-800">Loja Centro</h4>
+                    <p className="text-sm text-gray-600">Chave: 5001 - Ag: 0001</p>
+                  </div>
+                  <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Pendente
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500">Meta: {dados.desempenho.meta}%</span>
-                  <span className="text-sm font-medium">{percentualRealizado}%</span>
+                <div className="mt-3">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Situação:</span> 5 contas abertas no sistema legado
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Contato:</span> João Silva
+                  </p>
                 </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={() => window.location.href = '/migracao-contas'}
+                >
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  Iniciar Tratativa
+                </Button>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-green-50">
+          <Card className="bg-gray-50">
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle className="text-lg">Tendência</CardTitle>
-                <TrendingUp size={24} className="text-green-500" />
+                <TrendingUp size={24} className="text-gray-500" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col space-y-2">
-                <div className="text-xl font-bold">
-                  {tendencia === "positiva" ? "+" : ""}{dados.desempenho.realizado - dados.desempenho.anterior}%
+              <div className="grid grid-cols-2 gap-4">
+                <div 
+                  className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-green-50 transition-colors"
+                  onClick={() => {
+                    form.setValue('tendencia', 'comecando');
+                    aplicarFiltros(form.getValues());
+                  }}
+                >
+                  <div className="bg-green-100 p-2 rounded-full">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Crescimento</p>
+                    <p className="text-xl font-semibold text-green-800">
+                      {dados?.dadosAnaliticos?.filter(loja => loja.tendencia === "comecando").length || 0}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500">
-                  Comparando com período anterior ({dados.desempenho.anterior}%)
+                <div 
+                  className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-blue-50 transition-colors"
+                  onClick={() => {
+                    form.setValue('tendencia', 'estavel');
+                    aplicarFiltros(form.getValues());
+                  }}
+                >
+                  <div className="bg-blue-100 p-2 rounded-full">
+                    <Activity className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Estável</p>
+                    <p className="text-xl font-semibold text-blue-800">
+                      {dados?.dadosAnaliticos?.filter(loja => loja.tendencia === "estavel").length || 0}
+                    </p>
+                  </div>
+                </div>
+                <div 
+                  className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-amber-50 transition-colors"
+                  onClick={() => {
+                    form.setValue('tendencia', 'atencao');
+                    aplicarFiltros(form.getValues());
+                  }}
+                >
+                  <div className="bg-amber-100 p-2 rounded-full">
+                    <AlertTriangle className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Atenção</p>
+                    <p className="text-xl font-semibold text-amber-800">
+                      {dados?.dadosAnaliticos?.filter(loja => loja.tendencia === "atencao").length || 0}
+                    </p>
+                  </div>
+                </div>
+                <div 
+                  className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-red-50 transition-colors"
+                  onClick={() => {
+                    form.setValue('tendencia', 'queda');
+                    aplicarFiltros(form.getValues());
+                  }}
+                >
+                  <div className="bg-red-100 p-2 rounded-full">
+                    <TrendingDown className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Queda</p>
+                    <p className="text-xl font-semibold text-red-800">
+                      {dados?.dadosAnaliticos?.filter(loja => loja.tendencia === "queda").length || 0}
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -610,7 +740,7 @@ const DetalhesEstrategia: React.FC = () => {
         <Tabs defaultValue="oportunidades">
           <TabsList className="mb-4">
             <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
-            <TabsTrigger value="acoes">Ações Recomendadas</TabsTrigger>
+            <TabsTrigger value="acoes">Correspondentes Marcados</TabsTrigger>
             {isManager && <TabsTrigger value="gerencial">Visão Gerencial</TabsTrigger>}
           </TabsList>
 
@@ -624,10 +754,21 @@ const DetalhesEstrategia: React.FC = () => {
                   <div className="mb-6 bg-gray-50 rounded-lg p-4">
                     <Form {...form}>
                       <form onSubmit={form.handleSubmit(aplicarFiltros)} className="space-y-4">
-                        <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
-                          <Search size={16} />
-                          Filtrar lojas
-                        </h3>
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                            <Search size={16} />
+                            Filtrar lojas
+                          </h3>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={exportarParaExcel}
+                            className="flex items-center gap-2"
+                          >
+                            <Download size={16} />
+                            Exportar Excel
+                          </Button>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                           <FormField
                             control={form.control}
@@ -865,7 +1006,9 @@ const DetalhesEstrategia: React.FC = () => {
                               )}
                             </div>
                           </TableHead>
-                          <TableHead className="w-[120px] text-right">Ações</TableHead>
+                          <TableHead className="w-[120px] text-center">
+                            <div className="flex items-center justify-center">Ações</div>
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -926,6 +1069,15 @@ const DetalhesEstrategia: React.FC = () => {
                                   >
                                     <Plus size={16} className="text-green-600" />
                                   </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title={lojasMarcadas.has(loja.chaveLoja) ? "Desmarcar loja" : "Acompanhar Loja"}
+                                    onClick={() => toggleLojaMarcada(loja.chaveLoja)}
+                                    className={`${lojasMarcadas.has(loja.chaveLoja) ? 'bg-purple-50 border-purple-200 hover:bg-purple-100' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
+                                  >
+                                    <Pin size={16} className={lojasMarcadas.has(loja.chaveLoja) ? "text-purple-600" : "text-gray-600"} />
+                                  </Button>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -937,7 +1089,7 @@ const DetalhesEstrategia: React.FC = () => {
                                       <h4 className="font-medium mb-2">Informações da Loja</h4>
                                       <ul className="space-y-1.5">
                                         <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
-                                        <li className="text-sm"><span className="font-medium">Nome PDV:</span> {loja.nomePdv}</li>
+                                        <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
                                         <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
                                         <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
                                         <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
@@ -953,7 +1105,7 @@ const DetalhesEstrategia: React.FC = () => {
                                     </div>
                                     <div>
                                       <h4 className="font-medium mb-2">Produtos Habilitados</h4>
-                                      <div className="flex space-x-4">
+                                      <div className="flex flex-col space-y-2">
                                         <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                           Consignado
                                         </div>
@@ -993,28 +1145,140 @@ const DetalhesEstrategia: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="acoes">
-            <div className="grid grid-cols-1 gap-4">
-              {dados.acoes.map((acao, index) => (
-                <Card key={index} className={`border-l-4 ${
-                  acao.prioridade === 'alta' ? 'border-l-red-500' : 
-                  acao.prioridade === 'media' ? 'border-l-yellow-500' : 'border-l-green-500'
-                }`}>
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-center">
-                      <CardTitle className="text-lg">{acao.titulo}</CardTitle>
-                      <div className={`px-2 py-1 rounded-full text-xs ${
-                        acao.prioridade === 'alta' ? 'bg-red-100 text-red-800' : 
-                        acao.prioridade === 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                      }`}>
-                        Prioridade {acao.prioridade}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dadosOrdenados
+                .filter(loja => lojasMarcadas.has(loja.chaveLoja))
+                .map((loja) => (
+                  <Card key={loja.chaveLoja} className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle className="text-lg text-purple-800">{loja.nomeLoja}</CardTitle>
+                          <p className="text-sm text-purple-600">Chave: {loja.chaveLoja} - Ag: {loja.agencia}</p>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => toggleLojaMarcada(loja.chaveLoja)}
+                          className="bg-purple-50 border-purple-200 hover:bg-purple-100"
+                        >
+                          <Pin size={16} className="text-purple-600" />
+                        </Button>
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p>{acao.descricao}</p>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <h4 className="text-sm font-medium text-purple-800 mb-2">Evolução de Contas</h4>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">M-3</p>
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM3}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">M-2</p>
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM2}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">M-1</p>
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM1}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-gray-500">M0</p>
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM0}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Situação:</span> {loja.situacao}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Contato:</span> {loja.nomeContato}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Últ. Contábil:</span> {formatDate(loja.dataUltTrxContabil)}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Últ. Negócio:</span> {formatDate(loja.dataUltTrxNegocio)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {lojaExpandida === loja.chaveLoja && (
+                          <div className="bg-white p-3 rounded-lg border border-purple-100">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <h4 className="font-medium mb-2">Informações da Loja</h4>
+                                <ul className="space-y-1.5">
+                                  <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
+                                  <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
+                                  <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
+                                  <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
+                                  <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
+                                </ul>
+                              </div>
+                              <div>
+                                <h4 className="font-medium mb-2">Hierarquia</h4>
+                                <ul className="space-y-1.5">
+                                  <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
+                                  <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                  <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
+                                </ul>
+                              </div>
+                              <div>
+                                <h4 className="font-medium mb-2">Produtos Habilitados</h4>
+                                <div className="flex flex-col space-y-2">
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Consignado
+                                  </div>
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Microsseguro
+                                  </div>
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Lime
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-blue-50 border-blue-200 hover:bg-blue-100"
+                            onClick={() => toggleLojaExpandida(loja.chaveLoja)}
+                          >
+                            <Info size={16} className="text-blue-600 mr-2" />
+                            {lojaExpandida === loja.chaveLoja ? "Ocultar Detalhes" : "Ver Detalhes"}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-green-50 border-green-200 hover:bg-green-100"
+                          >
+                            <Plus size={16} className="text-green-600 mr-2" />
+                            Adicionar Tratativa
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              {dadosOrdenados.filter(loja => lojasMarcadas.has(loja.chaveLoja)).length === 0 && (
+                <div className="col-span-full text-center py-8">
+                  <Pin size={48} className="mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900">Nenhum correspondente marcado</h3>
+                  <p className="text-gray-500 mt-2">
+                    Clique no ícone de alfinete nas lojas para marcá-las e acompanhar aqui.
+                  </p>
+                </div>
+              )}
             </div>
           </TabsContent>
 
