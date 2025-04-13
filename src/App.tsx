@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,7 +11,6 @@ import IndexPage from "@/pages/Index";
 import AgendaPage from "@/pages/Agenda";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
-import HotList from "@/pages/HotList";
 
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +38,7 @@ const App = () => (
                 </PrivateRoute>
               } 
             />
+
             <Route 
               path="/estrategia-comercial" 
               element={
@@ -53,14 +52,6 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><DetalhesEstrategia /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/hotlist" 
-              element={
-                <PrivateRoute>
-                  <Layout><HotList /></Layout>
                 </PrivateRoute>
               } 
             />
