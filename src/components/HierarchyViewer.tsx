@@ -31,8 +31,7 @@ const HierarchyViewer: React.FC = () => {
       {expanded && (
         <CardContent>
           {/* Superior section */}
-          {/* Fix: Changed 'supervisor' to user.role === 'supervisor' for correct comparison */}
-          {user.role === "supervisor" && (
+          {user.role === "coordenador" && (
             <div className="mb-4">
               <h3 className="text-sm text-gray-500 mb-2">Coordenador Responsável</h3>
               {loadingSuperior ? (
