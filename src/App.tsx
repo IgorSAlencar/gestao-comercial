@@ -11,6 +11,7 @@ import IndexPage from "@/pages/Index";
 import AgendaPage from "@/pages/Agenda";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
+import Hotlist from "@/pages/Hotlist";
 
 import NotFound from "./pages/NotFound";
 
@@ -52,6 +53,14 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><DetalhesEstrategia /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/hotlist" 
+              element={
+                <PrivateRoute>
+                  <Layout><Hotlist /></Layout>
                 </PrivateRoute>
               } 
             />

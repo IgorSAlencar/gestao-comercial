@@ -10,7 +10,8 @@ import {
   Menu,
   ChevronLeft,
   FileX,
-  Users
+  Users,
+  Target
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -43,8 +44,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: <BarChart3 className="h-5 w-5" />,
       path: "/estrategia-comercial",
     },
-
-  
+    {
+      title: "HotList",
+      icon: <Target className="h-5 w-5" />,
+      path: "/hotlist",
+    },
   ];
 
   const toggleSidebar = () => {
