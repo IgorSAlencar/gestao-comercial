@@ -1,10 +1,20 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChartBar, Users, CheckCheck, AlertCircle } from "lucide-react";
+import { ChartBar, Users, CheckCheck, AlertCircle, Search, Filter } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import ProspectTable from "@/components/ProspectTable";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
+import { useForm } from "react-hook-form";
 
 interface Lead {
   id: string;
@@ -19,6 +29,12 @@ interface Lead {
   cnpj?: string;
   agencia?: string;
   pa?: string;
+}
+
+interface FilterFormValues {
+  searchTerm: string;
+  status: string;
+  location: string;
 }
 
 const leadsIniciais: Lead[] = [
@@ -98,6 +114,53 @@ const HotlistGestao = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [leads, setLeads] = useState<Lead[]>(leadsIniciais);
+  const [filteredLeads, setFilteredLeads] = useState<Lead[]>(leadsIniciais);
+  
+  const form = useForm<FilterFormValues>({
+    defaultValues: {
+      searchTerm: "",
+      status: "",
+      location: "",
+    }
+  });
+
+  const { watch } = form;
+  const formValues = watch();
+
+  // Apply filters whenever form values change
+  useEffect(() => {
+    let results = leads;
+
+    // Filter by search term (name, CNPJ, or segment)
+    if (formValues.searchTerm) {
+      const searchLower = formValues.searchTerm.toLowerCase();
+      results = results.filter(
+        lead => 
+          lead.nome.toLowerCase().includes(searchLower) || 
+          (lead.cnpj && lead.cnpj.includes(formValues.searchTerm)) || 
+          lead.segmento.toLowerCase().includes(searchLower) ||
+          (lead.agencia && lead.agencia.includes(formValues.searchTerm)) ||
+          (lead.pa && lead.pa.includes(formValues.searchTerm))
+      );
+    }
+
+    // Filter by status
+    if (formValues.status) {
+      results = results.filter(lead => lead.status === formValues.status);
+    }
+
+    // Filter by location (municipio or UF)
+    if (formValues.location) {
+      const locationLower = formValues.location.toLowerCase();
+      results = results.filter(
+        lead => 
+          (lead.municipio && lead.municipio.toLowerCase().includes(locationLower)) || 
+          (lead.uf && lead.uf.toLowerCase().includes(locationLower))
+      );
+    }
+
+    setFilteredLeads(results);
+  }, [formValues, leads]);
   
   const totalLeads = leads.length;
   const leadsProspectados = leads.filter(lead => 
@@ -115,7 +178,6 @@ const HotlistGestao = () => {
 
   const navigateToHotlist = () => {
     navigate("/hotlist/all");
-    console.log("Navigating to /hotlist/all");
   };
 
   const navigateToProspectados = () => {
@@ -128,6 +190,14 @@ const HotlistGestao = () => {
 
   const navigateToSemTratativas = () => {
     navigate("/hotlist/sem-tratativas");
+  };
+
+  const clearFilters = () => {
+    form.reset({
+      searchTerm: "",
+      status: "",
+      location: ""
+    });
   };
 
   return (
@@ -233,54 +303,96 @@ const HotlistGestao = () => {
         </Card>
       </div>
       
-      <div className="grid gap-4 mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Progresso de Prospecção</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-8 py-2">
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <div>Leads Prospectados</div>
-                  <div className="font-medium">{leadsProspectados} / {totalLeads}</div>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-bradesco-blue" 
-                    style={{ width: `${(leadsProspectados/totalLeads)*100}%` }}>
-                  </div>
-                </div>
-              </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Filtros</span>
+            <Button variant="outline" size="sm" onClick={clearFilters}>
+              Limpar Filtros
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <FormField
+                control={form.control}
+                name="searchTerm"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Buscar por Nome, CNPJ, Segmento, Agência ou PA</FormLabel>
+                    <FormControl>
+                      <div className="flex w-full items-center space-x-2">
+                        <Input placeholder="Buscar..." {...field} />
+                        <Button type="button" size="icon" variant="ghost">
+                          <Search className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
               
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <div>Leads Tratados</div>
-                  <div className="font-medium">{leadsTratados} / {totalLeads}</div>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-bradesco-blue" 
-                    style={{ width: `${(leadsTratados/totalLeads)*100}%` }}>
-                  </div>
-                </div>
-              </div>
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <FormControl>
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="novo">Novo Lead</SelectItem>
+                          <SelectItem value="em_contato">Em Contato</SelectItem>
+                          <SelectItem value="negociacao">Em Negociação</SelectItem>
+                          <SelectItem value="convertido">Convertido</SelectItem>
+                          <SelectItem value="sem_interesse">Sem Interesse</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
               
-              <div>
-                <div className="flex justify-between text-sm mb-2">
-                  <div>Taxa de Conversão</div>
-                  <div className="font-medium">
-                    {leads.filter(lead => lead.status === "convertido").length} / {leadsProspectados}
-                  </div>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-bradesco-blue" 
-                    style={{ width: `${(leads.filter(lead => lead.status === "convertido").length/Math.max(leadsProspectados, 1))*100}%` }}>
-                  </div>
-                </div>
-              </div>
+              <FormField
+                control={form.control}
+                name="location"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Localização (Município/UF)</FormLabel>
+                    <FormControl>
+                      <div className="flex w-full items-center space-x-2">
+                        <Input placeholder="Ex: São Paulo ou SP" {...field} />
+                        <Button type="button" size="icon" variant="ghost">
+                          <Filter className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </Form>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Lista de Prospects ({filteredLeads.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ProspectTable 
+            leads={filteredLeads}
+            tableTitle="Todos os Prospects" 
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 };

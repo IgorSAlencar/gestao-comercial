@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Home,
@@ -45,20 +44,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       path: "/hotlist",
     },
     {
-      title: "Oportunidades",
-      icon: <MapPin className="h-5 w-5" />,
-      path: "/oportunidades",
-    },
-    {
       title: "Estratégia Comercial",
       icon: <BarChart3 className="h-5 w-5" />,
       path: "/estrategia-comercial",
     },
+
     {
-      title: "Correspondentes Bloqueados",
-      icon: <FileX className="h-5 w-5" />,
-      path: "/correspondentes-bloqueados",
+      title: "Oportunidades",
+      icon: <MapPin className="h-5 w-5" />,
+      path: "/oportunidades",
     },
+
+  
   ];
 
   const toggleSidebar = () => {
@@ -109,9 +106,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 to={item.path}
                 className={cn(
                   "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  location.pathname === item.path
-                    ? "bg-bradesco-blue text-white"
-                    : "text-gray-700 hover:bg-gray-100",
+                  item.path === "/" 
+                    ? location.pathname === "/"
+                      ? "bg-bradesco-blue text-white"
+                      : "text-gray-700 hover:bg-gray-100"
+                    : location.pathname.startsWith(item.path)
+                      ? "bg-bradesco-blue text-white"
+                      : "text-gray-700 hover:bg-gray-100",
                   isSidebarCollapsed && "justify-center"
                 )}
                 title={isSidebarCollapsed ? item.title : undefined}

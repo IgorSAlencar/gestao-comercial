@@ -44,9 +44,11 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventApi, userApi, Event } from "@/services/api";
 import EventsTable from "@/components/EventsTable";
+import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 
 const AgendaPage = () => {
   const [date, setDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
@@ -54,6 +56,7 @@ const AgendaPage = () => {
   const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
@@ -302,11 +305,18 @@ const AgendaPage = () => {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    if (selectedSupervisor) {
-      return eventDate >= start && eventDate <= end && evento.supervisorId === selectedSupervisor;
-    }
+    // Filtro por supervisor
+    const matchesSupervisor = !selectedSupervisor || evento.supervisorId === selectedSupervisor;
     
-    return eventDate >= start && eventDate <= end;
+    // Filtro por tipo de evento
+    const matchesFilter = !selectedFilter || (
+      selectedFilter === "operacional" && evento.location === "Visitas Operacionais" ||
+      selectedFilter === "negociacao" && evento.location === "Visitas de Negociação" ||
+      selectedFilter === "prospeccao" && evento.location === "Prospecção" ||
+      selectedFilter === "outros" && evento.location === "Outros"
+    );
+    
+    return eventDate >= start && eventDate <= end && matchesSupervisor && matchesFilter;
   });
 
   const handleDateSelect = (date: Date | undefined) => {
@@ -316,19 +326,14 @@ const AgendaPage = () => {
 
     if (calendarOpen === "start") {
       if (novoEvento.dataFim && selectedDate > new Date(novoEvento.dataFim)) {
-        setNovoEvento(prev => ({
-          ...prev,
-          dataInicio: selectedDate,
-          dataFim: undefined
-        }));
         setDateError("A data final deve ser igual ou posterior à data inicial");
-      } else {
-        setNovoEvento(prev => ({
-          ...prev,
-          dataInicio: selectedDate
-        }));
-        setDateError("");
+        return;
       }
+      setNovoEvento(prev => ({
+        ...prev,
+        dataInicio: selectedDate
+      }));
+      setDateError("");
     } else if (calendarOpen === "end") {
       if (novoEvento.dataInicio && selectedDate < new Date(novoEvento.dataInicio)) {
         setDateError("A data final não pode ser anterior à data inicial");
@@ -343,12 +348,79 @@ const AgendaPage = () => {
     setCalendarOpen(null);
   };
 
-  const handleFilterChange = (value: string, setFilterFunction: React.Dispatch<React.SetStateAction<string | null>>) => {
+  const handleFilterChange = (value: string) => {
     if (value === "all") {
-      setFilterFunction(null);
+      setSelectedFilter(null);
     } else {
-      setFilterFunction(value);
+      setSelectedFilter(value);
     }
+  };
+
+  // Função para verificar se uma data tem eventos
+  const hasEvents = (date: Date) => {
+    return eventos.some(evento => {
+      const startDate = new Date(evento.dataInicio);
+      const endDate = new Date(evento.dataFim);
+      const currentDate = new Date(date);
+      
+      // Remove a parte de hora para comparar apenas as datas
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+      currentDate.setHours(0, 0, 0, 0);
+      
+      // Verifica se o evento está dentro do intervalo de datas
+      const isDateInRange = currentDate >= startDate && currentDate <= endDate;
+      
+      // Se houver um supervisor selecionado, verifica se o evento pertence a ele
+      if (selectedSupervisor) {
+        return isDateInRange && evento.supervisorId === selectedSupervisor;
+      }
+      
+      // Se não houver supervisor selecionado, retorna true para qualquer evento no intervalo
+      return isDateInRange;
+    });
+  };
+
+  // Função para renderizar o conteúdo do dia no calendário
+  const renderDayContent = (date: Date) => {
+    const day = date.getDate();
+    const hasEvent = hasEvents(date);
+    const isSelected = selectedDate && 
+      date.getDate() === selectedDate.getDate() && 
+      date.getMonth() === selectedDate.getMonth() && 
+      date.getFullYear() === selectedDate.getFullYear();
+    
+    return (
+      <div className="relative flex flex-col items-center gap-1">
+        <span>{day}</span>
+        {hasEvent && (
+          <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-bradesco-blue'}`}></div>
+        )}
+      </div>
+    );
+  };
+
+  // Modificador para o calendário
+  const modifiers = {
+    hasEvents: (date: Date) => hasEvents(date),
+  };
+
+  // Estilos para o calendário
+  const modifiersStyles = {
+    hasEvents: {
+      position: 'relative',
+      '&::after': {
+        content: '""',
+        position: 'absolute',
+        bottom: '2px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '4px',
+        height: '4px',
+        borderRadius: '50%',
+        backgroundColor: '#2563eb', // Cor azul do Bradesco
+      },
+    },
   };
 
   return (
@@ -425,7 +497,7 @@ const AgendaPage = () => {
               
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right text-sm">Título</label>
+                  <label className="text-sm">Título</label>
                   <Input
                     className="col-span-3"
                     value={novoEvento.titulo}
@@ -434,7 +506,7 @@ const AgendaPage = () => {
                 </div>
                 
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <label className="text-right text-sm">Intervalo de Datas</label>
+                  <label className="text-sm">Intervalo de Datas</label>
                   <div className="col-span-3 flex flex-col space-y-2">
                     <div className="flex space-x-4">
                       <div className="flex-1">
@@ -640,73 +712,18 @@ const AgendaPage = () => {
                   <div className="flex space-x-4">
                     <div className="flex-1 space-y-2">
                       <Label htmlFor="municipio" className="block text-sm font-medium text-gray-700">
-                        Município
+                        Município/UF
                       </Label>
-                      <Input
-                        id="municipio"
-                        value={novoEvento.municipio || ""}
-                        onChange={(e) =>
-                          setNovoEvento({ ...novoEvento, municipio: e.target.value })
-                        }
-                        placeholder="Informe o município"
+                      <MunicipioAutocomplete
+                        value={{ municipio: novoEvento.municipio || "", uf: novoEvento.uf || "" }}
+                        onChange={({ municipio, uf }) => {
+                          setNovoEvento(prev => ({
+                            ...prev,
+                            municipio,
+                            uf
+                          }));
+                        }}
                       />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="uf" className="block text-sm font-medium text-gray-700">
-                        UF
-                      </Label>
-                      <div className="relative">
-                        <Input
-                          id="uf"
-                          value={novoEvento.uf || ""}
-                          onChange={(e) =>
-                            setNovoEvento({ ...novoEvento, uf: e.target.value })
-                          }
-                          placeholder="Informe a UF"
-                          className="w-full"
-                        />
-                        <div className="absolute inset-y-0 right-0">
-                          <Select
-                            value=""
-                            onValueChange={(value) =>
-                              setNovoEvento({ ...novoEvento, uf: value })
-                            }
-                          >
-                            <SelectTrigger className="h-10 min-w-0 border-0 focus:ring-0">
-                              <SelectValue placeholder="" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
-                              <SelectItem value="AC">AC</SelectItem>
-                              <SelectItem value="AL">AL</SelectItem>
-                              <SelectItem value="AP">AP</SelectItem>
-                              <SelectItem value="AM">AM</SelectItem>
-                              <SelectItem value="BA">BA</SelectItem>
-                              <SelectItem value="CE">CE</SelectItem>
-                              <SelectItem value="DF">DF</SelectItem>
-                              <SelectItem value="ES">ES</SelectItem>
-                              <SelectItem value="GO">GO</SelectItem>
-                              <SelectItem value="MA">MA</SelectItem>
-                              <SelectItem value="MT">MT</SelectItem>
-                              <SelectItem value="MS">MS</SelectItem>
-                              <SelectItem value="MG">MG</SelectItem>
-                              <SelectItem value="PA">PA</SelectItem>
-                              <SelectItem value="PB">PB</SelectItem>
-                              <SelectItem value="PR">PR</SelectItem>
-                              <SelectItem value="PE">PE</SelectItem>
-                              <SelectItem value="PI">PI</SelectItem>
-                              <SelectItem value="RJ">RJ</SelectItem>
-                              <SelectItem value="RN">RN</SelectItem>
-                              <SelectItem value="RS">RS</SelectItem>
-                              <SelectItem value="RO">RO</SelectItem>
-                              <SelectItem value="RR">RR</SelectItem>
-                              <SelectItem value="SC">SC</SelectItem>
-                              <SelectItem value="SP">SP</SelectItem>
-                              <SelectItem value="SE">SE</SelectItem>
-                              <SelectItem value="TO">TO</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -774,8 +791,17 @@ const AgendaPage = () => {
                   <Calendar
                     mode="single"
                     selected={date}
-                    onSelect={(newDate) => newDate && setDate(newDate)}
+                    onSelect={(newDate) => {
+                      if (newDate) {
+                        setDate(newDate);
+                        setSelectedDate(newDate);
+                      }
+                    }}
                     className="w-full max-w-[100%] overflow-hidden"
+                    components={{
+                      DayContent: ({ date }) => renderDayContent(date)
+                    }}
+                    locale={ptBR}
                     classNames={{
                       months: "w-full flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
                       month: "w-full",
@@ -798,7 +824,11 @@ const AgendaPage = () => {
                       day_disabled: "text-muted-foreground opacity-50",
                       day_hidden: "invisible",
                     }}
-                    locale={ptBR}
+                    labels={{
+                      next: "Próximo mês",
+                      previous: "Mês anterior",
+                      today: "Hoje"
+                    }}
                   />
                 </div>
                 
@@ -846,22 +876,25 @@ const AgendaPage = () => {
                     <Button variant="outline" size="sm" className="flex items-center gap-1">
                       <Filter className="h-4 w-4" />
                       <span>Filtros</span>
+                      {selectedFilter && (
+                        <span className="ml-1 h-2 w-2 rounded-full bg-bradesco-blue"></span>
+                      )}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("all", setSelectedSupervisor)}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("all")}>
                       Todas as visitas
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("operacional", setSelectedSupervisor)}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("operacional")}>
                       Visitas operacionais
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("negociacao", setSelectedSupervisor)}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("negociacao")}>
                       Visitas de negociação
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("prospeccao", setSelectedSupervisor)}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("prospeccao")}>
                       Prospecção
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("outros", setSelectedSupervisor)}>
+                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("outros")}>
                       Outros eventos
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -940,28 +973,40 @@ const AgendaPage = () => {
                           </div>
                           <div className="flex flex-col gap-2 ml-4">
                             <Button 
-                              variant="outline" 
+                              variant="ghost" 
                               size="sm"
                               onClick={() => handleEditarEvento(evento.id)}
+                              className="h-8 w-8 p-0 hover:bg-gray-100 group relative"
+                              title="Editar evento"
                             >
-                              <CalendarIcon className="h-4 w-4 mr-1" />
-                              Editar
+                              <CalendarIcon className="h-4 w-4" />
+                              <span className="absolute left-auto right-full mr-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                Editar evento
+                              </span>
                             </Button>
                             <Button 
-                              variant="outline" 
+                              variant="ghost" 
                               size="sm"
                               onClick={() => handleAbrirParecerDialog(evento.id)}
+                              className="h-8 w-8 p-0 hover:bg-gray-100 group relative"
+                              title="Adicionar parecer"
                             >
-                              <MessageSquare className="h-4 w-4 mr-1" />
-                              Parecer
+                              <MessageSquare className="h-4 w-4" />
+                              <span className="absolute left-auto right-full mr-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                Adicionar parecer
+                              </span>
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="sm" 
-                              className="text-red-500 hover:text-red-700 hover:border-red-300 group opacity-50 hover:opacity-100 transition-opacity duration-300 p-1" 
+                              className="h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 group relative" 
                               onClick={() => handleExcluirEvento(evento.id)}
+                              title="Excluir evento"
                             >
-                              <Trash2 className="h-5 w-5" />
+                              <Trash2 className="h-4 w-4" />
+                              <span className="absolute left-auto right-full mr-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                Excluir evento
+                              </span>
                             </Button>
                           </div>
                         </div>

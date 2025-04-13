@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +13,6 @@ import HotlistPage from "@/pages/Hotlist";
 import OpportunidadesPage from "@/pages/Oportunidades";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
-import CorrespondentesBloquadeos from "@/pages/CorrespondentesBloquadeos";
 import HotlistGestao from "@/pages/HotlistGestao";
 import HotlistProspectados from "@/pages/HotlistProspectados";
 import HotlistTratados from "@/pages/HotlistTratados";
@@ -116,14 +114,6 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><DetalhesEstrategia /></Layout>
-                </PrivateRoute>
-              } 
-            />
-            <Route 
-              path="/correspondentes-bloqueados" 
-              element={
-                <PrivateRoute>
-                  <Layout><CorrespondentesBloquadeos /></Layout>
                 </PrivateRoute>
               } 
             />

@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -27,6 +26,8 @@ import {
   Trash2,
   Edit2,
   X,
+  ChevronUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Event } from "@/services/api";
@@ -54,6 +55,9 @@ interface EventsTableProps {
   isManagerView?: boolean;
 }
 
+type SortField = 'titulo' | 'dataInicio' | 'dataFim' | 'location' | 'subcategory';
+type SortOrder = 'asc' | 'desc';
+
 const EventsTable = ({
   events,
   onEditEvent,
@@ -67,6 +71,8 @@ const EventsTable = ({
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [dateFilterOpen, setDateFilterOpen] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('dataInicio');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
   const uniqueSupervisors = Array.from(new Set(events.map(e => e.supervisorName).filter(Boolean)));
   const uniqueLocations = Array.from(new Set(events.map(e => e.location).filter(Boolean)));
@@ -131,6 +137,35 @@ const EventsTable = ({
     .sort((a, b) => {
       return new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime();
     });
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    const aValue = a[sortField];
+    const bValue = b[sortField];
+
+    if (sortField === 'dataInicio' || sortField === 'dataFim') {
+      return sortOrder === 'asc' 
+        ? new Date(aValue).getTime() - new Date(bValue).getTime()
+        : new Date(bValue).getTime() - new Date(aValue).getTime();
+    }
+
+    return sortOrder === 'asc'
+      ? String(aValue).localeCompare(String(bValue))
+      : String(bValue).localeCompare(String(aValue));
+  });
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ChevronsUpDown className="h-4 w-4" />;
+    return sortOrder === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
+  };
 
   const clearAllFilters = () => {
     setStatusFilter(null);
@@ -230,6 +265,7 @@ const EventsTable = ({
                   onSelect={setDateRange}
                   numberOfMonths={2}
                   initialFocus
+                  locale={ptBR}
                   className={cn("p-3 pointer-events-auto bg-background shadow-none w-full")}
                 />
                 <div className="p-3 border-t border-border flex items-center justify-between">
@@ -284,16 +320,57 @@ const EventsTable = ({
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="w-[200px]">Evento</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Local</TableHead>
+              <TableHead className="w-[200px]">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleSort('titulo')}
+                >
+                  Evento
+                  {getSortIcon('titulo')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleSort('dataInicio')}
+                >
+                  Data
+                  {getSortIcon('dataInicio')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleSort('dataFim')}
+                >
+                  Data
+                  {getSortIcon('dataFim')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => handleSort('location')}
+                >
+                  Local
+                  {getSortIcon('location')}
+                </Button>
+              </TableHead>
               {isManagerView && <TableHead>Supervisor</TableHead>}
               <TableHead className="w-[150px]">Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredEvents.length === 0 ? (
+            {sortedEvents.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={isManagerView ? 6 : 5}
@@ -303,7 +380,7 @@ const EventsTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredEvents.map((event) => {
+              sortedEvents.map((event) => {
                 const status = getEventStatus(event);
                 return (
                   <TableRow key={event.id}>
@@ -312,6 +389,21 @@ const EventsTable = ({
                       {event.subcategory && (
                         <div className="text-xs text-gray-500 mt-1">{event.subcategory}</div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <CalendarIcon className="h-4 w-4 text-gray-500" />
+                        <span>
+                          {format(
+                            new Date(event.dataInicio), 
+                            "dd/MM/yyyy", 
+                            { locale: ptBR }
+                          )}
+                          {new Date(event.dataInicio).getTime() !== new Date(event.dataFim).getTime() && (
+                            <> - {format(new Date(event.dataFim), "dd/MM/yyyy", { locale: ptBR })}</>
+                          )}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1.5">
@@ -383,7 +475,7 @@ const EventsTable = ({
             )}
           </TableBody>
           <TableCaption className="px-4">
-            Total: {filteredEvents.length} de {events.length} eventos
+            Total: {sortedEvents.length} de {events.length} eventos
           </TableCaption>
         </Table>
       </div>

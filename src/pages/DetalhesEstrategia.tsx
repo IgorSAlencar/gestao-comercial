@@ -41,6 +41,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DadosLoja {
   chaveLoja: string;
@@ -71,6 +77,7 @@ interface DadosLoja {
     microsseguro: boolean;
     lime: boolean;
   };
+  motivoBloqueio?: string;
 }
 
 interface DadosEstrategia {
@@ -137,7 +144,7 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   },
   "abertura-conta": {
     titulo: "Estratégia de Abertura de Contas",
-    visaoGeral: "Aumentar o número de novas contas abertas com foco em jovens e pequenos empresários.",
+    visaoGeral: "Estimular a abertura de contas nos pontos sob sua gestão.",
     oportunidades: [
       {
         titulo: "Universitários",
@@ -290,7 +297,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
           consignado: false,
           microsseguro: false,
           lime: false
-        }
+        },
+        motivoBloqueio: "Bloqueio temporário devido a irregularidades na documentação. Necessário regularização com a gerência regional."
       },
       {
         chaveLoja: "5005",
@@ -390,7 +398,18 @@ const DetalhesEstrategia: React.FC = () => {
   const [dados, setDados] = useState<DadosEstrategia | null>(null);
   const [lojaExpandida, setLojaExpandida] = useState<string | null>(null);
   const [dadosFiltrados, setDadosFiltrados] = useState<DadosLoja[]>([]);
+  const [ordenacao, setOrdenacao] = useState<{
+    coluna: keyof DadosLoja | null;
+    direcao: 'asc' | 'desc';
+  }>({ coluna: null, direcao: 'asc' });
   const { user, isManager } = useAuth();
+  const [modalBloqueio, setModalBloqueio] = useState<{
+    isOpen: boolean;
+    loja: DadosLoja | null;
+  }>({
+    isOpen: false,
+    loja: null
+  });
 
   const form = useForm<FiltrosLoja>({
     defaultValues: {
@@ -437,6 +456,27 @@ const DetalhesEstrategia: React.FC = () => {
       setDadosFiltrados(dados.dadosAnaliticos);
     }
   };
+
+  const handleOrdenacao = (coluna: keyof DadosLoja) => {
+    setOrdenacao(prev => ({
+      coluna,
+      direcao: prev.coluna === coluna && prev.direcao === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const dadosOrdenados = React.useMemo(() => {
+    if (!ordenacao.coluna) return dadosFiltrados;
+
+    return [...dadosFiltrados].sort((a, b) => {
+      const valorA = a[ordenacao.coluna!];
+      const valorB = b[ordenacao.coluna!];
+
+      if (valorA === valorB) return 0;
+      
+      const comparacao = valorA < valorB ? -1 : 1;
+      return ordenacao.direcao === 'asc' ? comparacao : -comparacao;
+    });
+  }, [dadosFiltrados, ordenacao]);
 
   if (!dados) {
     return (
@@ -730,26 +770,106 @@ const DetalhesEstrategia: React.FC = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[120px]">Chave Loja</TableHead>
-                          <TableHead>Nome Loja</TableHead>
+                          <TableHead 
+                            className="w-[120px] cursor-pointer hover:bg-gray-100" 
+                            onClick={() => handleOrdenacao('chaveLoja')}
+                          >
+                            <div className="flex items-center gap-1">
+                              Chave Loja
+                              {ordenacao.coluna === 'chaveLoja' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleOrdenacao('nomeLoja')}
+                          >
+                            <div className="flex items-center gap-1">
+                              Nome Loja
+                              {ordenacao.coluna === 'nomeLoja' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
                           <TableHead className="text-center" colSpan={4}>
                             <div className="mb-1">Qtd. Contas</div>
                             <div className="grid grid-cols-4 gap-2 text-xs font-normal">
-                              <div>M-3</div>
-                              <div>M-2</div>
-                              <div>M-1</div>
-                              <div>M0</div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM3')}
+                              >
+                                M-3 {ordenacao.coluna === 'mesM3' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM2')}
+                              >
+                                M-2 {ordenacao.coluna === 'mesM2' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM1')}
+                              >
+                                M-1 {ordenacao.coluna === 'mesM1' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM0')}
+                              >
+                                M0 {ordenacao.coluna === 'mesM0' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
+                              </div>
                             </div>
                           </TableHead>
-                          <TableHead className="text-center">Situação</TableHead>
-                          <TableHead className="text-center">Últ. Contábil</TableHead>
-                          <TableHead className="text-center">Últ. Negócio</TableHead>
-                          <TableHead className="text-center">Tendência</TableHead>
+                          <TableHead 
+                            className="text-center cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleOrdenacao('situacao')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Situação
+                              {ordenacao.coluna === 'situacao' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="text-center cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleOrdenacao('dataUltTrxContabil')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Últ. Contábil
+                              {ordenacao.coluna === 'dataUltTrxContabil' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="text-center cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleOrdenacao('dataUltTrxNegocio')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Últ. Negócio
+                              {ordenacao.coluna === 'dataUltTrxNegocio' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                            className="text-center cursor-pointer hover:bg-gray-100"
+                            onClick={() => handleOrdenacao('tendencia')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Tendência
+                              {ordenacao.coluna === 'tendencia' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
                           <TableHead className="w-[120px] text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dadosFiltrados.map((loja) => (
+                        {dadosOrdenados.map((loja) => (
                           <React.Fragment key={loja.chaveLoja}>
                             <TableRow>
                               <TableCell className="font-medium">
@@ -770,7 +890,12 @@ const DetalhesEstrategia: React.FC = () => {
                                 {loja.situacao === "ativa" ? (
                                   <TableStatus status="realizar" label="Ativa" />
                                 ) : loja.situacao === "bloqueada" ? (
-                                  <TableStatus status="pendente" label="Bloqueada" />
+                                  <div 
+                                    className="cursor-pointer" 
+                                    onClick={() => setModalBloqueio({ isOpen: true, loja })}
+                                  >
+                                    <TableStatus status="bloqueada" label="Bloqueada" />
+                                  </div>
                                 ) : (
                                   <TableStatus status="pendente" label="Em encerramento" />
                                 )}
@@ -778,7 +903,9 @@ const DetalhesEstrategia: React.FC = () => {
                               <TableCell className="text-center">{formatDate(loja.dataUltTrxContabil)}</TableCell>
                               <TableCell className="text-center">{formatDate(loja.dataUltTrxNegocio)}</TableCell>
                               <TableCell className="text-center">
-                                {renderTendenciaIcon(loja.tendencia)}
+                                <div className="flex justify-center items-center">
+                                  {renderTendenciaIcon(loja.tendencia)}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
@@ -805,18 +932,23 @@ const DetalhesEstrategia: React.FC = () => {
                             {lojaExpandida === loja.chaveLoja && (
                               <TableRow className="bg-gray-50">
                                 <TableCell colSpan={10} className="py-3">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                      <h4 className="font-medium mb-2">Informações Detalhadas</h4>
+                                      <h4 className="font-medium mb-2">Informações da Loja</h4>
                                       <ul className="space-y-1.5">
                                         <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
                                         <li className="text-sm"><span className="font-medium">Nome PDV:</span> {loja.nomePdv}</li>
                                         <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
-                                        <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
                                         <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
                                         <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
-                                        <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h4 className="font-medium mb-2">Hierarquia</h4>
+                                      <ul className="space-y-1.5">
                                         <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
+                                        <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                        <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
                                       </ul>
                                     </div>
                                     <div>
@@ -907,6 +1039,35 @@ const DetalhesEstrategia: React.FC = () => {
           )}
         </Tabs>
       </div>
+
+      {/* Modal de Bloqueio */}
+      <Dialog open={modalBloqueio.isOpen} onOpenChange={() => setModalBloqueio({ isOpen: false, loja: null })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalhes do Bloqueio</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-medium mb-2">Loja</h4>
+              <p className="text-sm text-gray-600">
+                {modalBloqueio.loja?.nomeLoja} - {modalBloqueio.loja?.chaveLoja}
+              </p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">Data do Bloqueio</h4>
+              <p className="text-sm text-gray-600">
+                {modalBloqueio.loja?.dataBloqueio ? formatDate(modalBloqueio.loja.dataBloqueio) : '—'}
+              </p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">Motivo do Bloqueio</h4>
+              <p className="text-sm text-gray-600">
+                {modalBloqueio.loja?.motivoBloqueio || 'Motivo não especificado'}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

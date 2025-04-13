@@ -1,6 +1,6 @@
-
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import { AlertCircle } from "lucide-react"
 
 const Table = React.forwardRef<
   HTMLTableElement,
@@ -107,7 +107,7 @@ TableCaption.displayName = "TableCaption"
 
 // Componente de status para a tabela
 interface TableStatusProps {
-  status: 'pendente' | 'realizar' | 'tratada';
+  status: 'pendente' | 'realizar' | 'tratada' | 'bloqueada';
   label?: string;
 }
 
@@ -133,18 +133,28 @@ const TableStatus = ({ status, label }: TableStatusProps) => {
       borderColor: "border-green-200",
       icon: "check",
       text: label || "Visita tratada"
+    },
+    bloqueada: {
+      bgColor: "bg-red-100",
+      textColor: "text-red-800",
+      borderColor: "border-red-200",
+      icon: "alert-circle",
+      text: label || "Bloqueada"
     }
   };
 
   const config = statusConfig[status];
 
   return (
-    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${config.bgColor} ${config.textColor} ${config.borderColor} border text-xs font-medium w-fit`}>
-      <span className="relative flex h-2 w-2">
-        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.textColor} opacity-75`}></span>
-        <span className={`relative inline-flex rounded-full h-2 w-2 ${config.textColor}`}></span>
-      </span>
-      {config.text}
+    <div className={`inline-flex items-center gap-0.5 px-2 py-1 rounded-full ${config.bgColor} ${config.textColor} ${config.borderColor} border text-xs font-medium ${status === 'pendente' ? 'w-[160px]' : 'w-[120px]'} justify-center whitespace-nowrap`}>
+      {status === 'bloqueada' ? (
+        <AlertCircle className="h-3 w-3 mr-1" />
+      ) : (
+        <span className="relative flex h-1.5 w-1.5">
+          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${config.textColor}`}></span>
+        </span>
+      )}
+      <span className="truncate">{config.text}</span>
     </div>
   );
 };

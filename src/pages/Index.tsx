@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -313,13 +312,6 @@ const Index = () => {
                 </div>
                 <span className="font-medium">{mockData.storeStatus.blocked}</span>
               </div>
-              <Button 
-                variant="outline" 
-                className="w-full mt-2"
-                onClick={() => navigateTo('/correspondentes-bloqueados')}
-              >
-                Ver detalhes
-              </Button>
             </div>
           </DashboardCard>
         </div>
