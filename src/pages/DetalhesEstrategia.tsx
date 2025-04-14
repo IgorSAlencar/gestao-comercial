@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { 
   Card, 
   CardHeader, 
@@ -12,7 +12,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search, Pin, Download, ArrowRight } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search, Pin, Download, ArrowRight, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Table,
@@ -48,6 +48,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 interface DadosLoja {
   chaveLoja: string;
@@ -84,7 +85,7 @@ interface DadosLoja {
 interface DadosEstrategia {
   titulo: string;
   visaoGeral: string;
-  oportunidades: {
+  oportunidades: {  
     titulo: string;
     descricao: string;
   }[];
@@ -93,11 +94,6 @@ interface DadosEstrategia {
     descricao: string;
     prioridade: "alta" | "media" | "baixa";
   }[];
-  desempenho: {
-    meta: number;
-    realizado: number;
-    anterior: number;
-  };
   dadosAnaliticos?: DadosLoja[];
 }
 
@@ -138,11 +134,153 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         prioridade: "media"
       }
     ],
-    desempenho: {
-      meta: 100,
-      realizado: 75,
-      anterior: 60
-    }
+    dadosAnaliticos: [
+      {
+        chaveLoja: "5001",
+        cnpj: "12.345.678/0001-99",
+        nomeLoja: "Loja Centro",
+        mesM3: 15,
+        mesM2: 18,
+        mesM1: 22,
+        mesM0: 20,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-25"),
+        dataUltTrxNegocio: new Date("2023-03-27"),
+        dataInauguracao: new Date("2020-05-15"),
+        agencia: "0001",
+        telefoneLoja: "(11) 3456-7890",
+        nomeContato: "João Silva",
+        gerenciaRegional: "São Paulo Centro",
+        diretoriaRegional: "Sudeste",
+        tendencia: "estavel",
+        endereco: "Av. Paulista, 1000 - Centro, São Paulo/SP",
+        nomePdv: "Centro SP",
+        multiplicadorResponsavel: "Carlos Oliveira",
+        dataCertificacao: new Date("2022-10-05"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: false
+        }
+      },
+      {
+        chaveLoja: "5002",
+        cnpj: "23.456.789/0001-88",
+        nomeLoja: "Loja Shopping Vila Olímpia",
+        mesM3: 10,
+        mesM2: 12,
+        mesM1: 15,
+        mesM0: 18,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-26"),
+        dataUltTrxNegocio: new Date("2023-03-28"),
+        dataInauguracao: new Date("2021-11-20"),
+        agencia: "0002",
+        telefoneLoja: "(11) 3456-7891",
+        nomeContato: "Maria Santos",
+        gerenciaRegional: "São Paulo Zona Sul",
+        diretoriaRegional: "Sudeste",
+        tendencia: "comecando",
+        endereco: "Shopping Vila Olímpia, Loja 42 - São Paulo/SP",
+        nomePdv: "Vila Olímpia",
+        multiplicadorResponsavel: "Ana Pereira",
+        dataCertificacao: new Date("2022-09-15"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: false,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5003",
+        cnpj: "34.567.890/0001-77",
+        nomeLoja: "Loja Campinas Shopping",
+        mesM3: 8,
+        mesM2: 6,
+        mesM1: 5,
+        mesM0: 3,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-25"),
+        dataUltTrxNegocio: new Date("2023-03-25"),
+        dataInauguracao: new Date("2019-03-10"),
+        agencia: "0015",
+        telefoneLoja: "(19) 3456-7892",
+        nomeContato: "Pedro Almeida",
+        gerenciaRegional: "Campinas",
+        diretoriaRegional: "Interior SP",
+        tendencia: "queda",
+        endereco: "Campinas Shopping, Loja 67 - Campinas/SP",
+        nomePdv: "Campinas Shop",
+        multiplicadorResponsavel: "Roberto Costa",
+        dataCertificacao: new Date("2022-11-20"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5004",
+        cnpj: "45.678.901/0001-66",
+        nomeLoja: "Loja Rio Branco",
+        mesM3: 5,
+        mesM2: 7,
+        mesM1: 9,
+        mesM0: 11,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-01"),
+        dataUltTrxNegocio: new Date("2023-03-01"),
+        dataInauguracao: new Date("2018-06-05"),
+        agencia: "0032",
+        telefoneLoja: "(21) 3456-7893",
+        nomeContato: "Fernanda Lima",
+        gerenciaRegional: "Rio de Janeiro Centro",
+        diretoriaRegional: "Rio de Janeiro",
+        tendencia: "comecando",
+        endereco: "Av. Rio Branco, 156 - Centro, Rio de Janeiro/RJ",
+        nomePdv: "Rio Branco",
+        multiplicadorResponsavel: "Paulo Mendes",
+        dataCertificacao: new Date("2021-05-10"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5005",
+        cnpj: "56.789.012/0001-55",
+        nomeLoja: "Loja Salvador Shopping",
+        mesM3: 12,
+        mesM2: 8,
+        mesM1: 6,
+        mesM0: 4,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-10"),
+        dataUltTrxNegocio: new Date("2023-03-15"),
+        dataInauguracao: new Date("2017-09-22"),
+        agencia: "0048",
+        telefoneLoja: "(71) 3456-7894",
+        nomeContato: "Luciana Costa",
+        gerenciaRegional: "Salvador",
+        diretoriaRegional: "Nordeste",
+        tendencia: "queda",
+        endereco: "Salvador Shopping, Loja 33 - Salvador/BA",
+        nomePdv: "Salvador Shop",
+        multiplicadorResponsavel: "Marcos Vieira",
+        dataCertificacao: new Date("2020-11-05"),
+        situacaoTablet: "S.Tablet",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: false
+        }
+      }
+    ]
   },
   "abertura-conta": {
     titulo: "Estratégia de Abertura de Contas",
@@ -178,11 +316,6 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         prioridade: "baixa"
       }
     ],
-    desempenho: {
-      meta: 100,
-      realizado: 60,
-      anterior: 45
-    },
     dadosAnaliticos: [
       {
         chaveLoja: "5001",
@@ -386,16 +519,12 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         descricao: "Estabelecer parcerias para oferta de seguros residenciais.",
         prioridade: "media"
       }
-    ],
-    desempenho: {
-      meta: 100,
-      realizado: 40,
-      anterior: 35
-    }
+    ]
   }
 };
 
 const DetalhesEstrategia: React.FC = () => {
+  const navigate = useNavigate();
   const { produto } = useParams<{ produto: string }>();
   const [dados, setDados] = useState<DadosEstrategia | null>(null);
   const [lojaExpandida, setLojaExpandida] = useState<string | null>(null);
@@ -413,6 +542,10 @@ const DetalhesEstrategia: React.FC = () => {
     loja: null
   });
   const [lojasMarcadas, setLojasMarcadas] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
+  const API_BASE_URL = 'http://localhost:3001'; // Altere para o endereço e porta corretos do seu servidor
 
   const form = useForm<FiltrosLoja>({
     defaultValues: {
@@ -427,8 +560,185 @@ const DetalhesEstrategia: React.FC = () => {
     }
   });
 
+  // Função para verificar o status do servidor
+  const checkServerStatus = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/health`);
+      console.log('Status do servidor:', response.data);
+      
+      if (response.data.status === 'ok') {
+        setConnectionStatus('connected');
+        
+        if (!response.data.tableExists) {
+          console.error('Tabela oportunidades_contas não existe no banco de dados!');
+          setError('A tabela oportunidades_contas não foi encontrada no banco de dados.');
+          return false;
+        }
+        
+        if (response.data.recordCount === 0) {
+          console.warn('Nenhum registro encontrado na tabela oportunidades_contas para abertura-conta.');
+          setError('Nenhum registro encontrado na tabela oportunidades_contas. Verifique se o script SQL foi executado.');
+          return false;
+        }
+        
+        return true;
+      } else {
+        setConnectionStatus('error');
+        setError('Servidor disponível, mas reportou um erro.');
+        return false;
+      }
+    } catch (err) {
+      console.error('Erro ao verificar status do servidor:', err);
+      setConnectionStatus('error');
+      setError('Não foi possível conectar ao servidor. Verifique se o servidor está rodando na porta correta.');
+      return false;
+    }
+  };
+
+  // Função para buscar dados da tabela de oportunidades_contas
+  const fetchOportunidadesContas = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Usamos o mesmo endpoint e token de autenticação que o server.js utiliza
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('Nenhum token de autenticação encontrado no localStorage');
+        throw new Error('Token de autenticação não encontrado');
+      }
+      
+      console.log('Iniciando busca de dados: /api/oportunidades-contas');
+      
+      // Autenticar usuário manualmente se necessário
+      // Para testes, vamos tentar fazer login novamente para garantir um token válido
+      try {
+        // Esta parte só será executada durante testes e desenvolvimento
+        // Você pode remover após confirmar que tudo está funcionando
+        if (window.location.hostname === 'localhost') {
+          const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+            funcional: '9444168', // Funcional do admin
+            password: 'hashed_password' // Senha conforme definido no script de exemplo
+          });
+          
+          if (loginResponse.data && loginResponse.data.token) {
+            console.log('Login bem-sucedido, atualizando token...');
+            localStorage.setItem('token', loginResponse.data.token);
+          }
+        }
+      } catch (loginErr) {
+        console.warn('Tentativa de login automático falhou, usando token existente');
+      }
+      
+      // Obtém o token (possivelmente atualizado)
+      const updatedToken = localStorage.getItem('token');
+      
+      const response = await axios.get(`${API_BASE_URL}/api/oportunidades-contas`, {
+        headers: {
+          Authorization: `Bearer ${updatedToken}`
+        },
+        params: {
+          tipoEstrategia: 'abertura-conta'
+        }
+      });
+      
+      console.log('Dados recebidos do servidor:', response.data);
+      
+      if (!response.data || response.data.length === 0) {
+        console.warn('Nenhum dado recebido do servidor, usando dados simulados');
+        setConnectionStatus('error');
+        setError('Nenhum registro encontrado na tabela oportunidades_contas. Verifique se o script SQL foi executado corretamente.');
+        throw new Error('Nenhum dado recebido');
+      }
+      
+      // Convertemos o formato do banco para o formato utilizado pelo componente
+      const lojas = response.data.map((item: any) => ({
+        chaveLoja: item.CHAVE_LOJA,
+        cnpj: item.CNPJ,
+        nomeLoja: item.NOME_LOJA,
+        mesM3: item.MES_M3 || 0,
+        mesM2: item.MES_M2 || 0,
+        mesM1: item.MES_M1 || 0,
+        mesM0: item.MES_M0 || 0,
+        situacao: item.SITUACAO || 'ativa',
+        dataUltTrxContabil: item.ULT_TRX_CONTABIL ? new Date(item.ULT_TRX_CONTABIL) : new Date(),
+        dataUltTrxNegocio: item.ULT_TRX_NEGOCIO ? new Date(item.ULT_TRX_NEGOCIO) : new Date(),
+        dataBloqueio: item.DATA_BLOQUEIO ? new Date(item.DATA_BLOQUEIO) : undefined,
+        dataInauguracao: item.DATA_INAUGURACAO ? new Date(item.DATA_INAUGURACAO) : new Date(),
+        agencia: item.COD_AG || '',
+        telefoneLoja: item.TELEFONE || '',
+        nomeContato: item.CONTATO || '',
+        gerenciaRegional: item.GER_REGIONAL || '',
+        diretoriaRegional: item.DIR_REGIONAL || '',
+        tendencia: item.TENDENCIA || 'estavel',
+        endereco: item.LOCALIZACAO || '',
+        nomePdv: item.NOME_PDV || '',
+        multiplicadorResponsavel: item.MULTIPLICADOR_RESPONSAVEL || '',
+        dataCertificacao: item.DATA_CERTIFICACAO ? new Date(item.DATA_CERTIFICACAO) : undefined,
+        situacaoTablet: item.STATUS_TABLET || 'S.Tablet',
+        produtosHabilitados: {
+          consignado: Boolean(item.HABILITADO_CONSIGNADO),
+          microsseguro: Boolean(item.HABILITADO_MICROSSEGURO),
+          lime: Boolean(item.HABILITADO_LIME)
+        },
+        motivoBloqueio: item.MOTIVO_BLOQUEIO || ''
+      }));
+      
+      console.log(`Convertidos ${lojas.length} registros para o formato do componente`);
+      setConnectionStatus('connected');
+      
+      // Atualizamos o objeto abertura-conta com os dados reais
+      if (produto === 'abertura-conta') {
+        const estrategiaAtualizada = {
+          ...dadosSimulados['abertura-conta'],
+          dadosAnaliticos: lojas
+        };
+        
+        setDados(estrategiaAtualizada);
+        setDadosFiltrados(lojas);
+        console.log('Dados reais aplicados com sucesso para abertura-conta');
+      } else if (produto && produto in dadosSimulados) {
+        setDados(dadosSimulados[produto]);
+        if (dadosSimulados[produto].dadosAnaliticos) {
+          setDadosFiltrados(dadosSimulados[produto].dadosAnaliticos || []);
+        }
+      }
+      
+    } catch (err: any) {
+      console.error('Erro ao buscar dados de oportunidades:', err);
+      if (err.response) {
+        // O servidor respondeu com um status de erro
+        console.error('Resposta do servidor:', err.response.status, err.response.data);
+        setError(`Erro ${err.response.status}: ${err.response.data.message || 'Erro ao comunicar com o servidor'}`);
+      } else if (err.request) {
+        // A requisição foi feita mas não houve resposta
+        console.error('Sem resposta do servidor:', err.request);
+        setError('Servidor não está respondendo. Verifique se ele está rodando.');
+      } else {
+        // Algum erro na configuração da requisição
+        console.error('Erro na requisição:', err.message);
+        setError(err.message);
+      }
+      
+      setConnectionStatus('error');
+      
+      // Em caso de erro, carregamos os dados simulados como fallback
+      if (produto && produto in dadosSimulados) {
+        console.log('Usando dados simulados como fallback');
+        setDados(dadosSimulados[produto]);
+        if (dadosSimulados[produto].dadosAnaliticos) {
+          setDadosFiltrados(dadosSimulados[produto].dadosAnaliticos || []);
+        }
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (produto && produto in dadosSimulados) {
+    if (produto === 'abertura-conta') {
+      fetchOportunidadesContas();
+    } else if (produto && produto in dadosSimulados) {
       setDados(dadosSimulados[produto]);
       if (dadosSimulados[produto].dadosAnaliticos) {
         setDadosFiltrados(dadosSimulados[produto].dadosAnaliticos || []);
@@ -451,7 +761,7 @@ const DetalhesEstrategia: React.FC = () => {
       
       return true;
     });
-    
+        
     setDadosFiltrados(filtrados);
   };
 
@@ -508,8 +818,28 @@ const DetalhesEstrategia: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, ws, "Dados");
 
     // Gerar o arquivo Excel
-    XLSX.writeFile(wb, `Analítico BE (Abertura De Contas) - ${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+    const nomeProduto = produto === "abertura-conta" ? "Abertura De Contas" : 
+                        produto === "credito" ? "Crédito" : "Produto";
+    XLSX.writeFile(wb, `Analítico BE (${nomeProduto}) - ${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
   };
+
+  const handleVoltar = () => {
+    navigate('/estrategia-comercial');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <p className="text-gray-500">Carregando dados...</p>
+      </div>
+    );
+  }
+
+  // Mostramos uma mensagem específica baseada no status da conexão
+  if (connectionStatus === 'error') {
+    console.warn(`Erro de conexão: ${error}`);
+    // Continuamos com os dados simulados, apenas adicionamos um aviso na tela
+  }
 
   if (!dados) {
     return (
@@ -518,9 +848,6 @@ const DetalhesEstrategia: React.FC = () => {
       </div>
     );
   }
-
-  const percentualRealizado = Math.round((dados.desempenho.realizado / dados.desempenho.meta) * 100);
-  const tendencia = dados.desempenho.realizado > dados.desempenho.anterior ? "positiva" : "negativa";
 
   const renderTendenciaIcon = (tendencia: string) => {
     switch(tendencia) {
@@ -574,10 +901,31 @@ const DetalhesEstrategia: React.FC = () => {
   return (
     <div className="container mx-auto">
       <div className="flex flex-col space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">{dados.titulo}</h1>
-          <p className="text-gray-500">Estratégia Comercial - {user?.name}</p>
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleVoltar}
+            className="text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">{dados.titulo}</h1>
+            <p className="text-gray-500">Estratégia Comercial - {user?.name}</p>
+          </div>
         </div>
+
+        {connectionStatus === 'error' && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg shadow-sm">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-amber-600" />
+              <span className="font-medium">Aviso:</span>
+              <span className="ml-2">{error || 'Usando dados de demonstração devido a um erro de conexão com o servidor.'}</span>
+            </div>
+            <p className="text-sm mt-1 ml-7">Para usar dados reais, verifique se o servidor está rodando e se o script SQL foi executado.</p>
+          </div>
+        )}
 
         <Card>
           <CardHeader className="pb-2">
@@ -774,7 +1122,7 @@ const DetalhesEstrategia: React.FC = () => {
           </TabsList>
 
           <TabsContent value="oportunidades">
-            {produto === "abertura-conta" && dados.dadosAnaliticos ? (
+            {(produto === "abertura-conta" || produto === "credito") && dados.dadosAnaliticos ? (
               <Card>
                 <CardHeader>
                   <CardTitle>Quadro Analítico de Oportunidades</CardTitle>

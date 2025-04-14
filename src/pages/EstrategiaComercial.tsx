@@ -48,27 +48,29 @@ const EstrategiaComercial: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-          <ProdutoCard
-            titulo="Crédito"
-            descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
-            icon={<CreditCard size={32} />}
-            onClick={() => handleSelectProduto("credito")}
-          />
-          
-          <ProdutoCard
-            titulo="Abertura de Conta"
-            descricao="Ações estratégicas para captação de novos clientes e contas."
-            icon={<Users size={32} />}
-            onClick={() => handleSelectProduto("abertura-conta")}
-          />
-          
-          <ProdutoCard
-            titulo="Seguro"
-            descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
-            icon={<Shield size={32} />}
-            onClick={() => handleSelectProduto("seguro")}
-          />
+        <div className="flex justify-center items-center mt-6 min-h-[300px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
+            <ProdutoCard
+              titulo="Crédito"
+              descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
+              icon={<CreditCard size={32} />}
+              onClick={() => handleSelectProduto("credito")}
+            />
+            
+            <ProdutoCard
+              titulo="Abertura de Conta"
+              descricao="Ações estratégicas para captação de novos clientes e contas."
+              icon={<Users size={32} />}
+              onClick={() => handleSelectProduto("abertura-conta")}
+            />
+            
+            <ProdutoCard
+              titulo="Seguro"
+              descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
+              icon={<Shield size={32} />}
+              onClick={() => handleSelectProduto("seguro")}
+            />
+          </div>
         </div>
       </div>
     </div>
