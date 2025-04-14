@@ -751,6 +751,152 @@ app.get('/api/oportunidades-contas', authenticateToken, async (req, res) => {
   }
 });
 
+// Endpoint para buscar ações diárias de contas
+app.get('/api/acao-diaria-contas', authenticateToken, async (req, res) => {
+  try {
+    await poolConnect;
+    
+    console.log('Recebido request para ações diárias de contas, usuário =', req.user.funcional);
+    
+    let query = `
+      SELECT * FROM teste..ACAO_DIARIA_CONTAS
+      WHERE USER_ID = @userId
+    `;
+    
+    // Filtro opcional por situação
+    if (req.query.situacao) {
+      query += ` AND SITUACAO = @situacao`;
+    }
+    
+    // Ordenação: pendentes e em andamento primeiro, depois por prioridade e data limite
+    query += `
+      ORDER BY 
+        CASE WHEN SITUACAO IN ('Pendente', 'Em Andamento') THEN 0 ELSE 1 END,
+        CASE WHEN PRIORIDADE = 'Alta' THEN 0 
+             WHEN PRIORIDADE = 'Media' THEN 1
+             ELSE 2 END,
+        DATA_LIMITE ASC
+    `;
+    
+    const request = pool.request()
+      .input('userId', sql.UniqueIdentifier, req.user.id);
+    
+    if (req.query.situacao) {
+      request.input('situacao', sql.NVarChar, req.query.situacao);
+    }
+    
+    const result = await request.query(query);
+    
+    console.log(`Query executada: ${result.recordset.length} ações diárias encontradas`);
+    
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Erro ao buscar ações diárias de contas:', error);
+    res.status(500).json({ message: 'Erro ao buscar ações diárias de contas', error: error.message });
+  }
+});
+
+// Endpoint para buscar uma ação diária específica
+app.get('/api/acao-diaria-contas/:id', authenticateToken, async (req, res) => {
+  try {
+    await poolConnect;
+    const { id } = req.params;
+    
+    const result = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('userId', sql.UniqueIdentifier, req.user.id)
+      .query(`
+        SELECT * FROM teste..ACAO_DIARIA_CONTAS
+        WHERE ID = @id 
+        AND (
+          USER_ID = @userId 
+          OR @userId IN (
+            SELECT superior_id FROM teste..hierarchy 
+            WHERE subordinate_id = USER_ID
+          )
+        )
+      `);
+    
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Ação diária não encontrada ou acesso negado' });
+    }
+    
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Erro ao buscar ação diária:', error);
+    res.status(500).json({ message: 'Erro ao buscar ação diária', error: error.message });
+  }
+});
+
+// Endpoint para atualizar o status de uma ação diária
+app.patch('/api/acao-diaria-contas/:id', authenticateToken, async (req, res) => {
+  try {
+    await poolConnect;
+    const { id } = req.params;
+    const { situacao, tratativa } = req.body;
+    
+    // Verificar se o usuário tem permissão para atualizar esta ação
+    const permissionCheck = await pool.request()
+      .input('id', sql.UniqueIdentifier, id)
+      .input('userId', sql.UniqueIdentifier, req.user.id)
+      .query(`
+        SELECT * FROM teste..ACAO_DIARIA_CONTAS
+        WHERE ID = @id 
+        AND (
+          USER_ID = @userId 
+          OR @userId IN (
+            SELECT superior_id FROM teste..hierarchy 
+            WHERE subordinate_id = USER_ID
+          )
+        )
+      `);
+    
+    if (permissionCheck.recordset.length === 0) {
+      return res.status(403).json({ message: 'Permissão negada para atualizar esta ação' });
+    }
+    
+    // Preparar os campos a serem atualizados
+    const updateFields = [];
+    const request = pool.request().input('id', sql.UniqueIdentifier, id);
+    
+    if (situacao) {
+      updateFields.push('SITUACAO = @situacao');
+      request.input('situacao', sql.NVarChar, situacao);
+      
+      // Se a situação for 'Concluída', adicionar a data de conclusão
+      if (situacao === 'Concluída') {
+        updateFields.push('DATA_CONCLUSAO = @dataConc');
+        request.input('dataConc', sql.DateTime, new Date());
+      }
+    }
+    
+    if (tratativa) {
+      updateFields.push('TRATATIVA = @tratativa');
+      request.input('tratativa', sql.NVarChar, tratativa);
+    }
+    
+    // Adicionar sempre a data de atualização
+    updateFields.push('UPDATED_AT = @updatedAt');
+    request.input('updatedAt', sql.DateTime, new Date());
+    
+    // Executar a atualização
+    if (updateFields.length > 0) {
+      const result = await request.query(`
+        UPDATE teste..ACAO_DIARIA_CONTAS
+        SET ${updateFields.join(', ')}
+        WHERE ID = @id
+      `);
+      
+      res.json({ message: 'Ação diária atualizada com sucesso' });
+    } else {
+      res.status(400).json({ message: 'Nenhum campo para atualizar foi fornecido' });
+    }
+  } catch (error) {
+    console.error('Erro ao atualizar ação diária:', error);
+    res.status(500).json({ message: 'Erro ao atualizar ação diária', error: error.message });
+  }
+});
+
 // Get supervisors for a manager/coordinator
 app.get('/api/users/:userId/supervisors', authenticateToken, async (req, res) => {
   const { userId } = req.params;

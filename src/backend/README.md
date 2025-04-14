@@ -6,6 +6,7 @@ Este diretório contém o servidor backend para o sistema Bradesco Express Gest�
 
 - `server.js` - Servidor Express principal que define as rotas e middlewares
 - `setup_oportunidades_contas.sql` - Script SQL para criação e população da tabela de oportunidades de contas
+- `setup_acao_diaria_contas.sql` - Script SQL para criação e população da tabela de ações diárias
 
 ## Tecnologias Utilizadas
 
@@ -53,12 +54,13 @@ Para configurar o ambiente pela primeira vez, siga os passos abaixo:
    - Atualize as credenciais no arquivo `server.js` conforme necessário
 
 4. **Execute os scripts SQL**:
-   - Execute o script `setup_oportunidades_contas.sql` no seu SQL Server:
+   - Execute os scripts SQL no seu SQL Server:
      ```bash
      # Usando sqlcmd (ajuste as credenciais conforme necessário)
      sqlcmd -S DESKTOP-G4V6794 -U sa -P expresso -d TESTE -i setup_oportunidades_contas.sql
+     sqlcmd -S DESKTOP-G4V6794 -U sa -P expresso -d TESTE -i setup_acao_diaria_contas.sql
      ```
-     ou use SQL Server Management Studio para executar o script.
+     ou use SQL Server Management Studio para executar os scripts.
 
 ## Iniciando o Servidor
 
@@ -78,6 +80,7 @@ O servidor será iniciado na porta 3001 por padrão. Você pode alterar a porta 
 2. **hierarchy** - Define relacionamentos hierárquicos entre usuários
 3. **EVENTOS** - Armazena eventos e atividades registradas no sistema
 4. **oportunidades_contas** - Armazena informações sobre oportunidades de negócio
+5. **ACAO_DIARIA_CONTAS** - Armazena ações diárias relacionadas a contas que precisam de atenção
 
 ### Tabela oportunidades_contas
 
@@ -91,9 +94,27 @@ A tabela `oportunidades_contas` armazena dados relacionados às oportunidades de
 - **MES_M3, MES_M2, MES_M1, MES_M0** - Métricas de produção dos últimos 4 meses
 - **TENDENCIA** - Tendência de desempenho: 'queda', 'atencao', 'estavel', 'comecando'
 - **TIPO_ESTRATEGIA** - Tipo de estratégia associada ao registro ('abertura-conta', 'credito', 'seguro')
-- Outros campos com informações detalhadas da loja e contatos
 
 O script `setup_oportunidades_contas.sql` cria esta tabela se ela não existir e insere dados de exemplo.
+
+### Tabela ACAO_DIARIA_CONTAS
+
+A tabela `ACAO_DIARIA_CONTAS` armazena dados sobre ações diárias que precisam ser realizadas pelo usuário em relação às contas. Os campos principais incluem:
+
+- **ID** - Identificador único da ação (UNIQUEIDENTIFIER)
+- **CHAVE_LOJA** - Identificador exclusivo da loja relacionada (NVARCHAR(20))
+- **NOME_LOJA** - Nome da loja (NVARCHAR(100))
+- **CONTATO** - Nome da pessoa de contato na loja (NVARCHAR(100))
+- **TELEFONE** - Telefone para contato (NVARCHAR(20))
+- **USER_ID** - ID do usuário responsável pela ação (UNIQUEIDENTIFIER)
+- **QTD_CONTAS_PLATAFORMA** - Quantidade de contas na nova plataforma (INT)
+- **QTD_CONTAS_LEGADO** - Quantidade de contas no sistema legado (INT)
+- **SITUACAO** - Status da ação: 'Pendente', 'Em Andamento', 'Concluída', 'Atrasada' (NVARCHAR(30))
+- **DESCRIACAO_SITUACAO** - Descrição detalhada da situação (NVARCHAR(200))
+- **TIPO_ACAO** - Tipo de ação: 'Migração de Contas', 'Regularização', 'Ativação de PDV', 'Outro' (NVARCHAR(50))
+- **DATA_LIMITE** - Data limite para a conclusão da ação (DATETIME)
+
+O script `setup_acao_diaria_contas.sql` cria esta tabela se ela não existir e insere dados de exemplo.
 
 ## APIs Disponíveis
 
@@ -121,6 +142,12 @@ O script `setup_oportunidades_contas.sql` cria esta tabela se ela não existir e
 - `GET /api/oportunidades-contas` - Retorna dados de oportunidades conforme o tipo de estratégia
 - `GET /api/check-table` - Endpoint de diagnóstico para verificar a existência da tabela (somente para desenvolvimento)
 
+### Ações Diárias de Contas
+
+- `GET /api/acao-diaria-contas` - Retorna ações diárias para o usuário atual
+- `GET /api/acao-diaria-contas/:id` - Retorna detalhes de uma ação diária específica
+- `PATCH /api/acao-diaria-contas/:id` - Atualiza o status de uma ação diária
+
 ## Solução de Problemas
 
 ### Verificando a Tabela oportunidades_contas
@@ -140,9 +167,9 @@ Esta rota retornará informações sobre a existência da tabela e alguns regist
    - Confirme se as credenciais estão corretas no arquivo `server.js`
    - Verifique se o banco de dados `TESTE` existe
 
-2. **Tabela oportunidades_contas não encontrada**:
-   - Execute novamente o script `setup_oportunidades_contas.sql`
-   - Verifique se o script foi executado sem erros
+2. **Tabela não encontrada**:
+   - Execute novamente os scripts SQL
+   - Verifique se os scripts foram executados sem erros
 
 3. **Token de autenticação inválido**:
    - Certifique-se de fazer login corretamente antes de acessar endpoints protegidos
