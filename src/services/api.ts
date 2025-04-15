@@ -36,6 +36,27 @@ export interface AuthResponse {
   token: string;
 }
 
+export interface AcaoDiariaContas {
+  id: string;
+  chaveLoja: string;
+  nomeLoja: string;
+  telefone: string;
+  contato: string;
+  userId: string;
+  qtdContasPlataforma: number;
+  qtdContasLegado: number;
+  agencia: string;
+  situacao: "pendente" | "em_andamento" | "concluido";
+  descricaoSituacao: string;
+  dataLimite: Date;
+  dataCriacao: Date;
+  dataAtualizacao: Date;
+  dataConclusao?: Date;
+  observacoes?: string;
+  prioridade: "baixa" | "media" | "alta";
+  tipoAcao: string;
+}
+
 interface ApiError {
   message: string;
 }
@@ -302,6 +323,126 @@ export const eventApi = {
     };
     
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
+  },
+};
+
+// Ações Diárias de Contas API
+export const acaoDiariaApi = {
+  // Obter todas as ações diárias atribuídas ao usuário atual
+  getAcoesDiarias: async (userId?: string): Promise<AcaoDiariaContas[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    let url = `${API_URL}/acoes-diarias`;
+    
+    if (userId) {
+      url += `?userId=${userId}`;
+    }
+    
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      const result = await fetchWithErrorHandling(url, options);
+      console.log("Ações diárias recebidas:", result);
+      return result.map((acao: any) => ({
+        id: acao.ID,
+        chaveLoja: acao.CHAVE_LOJA,
+        nomeLoja: acao.NOME_LOJA,
+        telefone: acao.TELEFONE,
+        contato: acao.CONTATO,
+        userId: acao.USER_ID,
+        qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
+        qtdContasLegado: acao.QTD_CONTAS_LEGADO,
+        agencia: acao.AGENCIA,
+        situacao: acao.SITUACAO,
+        descricaoSituacao: acao.DESCRICAO_SITUACAO,
+        dataLimite: new Date(acao.DATA_LIMITE),
+        dataCriacao: new Date(acao.DATA_CRIACAO),
+        dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
+        dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
+        observacoes: acao.OBSERVACOES,
+        prioridade: acao.PRIORIDADE,
+        tipoAcao: acao.TIPO_ACAO
+      }));
+    } catch (error) {
+      console.error("Falha ao buscar ações diárias:", error);
+      return [];
+    }
+  },
+
+  // Obter ações diárias da equipe (para coordenadores e gerentes)
+  getAcoesDiariasEquipe: async (): Promise<AcaoDiariaContas[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      const result = await fetchWithErrorHandling(`${API_URL}/acoes-diarias/equipe`, options);
+      console.log("Ações diárias da equipe recebidas:", result);
+      return result.map((acao: any) => ({
+        id: acao.ID,
+        chaveLoja: acao.CHAVE_LOJA,
+        nomeLoja: acao.NOME_LOJA,
+        telefone: acao.TELEFONE,
+        contato: acao.CONTATO,
+        userId: acao.USER_ID,
+        qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
+        qtdContasLegado: acao.QTD_CONTAS_LEGADO,
+        agencia: acao.AGENCIA,
+        situacao: acao.SITUACAO,
+        descricaoSituacao: acao.DESCRICAO_SITUACAO,
+        dataLimite: new Date(acao.DATA_LIMITE),
+        dataCriacao: new Date(acao.DATA_CRIACAO),
+        dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
+        dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
+        observacoes: acao.OBSERVACOES,
+        prioridade: acao.PRIORIDADE,
+        tipoAcao: acao.TIPO_ACAO
+      }));
+    } catch (error) {
+      console.error("Falha ao buscar ações diárias da equipe:", error);
+      return [];
+    }
+  },
+
+  // Atualizar status de uma ação diária
+  atualizarAcaoDiaria: async (id: string, dados: {
+    situacao?: "pendente" | "em_andamento" | "concluido";
+    observacoes?: string;
+    dataConclusao?: Date;
+  }): Promise<{ success: boolean; message?: string }> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(dados),
+    };
+    
+    try {
+      return await fetchWithErrorHandling(`${API_URL}/acoes-diarias/${id}`, options);
+    } catch (error) {
+      if (error instanceof Error) {
+        return { 
+          success: false, 
+          message: error.message || "Falha ao atualizar ação diária" 
+        };
+      }
+      return { success: false, message: "Erro desconhecido" };
+    }
   },
 };
 

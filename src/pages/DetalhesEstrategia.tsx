@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import * as XLSX from 'xlsx';
 import axios from 'axios';
+import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
 
 interface DadosLoja {
   chaveLoja: string;
@@ -85,15 +86,6 @@ interface DadosLoja {
 interface DadosEstrategia {
   titulo: string;
   visaoGeral: string;
-  oportunidades: {  
-    titulo: string;
-    descricao: string;
-  }[];
-  acoes: {
-    titulo: string;
-    descricao: string;
-    prioridade: "alta" | "media" | "baixa";
-  }[];
   dadosAnaliticos?: DadosLoja[];
 }
 
@@ -112,28 +104,6 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   "credito": {
     titulo: "Estratégia de Crédito",
     visaoGeral: "Aumentar a oferta de produtos de crédito para clientes com bom histórico financeiro.",
-    oportunidades: [
-      {
-        titulo: "Expansão de Crédito Pessoal",
-        descricao: "Foco em ofertas personalizadas para clientes com bom histórico."
-      },
-      {
-        titulo: "Consignado em Empresas Parceiras",
-        descricao: "Ampliar parcerias com empresas para oferta de crédito consignado."
-      }
-    ],
-    acoes: [
-      {
-        titulo: "Campanha de Marketing Direcionada",
-        descricao: "Implementar campanha de marketing focada em crédito pessoal.",
-        prioridade: "alta"
-      },
-      {
-        titulo: "Treinamento da Equipe de Vendas",
-        descricao: "Realizar treinamento específico sobre produtos de crédito.",
-        prioridade: "media"
-      }
-    ],
     dadosAnaliticos: [
       {
         chaveLoja: "5001",
@@ -285,37 +255,6 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   "abertura-conta": {
     titulo: "Estratégia de Abertura de Contas",
     visaoGeral: "Cada ação no dia a dia fortalece sua gestão. Atue com estratégia e transforme desafios em resultados!",
-    oportunidades: [
-      {
-        titulo: "Universitários",
-        descricao: "Parcerias com universidades para abertura de contas para estudantes."
-      },
-      {
-        titulo: "Pequenos Empresários",
-        descricao: "Foco em facilitar abertura de contas para pequenos negócios."
-      },
-      {
-        titulo: "Indicações de Clientes",
-        descricao: "Programa de recompensas para clientes que indicarem novos correntistas."
-      }
-    ],
-    acoes: [
-      {
-        titulo: "Campanha Digital",
-        descricao: "Implementar campanha em redes sociais voltada para público jovem.",
-        prioridade: "alta"
-      },
-      {
-        titulo: "Visitas a Universidades",
-        descricao: "Agendar visitas promocionais em universidades parceiras.",
-        prioridade: "media"
-      },
-      {
-        titulo: "Simplificação de Processos",
-        descricao: "Revisar e simplificar processo de abertura de conta digital.",
-        prioridade: "baixa"
-      }
-    ],
     dadosAnaliticos: [
       {
         chaveLoja: "5001",
@@ -498,26 +437,151 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   "seguro": {
     titulo: "Estratégia de Seguros",
     visaoGeral: "Ampliar carteira de seguros com foco em microsseguros e seguros residenciais.",
-    oportunidades: [
+    dadosAnaliticos: [
       {
-        titulo: "Microsseguros para Baixa Renda",
-        descricao: "Pacotes acessíveis para segmentos de menor poder aquisitivo."
+        chaveLoja: "5001",
+        cnpj: "12.345.678/0001-99",
+        nomeLoja: "Loja Centro",
+        mesM3: 8,
+        mesM2: 10,
+        mesM1: 12,
+        mesM0: 15,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-25"),
+        dataUltTrxNegocio: new Date("2023-03-27"),
+        dataInauguracao: new Date("2020-05-15"),
+        agencia: "0001",
+        telefoneLoja: "(11) 3456-7890",
+        nomeContato: "João Silva",
+        gerenciaRegional: "São Paulo Centro",
+        diretoriaRegional: "Sudeste",
+        tendencia: "comecando",
+        endereco: "Av. Paulista, 1000 - Centro, São Paulo/SP",
+        nomePdv: "Centro SP",
+        multiplicadorResponsavel: "Carlos Oliveira",
+        dataCertificacao: new Date("2022-10-05"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: false
+        }
       },
       {
-        titulo: "Seguros Residenciais Simplificados",
-        descricao: "Produtos simplificados para proteção residencial."
-      }
-    ],
-    acoes: [
-      {
-        titulo: "Treinamento em Microsseguros",
-        descricao: "Capacitar equipe para oferta adequada de microsseguros.",
-        prioridade: "alta"
+        chaveLoja: "5002",
+        cnpj: "23.456.789/0001-88",
+        nomeLoja: "Loja Shopping Vila Olímpia",
+        mesM3: 7,
+        mesM2: 9,
+        mesM1: 11,
+        mesM0: 14,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-26"),
+        dataUltTrxNegocio: new Date("2023-03-28"),
+        dataInauguracao: new Date("2021-11-20"),
+        agencia: "0002",
+        telefoneLoja: "(11) 3456-7891",
+        nomeContato: "Maria Santos",
+        gerenciaRegional: "São Paulo Zona Sul",
+        diretoriaRegional: "Sudeste",
+        tendencia: "comecando",
+        endereco: "Shopping Vila Olímpia, Loja 42 - São Paulo/SP",
+        nomePdv: "Vila Olímpia",
+        multiplicadorResponsavel: "Ana Pereira",
+        dataCertificacao: new Date("2022-09-15"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
       },
       {
-        titulo: "Parcerias com Imobiliárias",
-        descricao: "Estabelecer parcerias para oferta de seguros residenciais.",
-        prioridade: "media"
+        chaveLoja: "5003",
+        cnpj: "34.567.890/0001-77",
+        nomeLoja: "Loja Campinas Shopping",
+        mesM3: 3,
+        mesM2: 2,
+        mesM1: 1,
+        mesM0: 0,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-02-25"),
+        dataUltTrxNegocio: new Date("2023-02-25"),
+        dataInauguracao: new Date("2019-03-10"),
+        agencia: "0015",
+        telefoneLoja: "(19) 3456-7892",
+        nomeContato: "Pedro Almeida",
+        gerenciaRegional: "Campinas",
+        diretoriaRegional: "Interior SP",
+        tendencia: "queda",
+        endereco: "Campinas Shopping, Loja 67 - Campinas/SP",
+        nomePdv: "Campinas Shop",
+        multiplicadorResponsavel: "Roberto Costa",
+        dataCertificacao: new Date("2022-11-20"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: false,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5004",
+        cnpj: "45.678.901/0001-66",
+        nomeLoja: "Loja Rio Branco",
+        mesM3: 6,
+        mesM2: 8,
+        mesM1: 5,
+        mesM0: 7,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-20"),
+        dataUltTrxNegocio: new Date("2023-03-20"),
+        dataInauguracao: new Date("2018-06-05"),
+        agencia: "0032",
+        telefoneLoja: "(21) 3456-7893",
+        nomeContato: "Fernanda Lima",
+        gerenciaRegional: "Rio de Janeiro Centro",
+        diretoriaRegional: "Rio de Janeiro",
+        tendencia: "estavel",
+        endereco: "Av. Rio Branco, 156 - Centro, Rio de Janeiro/RJ",
+        nomePdv: "Rio Branco",
+        multiplicadorResponsavel: "Paulo Mendes",
+        dataCertificacao: new Date("2021-05-10"),
+        situacaoTablet: "Instalado",
+        produtosHabilitados: {
+          consignado: true,
+          microsseguro: true,
+          lime: true
+        }
+      },
+      {
+        chaveLoja: "5005",
+        cnpj: "56.789.012/0001-55",
+        nomeLoja: "Loja Salvador Shopping",
+        mesM3: 5,
+        mesM2: 4,
+        mesM1: 3,
+        mesM0: 2,
+        situacao: "ativa",
+        dataUltTrxContabil: new Date("2023-03-10"),
+        dataUltTrxNegocio: new Date("2023-03-15"),
+        dataInauguracao: new Date("2017-09-22"),
+        agencia: "0048",
+        telefoneLoja: "(71) 3456-7894",
+        nomeContato: "Luciana Costa",
+        gerenciaRegional: "Salvador",
+        diretoriaRegional: "Nordeste",
+        tendencia: "atencao",
+        endereco: "Salvador Shopping, Loja 33 - Salvador/BA",
+        nomePdv: "Salvador Shop",
+        multiplicadorResponsavel: "Marcos Vieira",
+        dataCertificacao: new Date("2020-11-05"),
+        situacaoTablet: "S.Tablet",
+        produtosHabilitados: {
+          consignado: false,
+          microsseguro: true,
+          lime: false
+        }
       }
     ]
   }
@@ -541,6 +605,8 @@ const DetalhesEstrategia: React.FC = () => {
     isOpen: false,
     loja: null
   });
+
+  
   const [lojasMarcadas, setLojasMarcadas] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -601,7 +667,7 @@ const DetalhesEstrategia: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      // Usamos o mesmo endpoint e token de autenticação que o server.js utiliza
+      // Usamos o mesmo endpoint e token de autenticação que o server-modular.js utiliza
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('Nenhum token de autenticação encontrado no localStorage');
@@ -612,23 +678,23 @@ const DetalhesEstrategia: React.FC = () => {
       
       // Autenticar usuário manualmente se necessário
       // Para testes, vamos tentar fazer login novamente para garantir um token válido
-      try {
+      //  try {
         // Esta parte só será executada durante testes e desenvolvimento
         // Você pode remover após confirmar que tudo está funcionando
-        if (window.location.hostname === 'localhost') {
-          const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-            funcional: '9444168', // Funcional do admin
-            password: 'hashed_password' // Senha conforme definido no script de exemplo
-          });
+       // if (window.location.hostname === 'localhost') {
+       //   const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+       //     funcional: '9444168', // Funcional do admin
+       //     password: 'hashed_password' // Senha conforme definido no script de exemplo
+      //    });
           
-          if (loginResponse.data && loginResponse.data.token) {
-            console.log('Login bem-sucedido, atualizando token...');
-            localStorage.setItem('token', loginResponse.data.token);
-          }
-        }
-      } catch (loginErr) {
-        console.warn('Tentativa de login automático falhou, usando token existente');
-      }
+     //     if (loginResponse.data && loginResponse.data.token) {
+     //       console.log('Login bem-sucedido, atualizando token...');
+     //       localStorage.setItem('token', loginResponse.data.token);
+    //      }
+    //  }
+      //} catch (loginErr) {
+      //  console.warn('Tentativa de login automático falhou, usando token existente');
+      //}
       
       // Obtém o token (possivelmente atualizado)
       const updatedToken = localStorage.getItem('token');
@@ -898,6 +964,154 @@ const DetalhesEstrategia: React.FC = () => {
     });
   };
 
+  const renderCards = () => {
+    if (produto === "abertura-conta") {
+      return (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <CardsAcaoDiariaContas />
+          
+          <Card className="border-2 border-lime-200 bg-gradient-to-r from-lime-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-lime-800">Universitários</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-lime-600 mb-4">
+                Jovens estudantes universitários, ideais para pacotes iniciais com foco digital e possibilidade de expansão futura.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-lime-600 hover:bg-lime-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-blue-800">Contas PJ</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-blue-600 mb-4">
+                Empresas e MEIs que precisam de contas empresariais com benefícios e taxas competitivas.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    } else if (produto === "credito") {
+      return (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="border-2 border-emerald-200 bg-gradient-to-r from-emerald-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-emerald-800">Crédito Pessoal Facilitado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-emerald-600 mb-4">
+                Oferta para clientes com bom histórico, taxas reduzidas e aprovação rápida.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-emerald-600 hover:bg-emerald-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-purple-800">Consignado Premium</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-purple-600 mb-4">
+                Para funcionários públicos e aposentados, menor taxa do mercado e maior prazo.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-purple-600 hover:bg-purple-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-amber-800">Financiamento Imobiliário</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-amber-600 mb-4">
+                Taxas competitivas e condições especiais para aquisição da casa própria.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-amber-600 hover:bg-amber-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    } else if (produto === "seguro") {
+      return (
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          <Card className="border-2 border-red-200 bg-gradient-to-r from-red-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-red-800">Microsseguro Família Protegida</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-red-600 mb-4">
+                Proteção básica para famílias de baixa renda com valor acessível e cobertura essencial.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-red-600 hover:bg-red-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-2 border-cyan-200 bg-gradient-to-r from-cyan-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-cyan-800">Residencial Simplificado</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-cyan-600 mb-4">
+                Proteção para residências com coberturas básicas, preço acessível e contratação descomplicada.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-cyan-600 hover:bg-cyan-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-2 border-orange-200 bg-gradient-to-r from-orange-50 to-white shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-xl text-orange-800">Vida Individual Premium</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-orange-600 mb-4">
+                Seguro de vida completo com coberturas ampliadas para indivíduos de alto valor.
+              </p>
+              <div className="flex justify-end">
+                <Button className="bg-orange-600 hover:bg-orange-700">
+                  Ver detalhes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
+    return null;
+  };
+
   return (
     <div className="container mx-auto">
       <div className="flex flex-col space-y-6">
@@ -937,51 +1151,149 @@ const DetalhesEstrategia: React.FC = () => {
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="text-xl text-blue-800">Ação Diária</CardTitle>
-                  <p className="text-sm text-blue-600 mt-1">Loja que necessita atenção hoje</p>
-                </div>
-                <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                  Hoje
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-white p-4 rounded-lg border border-blue-100">
-                <div className="flex items-center justify-between">
+          {produto === "abertura-conta" && (
+            <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-center">
                   <div>
-                    <h4 className="font-semibold text-blue-800">Loja Centro</h4>
-                    <p className="text-sm text-gray-600">Chave: 5001 - Ag: 0001</p>
+                    <CardTitle className="text-xl text-blue-800">Ação Diária</CardTitle>
+                    <p className="text-sm text-blue-600 mt-1">Loja que necessita atenção hoje</p>
                   </div>
-                  <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
-                    Pendente
+                  <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Hoje
                   </div>
                 </div>
-                <div className="mt-3">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Situação:</span> 5 contas abertas no sistema legado
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium">Contato:</span> João Silva
-                  </p>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-white p-4 rounded-lg border border-blue-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-blue-800">Loja Centro</h4>
+                      <p className="text-sm text-gray-600">Chave: 5001 - Ag: 0001</p>
+                    </div>
+                    <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
+                      Pendente
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Situação:</span> 5 contas abertas no sistema legado
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Contato:</span> João Silva
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-4 flex justify-end">
-                <Button 
-                  variant="default" 
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
-                  onClick={() => window.location.href = '/migracao-contas'}
-                >
-                  <ArrowRight className="mr-2 h-4 w-4" />
-                  Iniciar Tratativa
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                <div className="mt-4 flex justify-end">
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={() => window.location.href = '/migracao-contas'}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Iniciar Tratativa
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {produto === "credito" && (
+            <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-white shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-xl text-green-800">Prioridades do Mês</CardTitle>
+                    <p className="text-sm text-green-600 mt-1">Crédito Pessoal e Consignado</p>
+                  </div>
+                  <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {format(new Date(), 'MMM/yyyy', {locale: ptBR})}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-white p-4 rounded-lg border border-green-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-green-800">Loja Shopping Vila Olímpia</h4>
+                      <p className="text-sm text-gray-600">Chave: 5002 - Ag: 0002</p>
+                    </div>
+                    <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                      Alta Conversão
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Oportunidade:</span> Potencial de 25 contratos de crédito consignado
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Público:</span> Funcionários da empresa ABC Ltda.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                    onClick={() => window.location.href = '/propostas-credito'}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Ver Propostas
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {produto === "seguro" && (
+            <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-white shadow-sm hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-xl text-indigo-800">Campanha Ativa</CardTitle>
+                    <p className="text-sm text-indigo-600 mt-1">Microsseguro Residencial</p>
+                  </div>
+                  <div className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Até {format(new Date(new Date().setDate(new Date().getDate() + 15)), 'dd/MM', {locale: ptBR})}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-white p-4 rounded-lg border border-indigo-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-indigo-800">Promoção Proteção Familiar</h4>
+                      <p className="text-sm text-gray-600">Seguro a partir de R$ 9,90/mês</p>
+                    </div>
+                    <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium">
+                      Exclusivo BE
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Meta:</span> 5 seguros por correspondente
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Bônus:</span> Comissão extra de 2% para lojas que baterem a meta
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700"
+                    onClick={() => window.location.href = '/campanha-seguro'}
+                  >
+                    <ArrowRight className="mr-2 h-4 w-4" />
+                    Ver Detalhes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="bg-gray-50">
             <CardHeader>
@@ -1068,10 +1380,28 @@ const DetalhesEstrategia: React.FC = () => {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-lg">Lojas Sem Abertura</CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">Lojas ativas sem movimentação de contas</p>
+                  {produto === "abertura-conta" && (
+                    <>
+                      <CardTitle className="text-lg">Lojas Sem Abertura</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Lojas ativas sem movimentação de contas</p>
+                    </>
+                  )}
+                  {produto === "credito" && (
+                    <>
+                      <CardTitle className="text-lg">Oportunidades de Crédito</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Correspondentes sem propostas no mês</p>
+                    </>
+                  )}
+                  {produto === "seguro" && (
+                    <>
+                      <CardTitle className="text-lg">Lojas com Potencial</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">Correspondentes qualificados para seguros</p>
+                    </>
+                  )}
                 </div>
-                <AlertTriangle size={24} className="text-gray-500" />
+                {produto === "abertura-conta" && <AlertTriangle size={24} className="text-gray-500" />}
+                {produto === "credito" && <ChartBar size={24} className="text-gray-500" />}
+                {produto === "seguro" && <Info size={24} className="text-gray-500" />}
               </div>
             </CardHeader>
             <CardContent>
@@ -1079,22 +1409,72 @@ const DetalhesEstrategia: React.FC = () => {
                 <div className="bg-white p-4 rounded-lg border border-gray-100">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-semibold text-gray-800">Análise de Inatividade</h4>
-                      <p className="text-sm text-gray-600">Identificação de lojas que precisam de atenção</p>
+                      {produto === "abertura-conta" && (
+                        <>
+                          <h4 className="font-semibold text-gray-800">Análise de Inatividade</h4>
+                          <p className="text-sm text-gray-600">Identificação de lojas que precisam de atenção</p>
+                        </>
+                      )}
+                      {produto === "credito" && (
+                        <>
+                          <h4 className="font-semibold text-gray-800">Avaliação de Público-Alvo</h4>
+                          <p className="text-sm text-gray-600">Lojas com potencial para ofertas de crédito</p>
+                        </>
+                      )}
+                      {produto === "seguro" && (
+                        <>
+                          <h4 className="font-semibold text-gray-800">Correspondentes Certificados</h4>
+                          <p className="text-sm text-gray-600">Multiplicadores treinados em produtos de seguros</p>
+                        </>
+                      )}
                     </div>
                     <div className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                      {dados?.dadosAnaliticos?.filter(loja => 
-                        loja.situacao === "ativa" && 
-                        loja.mesM0 === 0 && 
-                        loja.mesM1 === 0 && 
-                        loja.mesM2 === 0 && 
-                        loja.mesM3 === 0
-                      ).length || 0} Lojas
+                      {produto === "abertura-conta" && (
+                        <>
+                          {dados?.dadosAnaliticos?.filter(loja => 
+                            loja.situacao === "ativa" && 
+                            loja.mesM0 === 0 && 
+                            loja.mesM1 === 0 && 
+                            loja.mesM2 === 0 && 
+                            loja.mesM3 === 0
+                          ).length || 0} Lojas
+                        </>
+                      )}
+                      {produto === "credito" && (
+                        <>
+                          {dados?.dadosAnaliticos?.filter(loja => 
+                            loja.situacao === "ativa" && 
+                            loja.produtosHabilitados?.consignado === true
+                          ).length || 0} Lojas
+                        </>
+                      )}
+                      {produto === "seguro" && (
+                        <>
+                          {dados?.dadosAnaliticos?.filter(loja => 
+                            loja.situacao === "ativa" && 
+                            loja.produtosHabilitados?.microsseguro === true
+                          ).length || 0} Lojas
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="mt-3">
                     <p className="text-sm text-gray-600">
-                      <span className="font-medium">Situação:</span> Lojas ativas sem movimentação nos últimos 4 meses
+                      {produto === "abertura-conta" && (
+                        <>
+                          <span className="font-medium">Situação:</span> Lojas ativas sem movimentação nos últimos 4 meses
+                        </>
+                      )}
+                      {produto === "credito" && (
+                        <>
+                          <span className="font-medium">Oportunidade:</span> Correspondentes com produto habilitado sem propostas recentes
+                        </>
+                      )}
+                      {produto === "seguro" && (
+                        <>
+                          <span className="font-medium">Destaque:</span> Correspondentes aptos a oferecer microsseguros e proteção residencial
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -1102,11 +1482,22 @@ const DetalhesEstrategia: React.FC = () => {
                   <Button 
                     variant="default" 
                     size="sm"
-                    className="bg-gray-600 hover:bg-gray-700"
-                    onClick={() => window.location.href = '/analise-inatividade'}
+                    className={`
+                      ${produto === "abertura-conta" ? "bg-gray-600 hover:bg-gray-700" : ""} 
+                      ${produto === "credito" ? "bg-green-600 hover:bg-green-700" : ""}
+                      ${produto === "seguro" ? "bg-indigo-600 hover:bg-indigo-700" : ""}
+                    `}
+                    onClick={() => window.location.href = produto === "abertura-conta" 
+                      ? '/analise-inatividade' 
+                      : produto === "credito" 
+                        ? '/oportunidades-credito' 
+                        : '/potencial-seguros'
+                    }
                   >
                     <ArrowRight className="mr-2 h-4 w-4" />
-                    Ver Análise Detalhada
+                    {produto === "abertura-conta" && "Ver Análise Detalhada"}
+                    {produto === "credito" && "Explorar Oportunidades"}
+                    {produto === "seguro" && "Ver Correspondentes"}
                   </Button>
                 </div>
               </div>
@@ -1122,7 +1513,7 @@ const DetalhesEstrategia: React.FC = () => {
           </TabsList>
 
           <TabsContent value="oportunidades">
-            {(produto === "abertura-conta" || produto === "credito") && dados.dadosAnaliticos ? (
+            {(produto === "abertura-conta" || produto === "credito" || produto === "seguro") && dados.dadosAnaliticos ? (
               <Card>
                 <CardHeader>
                   <CardTitle>Quadro Analítico de Oportunidades</CardTitle>
@@ -1507,16 +1898,71 @@ const DetalhesEstrategia: React.FC = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {dados.oportunidades.map((oportunidade, index) => (
-                  <Card key={index}>
+                {produto === "abertura-conta" && (
+                  <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">{oportunidade.titulo}</CardTitle>
+                      <CardTitle className="text-lg">Contas Digitais</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p>{oportunidade.descricao}</p>
+                      <p>Agilize a abertura de contas com o novo fluxo 100% digital. Documentação simplificada e aprovação rápida.</p>
                     </CardContent>
                   </Card>
-                ))}
+                )}
+
+                {produto === "abertura-conta" && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Universitários</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Isenção de tarifas por 6 meses para estudantes. Cartão com cashback em materiais escolares.</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {produto === "credito" && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Crédito Pessoal Facilitado</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Taxa reduzida para clientes com conta corrente. Pré-aprovação diretamente no aplicativo Bradesco.</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {produto === "credito" && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Consignado Premium</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Novo convênio com órgãos federais. Margem ampliada e condições especiais para servidores.</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {produto === "seguro" && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Microsseguro Família Protegida</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Cobertura familiar a partir de R$ 9,90/mês. Assistência funeral e pequenas despesas médicas incluídas.</p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {produto === "seguro" && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Residencial Simplificado</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p>Proteção para residências contra incêndio, roubo e danos elétricos. Contratação em apenas 5 minutos.</p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </TabsContent>
