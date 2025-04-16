@@ -2,7 +2,7 @@
 import React from "react";
 
 import { Button } from "@/components/ui/button";
-import { CreditCard, Users, Shield, MapPin, TrendingUp } from "lucide-react";
+import { CreditCard, Users, Shield, MapPin, TrendingUp, Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface ProdutoCardProps {
@@ -74,7 +74,7 @@ const EstrategiaComercial: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <ProdutoCard
                 titulo="Pontos Ativos"
                 descricao="Análise de performance e estratégias para ativação de pontos comerciais."
@@ -88,6 +88,13 @@ const EstrategiaComercial: React.FC = () => {
                 icon={<TrendingUp size={32} />}
                 onClick={() => handleSelectProduto("pontos-realizando-negocio")}
               />
+
+              <ProdutoCard
+                titulo="Pontos Bloqueados"
+                descricao="Identificação e estratégias de desbloqueio de pontos comerciais inativos."
+                icon={<Lock size={32} />}
+                onClick={() => handleSelectProduto("pontos-bloqueados")}
+              />
             </div>
           </div>
         </div>
@@ -97,4 +104,3 @@ const EstrategiaComercial: React.FC = () => {
 };
 
 export default EstrategiaComercial;
-
