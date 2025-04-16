@@ -1,0 +1,36 @@
+
+{
+  "totais": {
+    "volume_total": 8500000,
+    "total_operacoes": 750,
+    "ticket_medio": 11333,
+    "meta_atingida": 85
+  },
+  "por_produto": [
+    {
+      "produto": "Crédito Pessoal",
+      "volume": 3500000,
+      "quantidade": 350
+    },
+    {
+      "produto": "Crédito Consignado",
+      "volume": 2800000,
+      "quantidade": 220
+    },
+    {
+      "produto": "Financiamento Auto",
+      "volume": 1200000,
+      "quantidade": 80
+    },
+    {
+      "produto": "Cartão de Crédito",
+      "volume": 800000,
+      "quantidade": 90
+    },
+    {
+      "produto": "Outros",
+      "volume": 200000,
+      "quantidade": 10
+    }
+  ]
+}
