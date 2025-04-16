@@ -420,6 +420,7 @@ const AgendaPage = () => {
   };
 
   const calendarLabels = {
+    months: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
     previous: "Mês anterior",
     today: "Hoje"
   };

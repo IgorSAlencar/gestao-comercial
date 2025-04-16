@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+
+import React from "react";
 
 import { Button } from "@/components/ui/button";
-import { CreditCard, Users, Shield } from "lucide-react";
+import { CreditCard, Users, Shield, MapPin, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface ProdutoCardProps {
@@ -49,7 +50,7 @@ const EstrategiaComercial: React.FC = () => {
         </div>
 
         <div className="flex justify-center items-center mt-6 min-h-[300px]">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl">
             <ProdutoCard
               titulo="Crédito"
               descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
@@ -69,6 +70,20 @@ const EstrategiaComercial: React.FC = () => {
               descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
               icon={<Shield size={32} />}
               onClick={() => handleSelectProduto("seguro")}
+            />
+
+            <ProdutoCard
+              titulo="Pontos Ativos"
+              descricao="Análise de performance e estratégias para ativação de pontos comerciais."
+              icon={<MapPin size={32} />}
+              onClick={() => handleSelectProduto("pontos-ativos")}
+            />
+
+            <ProdutoCard
+              titulo="Pontos Realizando Negócio"
+              descricao="Monitoramento de pontos com transações ativas e estratégias de potencialização."
+              icon={<TrendingUp size={32} />}
+              onClick={() => handleSelectProduto("pontos-realizando-negocio")}
             />
           </div>
         </div>
