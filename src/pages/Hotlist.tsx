@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableStatus } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, Fire, List } from 'lucide-react';
+import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List } from 'lucide-react';
 import { useForm } from "react-hook-form";
 import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -376,7 +376,7 @@ const Hotlist: React.FC = () => {
                       render={({ field }) => (
                         <FormItem>
                           <FormControl>
-                            <Input placeholder="Localização" {...field} />
+                            <Input placeholder="Localiza��ão" {...field} />
                           </FormControl>
                         </FormItem>
                       )}
@@ -712,4 +712,4 @@ const Hotlist: React.FC = () => {
   );
 };
 
-export default Hotlist; 
+export default Hotlist;
