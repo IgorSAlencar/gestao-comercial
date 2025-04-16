@@ -50,41 +50,45 @@ const EstrategiaComercial: React.FC = () => {
         </div>
 
         <div className="flex justify-center items-center mt-6 min-h-[300px]">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 max-w-6xl">
-            <ProdutoCard
-              titulo="Crédito"
-              descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
-              icon={<CreditCard size={32} />}
-              onClick={() => handleSelectProduto("credito")}
-            />
-            
-            <ProdutoCard
-              titulo="Abertura de Conta"
-              descricao="Ações estratégicas para captação de novos clientes e contas."
-              icon={<Users size={32} />}
-              onClick={() => handleSelectProduto("abertura-conta")}
-            />
-            
-            <ProdutoCard
-              titulo="Seguro"
-              descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
-              icon={<Shield size={32} />}
-              onClick={() => handleSelectProduto("seguro")}
-            />
+          <div className="space-y-6 max-w-6xl w-full">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
+              <ProdutoCard
+                titulo="Crédito"
+                descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
+                icon={<CreditCard size={32} />}
+                onClick={() => handleSelectProduto("credito")}
+              />
+              
+              <ProdutoCard
+                titulo="Abertura de Conta"
+                descricao="Ações estratégicas para captação de novos clientes e contas."
+                icon={<Users size={32} />}
+                onClick={() => handleSelectProduto("abertura-conta")}
+              />
+              
+              <ProdutoCard
+                titulo="Seguro"
+                descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
+                icon={<Shield size={32} />}
+                onClick={() => handleSelectProduto("seguro")}
+              />
+            </div>
 
-            <ProdutoCard
-              titulo="Pontos Ativos"
-              descricao="Análise de performance e estratégias para ativação de pontos comerciais."
-              icon={<MapPin size={32} />}
-              onClick={() => handleSelectProduto("pontos-ativos")}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+              <ProdutoCard
+                titulo="Pontos Ativos"
+                descricao="Análise de performance e estratégias para ativação de pontos comerciais."
+                icon={<MapPin size={32} />}
+                onClick={() => handleSelectProduto("pontos-ativos")}
+              />
 
-            <ProdutoCard
-              titulo="Pontos Realizando Negócio"
-              descricao="Monitoramento de pontos com transações ativas e estratégias de potencialização."
-              icon={<TrendingUp size={32} />}
-              onClick={() => handleSelectProduto("pontos-realizando-negocio")}
-            />
+              <ProdutoCard
+                titulo="Pontos Realizando Negócio"
+                descricao="Monitoramento de pontos com transações ativas e estratégias de potencialização."
+                icon={<TrendingUp size={32} />}
+                onClick={() => handleSelectProduto("pontos-realizando-negocio")}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -93,3 +97,4 @@ const EstrategiaComercial: React.FC = () => {
 };
 
 export default EstrategiaComercial;
+
