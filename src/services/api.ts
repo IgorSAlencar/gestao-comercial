@@ -45,6 +45,9 @@ export interface AcaoDiariaContas {
   userId: string;
   qtdContasPlataforma: number;
   qtdContasLegado: number;
+  qtdTotalMes?: number;
+  qtdPlataformaMes?: number;
+  qtdLegadoMes?: number;
   agencia: string;
   situacao: "pendente" | "em_andamento" | "concluido";
   descricaoSituacao: string;
@@ -55,6 +58,10 @@ export interface AcaoDiariaContas {
   observacoes?: string;
   prioridade: "baixa" | "media" | "alta";
   tipoAcao: string;
+  endereco?: string;
+  statusTablet?: string;
+  tratativa?: string;
+  nomeUsuario?: string; // Para exibir o nome do usuário responsável na view de equipe
 }
 
 interface ApiError {
@@ -357,16 +364,25 @@ export const acaoDiariaApi = {
         userId: acao.USER_ID,
         qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
         qtdContasLegado: acao.QTD_CONTAS_LEGADO,
+        qtdTotalMes: acao.QTD_TOTAL_MES,
+        qtdPlataformaMes: acao.QTD_PLATAFORMA_MES,
+        qtdLegadoMes: acao.QTD_LEGADO_MES,
         agencia: acao.AGENCIA,
-        situacao: acao.SITUACAO,
+        situacao: acao.SITUACAO.toLowerCase() === 'pendente' ? 'pendente' : 
+                  acao.SITUACAO.toLowerCase() === 'em andamento' ? 'em_andamento' : 
+                  'concluido',
         descricaoSituacao: acao.DESCRICAO_SITUACAO,
         dataLimite: new Date(acao.DATA_LIMITE),
         dataCriacao: new Date(acao.DATA_CRIACAO),
         dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
         dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
         observacoes: acao.OBSERVACOES,
-        prioridade: acao.PRIORIDADE,
-        tipoAcao: acao.TIPO_ACAO
+        prioridade: acao.PRIORIDADE.toLowerCase(),
+        tipoAcao: acao.TIPO_ACAO,
+        endereco: acao.ENDERECO,
+        statusTablet: acao.STATUS_TABLET,
+        tratativa: acao.TRATATIVA,
+        nomeUsuario: acao.NOME_USUARIO
       }));
     } catch (error) {
       console.error("Falha ao buscar ações diárias:", error);
@@ -397,16 +413,25 @@ export const acaoDiariaApi = {
         userId: acao.USER_ID,
         qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
         qtdContasLegado: acao.QTD_CONTAS_LEGADO,
+        qtdTotalMes: acao.QTD_TOTAL_MES,
+        qtdPlataformaMes: acao.QTD_PLATAFORMA_MES,
+        qtdLegadoMes: acao.QTD_LEGADO_MES,
         agencia: acao.AGENCIA,
-        situacao: acao.SITUACAO,
+        situacao: acao.SITUACAO.toLowerCase() === 'pendente' ? 'pendente' : 
+                  acao.SITUACAO.toLowerCase() === 'em andamento' ? 'em_andamento' : 
+                  'concluido',
         descricaoSituacao: acao.DESCRICAO_SITUACAO,
         dataLimite: new Date(acao.DATA_LIMITE),
         dataCriacao: new Date(acao.DATA_CRIACAO),
         dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
         dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
         observacoes: acao.OBSERVACOES,
-        prioridade: acao.PRIORIDADE,
-        tipoAcao: acao.TIPO_ACAO
+        prioridade: acao.PRIORIDADE.toLowerCase(),
+        tipoAcao: acao.TIPO_ACAO,
+        endereco: acao.ENDERECO,
+        statusTablet: acao.STATUS_TABLET,
+        tratativa: acao.TRATATIVA,
+        nomeUsuario: acao.NOME_USUARIO
       }));
     } catch (error) {
       console.error("Falha ao buscar ações diárias da equipe:", error);

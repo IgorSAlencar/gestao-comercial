@@ -26,7 +26,8 @@ import {
   CalendarDays,
   MapPin,
   MessageSquare,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
@@ -41,6 +42,7 @@ const Index = () => {
   const [acoesPendentes, setAcoesPendentes] = useState<AcaoDiariaContas[]>([]);
   const [alertas, setAlertas] = useState([]);
   const [eventosHoje, setEventosHoje] = useState<Event[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [loading, setLoading] = useState(true);
   const [estatisticas, setEstatisticas] = useState({
     totalAcoes: 0,
@@ -58,11 +60,6 @@ const Index = () => {
         // Carregar ações diárias
         const acoes = await acaoDiariaApi.getAcoesDiarias();
         setAcoesPendentes(acoes.filter(acao => acao.situacao !== "concluido"));
-        
-        // Carregar eventos do dia atual
-        const dataHoje = format(new Date(), 'yyyy-MM-dd');
-        const eventos = await eventApi.getEvents(dataHoje);
-        setEventosHoje(eventos);
         
         // Simular estatísticas - em produção, estas viriam da API
         setEstatisticas({
@@ -108,12 +105,59 @@ const Index = () => {
       }
     };
     
+    const carregarEventos = async () => {
+      try {
+        setLoadingEvents(true);
+        // Carregar eventos do dia atual
+        const dataHoje = format(new Date(), 'yyyy-MM-dd');
+        
+        let eventos;
+        if (isManager) {
+          // Gerentes e coordenadores podem ver eventos de toda a equipe
+          eventos = await eventApi.getEvents(dataHoje);
+        } else if (user?.id) {
+          // Outros usuários veem apenas seus próprios eventos
+          eventos = await eventApi.getEvents(dataHoje, user.id);
+        } else {
+          eventos = [];
+        }
+        
+        console.log(`Eventos carregados para ${dataHoje}:`, eventos);
+        setEventosHoje(eventos);
+      } catch (error) {
+        console.error("Erro ao carregar eventos:", error);
+        setEventosHoje([]);
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+    
     carregarDados();
-  }, []);
+    carregarEventos();
+  }, [user?.id, isManager]);
   
-  // Função para formatar data
-  const formatarData = (data) => {
-    return format(new Date(data), "dd/MM/yyyy", {locale: ptBR});
+  // Função para verificar se as datas de início e fim são iguais
+  const datasIguais = (dataInicio: Date | string, dataFim: Date | string) => {
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    
+    return (
+      inicio.getFullYear() === fim.getFullYear() &&
+      inicio.getMonth() === fim.getMonth() &&
+      inicio.getDate() === fim.getDate()
+    );
+  };
+  
+  // Função para formatar o range de datas
+  const formatarRangeDatas = (dataInicio: Date | string, dataFim: Date | string) => {
+    const inicio = new Date(dataInicio);
+    const fim = new Date(dataFim);
+    
+    if (datasIguais(inicio, fim)) {
+      return format(inicio, "dd 'de' MMMM 'de' yyyy", {locale: ptBR});
+    } else {
+      return `${format(inicio, "dd 'de' MMM", {locale: ptBR})} até ${format(fim, "dd 'de' MMM 'de' yyyy", {locale: ptBR})}`;
+    }
   };
   
   // Função para formatar horário
@@ -141,9 +185,64 @@ const Index = () => {
     navigate(`/agenda?evento=${eventoId}`);
   };
   
+  // Função para verificar se um evento ocorre no dia atual
+  const eventoHoje = (evento: Event) => {
+    const dataInicio = new Date(evento.dataInicio);
+    const dataFim = new Date(evento.dataFim);
+    const hoje = new Date();
+    
+    // Definir horas para comparação apenas das datas
+    hoje.setHours(0, 0, 0, 0);
+    
+    // Cria cópias das datas para não modificar os originais
+    const inicioComparacao = new Date(dataInicio);
+    const fimComparacao = new Date(dataFim);
+    
+    inicioComparacao.setHours(0, 0, 0, 0);
+    fimComparacao.setHours(23, 59, 59, 999);
+    
+    // Um evento ocorre hoje se:
+    // 1. Sua data de início é hoje, ou
+    // 2. Sua data de fim é hoje, ou
+    // 3. Ele começa antes de hoje e termina depois de hoje (evento de múltiplos dias)
+    return (
+      // Evento começa hoje
+      (inicioComparacao.getFullYear() === hoje.getFullYear() &&
+       inicioComparacao.getMonth() === hoje.getMonth() &&
+       inicioComparacao.getDate() === hoje.getDate()) ||
+      
+      // Evento termina hoje
+      (fimComparacao.getFullYear() === hoje.getFullYear() &&
+       fimComparacao.getMonth() === hoje.getMonth() &&
+       fimComparacao.getDate() === hoje.getDate()) ||
+      
+      // Evento contínuo que inclui hoje
+      (inicioComparacao <= hoje && fimComparacao >= hoje)
+    );
+  };
+  
   // Determinar saudação baseada na hora do dia
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  
+  // Função para formatar data
+  const formatarData = (data) => {
+    return format(new Date(data), "dd/MM/yyyy (EEEE)", {locale: ptBR});
+  };
+  
+  // Modificar a função para incluir eventos pendentes de tratativas
+  const eventosParaMostrar = (eventos: Event[]) => {
+    // Filtrar eventos de hoje
+    const eventosDeHoje = eventos.filter(eventoHoje);
+    
+    // Filtrar eventos pendentes (passados sem tratativa)
+    const eventosPendentes = eventos.filter(evento => 
+      eventoPassado(evento) && !temTratativa(evento) && !eventoHoje(evento)
+    );
+    
+    // Combinar os arrays, primeiro os de hoje, depois os pendentes
+    return [...eventosDeHoje, ...eventosPendentes.slice(0, 3)]; // Limitar a 3 eventos pendentes
+  };
   
   return (
     <div className="container mx-auto pb-12 space-y-6">
@@ -237,8 +336,13 @@ const Index = () => {
             <CardHeader className="pb-3">
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle className="text-lg text-indigo-800">Agenda de Hoje</CardTitle>
-                  <CardDescription>Seus compromissos e visitas agendadas</CardDescription>
+                  <CardTitle className="text-lg text-indigo-800">Agenda Comercial</CardTitle>
+                  <CardDescription>
+                    {isManager 
+                      ? "Compromissos e visitas da equipe para hoje" 
+                      : "Seus compromissos e visitas agendadas para hoje"
+                    }
+                  </CardDescription>
                 </div>
                 <Button 
                   variant="ghost" 
@@ -250,46 +354,65 @@ const Index = () => {
               </div>
             </CardHeader>
             <CardContent>
-              {loading ? (
+              {loadingEvents ? (
                 <div className="flex justify-center py-8">
-                  <div className="animate-pulse space-y-3 w-full">
-                    <div className="h-12 bg-indigo-100 rounded-md"></div>
-                    <div className="h-12 bg-indigo-100 rounded-md"></div>
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+                    <p className="text-sm text-indigo-600">Carregando eventos...</p>
                   </div>
                 </div>
               ) : eventosHoje.length > 0 ? (
                 <div className="space-y-3">
-                  {eventosHoje.map((evento) => (
+                  {eventosParaMostrar(eventosHoje).map((evento) => (
                     <div 
                       key={evento.id} 
                       className={`p-3 rounded-md border-l-4 ${
+                        !eventoHoje(evento) ? 'border-l-red-500 bg-red-50' :
                         eventoPassado(evento) && !temTratativa(evento) ? 'border-l-red-500 bg-red-50' : 
                         eventoPassado(evento) && temTratativa(evento) ? 'border-l-green-500 bg-green-50' : 
                         'border-l-indigo-500 bg-indigo-50'
                       } cursor-pointer hover:shadow-sm transition-shadow`}
                       onClick={() => navegarParaEvento(evento.id)}
                     >
-                      <div className="flex justify-between">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
                         <div className="font-medium">{evento.titulo}</div>
-                        <div className="text-sm font-medium">
-                          {formatarHorario(evento.dataInicio)} - {formatarHorario(evento.dataFim)}
+                        <div className="text-sm font-medium text-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-md whitespace-nowrap">
+                          <CalendarDays className="h-3.5 w-3.5 inline-block mr-1" />
+                          {formatarRangeDatas(evento.dataInicio, evento.dataFim)}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+
+                      <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-2 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3.5 w-3.5" />
                           <span>{evento.location || "Sem local definido"}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <MessageSquare className="h-3.5 w-3.5" />
-                          <span>{temTratativa(evento) ? "Com tratativa" : "Sem tratativa"}</span>
-                        </div>
                       </div>
-                      {eventoPassado(evento) && !temTratativa(evento) && (
-                        <div className="mt-2 px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
-                          Evento finalizado sem tratativa
+
+                      {isManager && evento.supervisorName && (
+                        <div className="mt-1 text-xs text-gray-500">
+                          Responsável: {evento.supervisorName}
                         </div>
                       )}
+
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {!eventoHoje(evento) && (
+                          <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
+                            Pendente de tratativa
+                          </div>
+                        )}
+                        {eventoHoje(evento) && eventoPassado(evento) && !temTratativa(evento) && (
+                          <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
+                            Evento finalizado sem tratativa
+                          </div>
+                        )}
+                        {temTratativa(evento) && (
+                          <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded inline-block">
+                            <MessageSquare className="h-3 w-3 inline mr-1" />
+                            Com tratativa
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
