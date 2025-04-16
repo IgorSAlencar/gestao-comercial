@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ const HierarchyViewer: React.FC = () => {
   const [expanded, setExpanded] = useState(true);
 
   // Fix: Compare with the correct role types
-  if (!user || (user.role !== "gerente" && user.role !== "coordenador" && user.role !== "supervisor")) return null;
+  if (!user || (user.role !== "gerente" && user.role !== "coordenador")) return null;
 
   return (
     <Card className="mb-6">
@@ -30,7 +31,7 @@ const HierarchyViewer: React.FC = () => {
       {expanded && (
         <CardContent>
           {/* Superior section */}
-          {/* Fix: Changed supervisor role check to use correct comparison */}
+          {/* Fix: Changed 'supervisor' to user.role === 'supervisor' for correct comparison */}
           {user.role === "supervisor" && (
             <div className="mb-4">
               <h3 className="text-sm text-gray-500 mb-2">Coordenador Responsável</h3>
