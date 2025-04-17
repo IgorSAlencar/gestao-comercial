@@ -425,7 +425,6 @@ const CardsAcaoDiariaContas: React.FC = () => {
                   </div>
                   <span className="text-lg font-bold">{percentualPlataforma}%</span>
                 </div>
-                <span className="text-xs text-gray-500 absolute mt-24">Plataforma</span>
               </div>
             </div>
             

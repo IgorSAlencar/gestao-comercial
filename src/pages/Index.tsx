@@ -243,7 +243,7 @@ const Index = () => {
     // Combinar os arrays, primeiro os de hoje, depois os pendentes
     return [...eventosDeHoje, ...eventosPendentes.slice(0, 3)]; // Limitar a 3 eventos pendentes
   };
-  
+
   return (
     <div className="container mx-auto pb-12 space-y-6">
       {/* Cabeçalho com saudação personalizada */}
@@ -253,83 +253,146 @@ const Index = () => {
           {format(new Date(), "'Hoje é' EEEE, d 'de' MMMM", {locale: ptBR})}
         </p>
       </div>
-      
+
       {/* Estatísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-blue-600">Ações Pendentes</p>
-                <h3 className="text-2xl font-bold">{estatisticas.pendentes}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
+          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
+            <div className="relative">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <TrendingUp className="h-8 w-8 text-white" />
               </div>
-              <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <Clock className="h-6 w-6 text-blue-600" />
-              </div>
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-amber-400 rounded-full border-2 border-white"></div>
             </div>
-            <Progress className="h-1 mt-4" value={estatisticas.pendentes > 0 ? (estatisticas.concluidas / estatisticas.totalAcoes) * 100 : 100} />
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-green-50 to-white border-green-200">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-green-600">Contas Abertas (Mês)</p>
-                <h3 className="text-2xl font-bold">{estatisticas.contasAbertasMes}</h3>
-              </div>
-              <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
-                <Briefcase className="h-6 w-6 text-green-600" />
-              </div>
+          </div>
+          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Programa</p>
+              <h3 className="text-2xl font-bold text-blue-800">SUPERA</h3>
+              <p className="text-xs text-blue-500 mt-1">82% de metas alcançadas</p>
             </div>
-            <div className="flex items-center gap-2 mt-4">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-green-600">+{estatisticas.contasAbertasSemana} esta semana</span>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-amber-600">Prioridade Alta</p>
-                <h3 className="text-2xl font-bold">{estatisticas.prioridadeAlta}</h3>
-              </div>
-              <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-4">
-              <Bell className="h-4 w-4 text-amber-600" />
-              <span className="text-xs text-amber-600">Requer atenção imediata</span>
+            <div className="flex space-x-3 mt-auto pt-4">
+              <Button 
+                onClick={() => navegarPara('/indicadores-alvo')}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md h-10"
+              >
+                Indicadores Alvo
+              </Button>
+              <Button 
+                onClick={() => navegarPara('/pade')}
+                className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-300 shadow-sm h-10"
+              >
+                PADE
+              </Button>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200">
-          <CardContent className="pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-purple-600">Taxa de Conclusão</p>
-                <h3 className="text-2xl font-bold">
-                  {estatisticas.totalAcoes > 0 
-                    ? Math.round((estatisticas.concluidas / estatisticas.totalAcoes) * 100) 
-                    : 0}%
-                </h3>
+        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
+          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
+            <div className="relative">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                <Briefcase className="h-8 w-8 text-white" />
               </div>
-              <div className="h-12 w-12 bg-purple-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-6 w-6 text-purple-600" />
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-300 rounded-full border-2 border-white"></div>
+            </div>
+          </div>
+          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Estruturas</p>
+              <h3 className="text-2xl font-bold text-blue-800">23 <span className="text-sm font-normal text-blue-600">total</span></h3>
+            </div>
+            <div className="flex items-center justify-between mt-auto pt-4 bg-blue-50 rounded-lg p-2 shadow-sm">
+              <div className="text-center px-2">
+                <p className="text-xs text-blue-800 font-medium">Agências</p>
+                <p className="text-lg font-bold text-blue-600">8</p>
+              </div>
+              <div className="h-10 border-r border-blue-200"></div>
+              <div className="text-center px-2">
+                <p className="text-xs text-blue-800 font-medium">PAs</p>
+                <p className="text-lg font-bold text-blue-600">12</p>
+              </div>
+              <div className="h-10 border-r border-blue-200"></div>
+              <div className="text-center px-2">
+                <p className="text-xs text-blue-800 font-medium">UNs</p>
+                <p className="text-lg font-bold text-blue-600">2</p>
+              </div>
+              <div className="h-10 border-r border-blue-200"></div>
+              <div className="text-center px-2">
+                <p className="text-xs text-blue-800 font-medium">Praça</p>
+                <p className="text-lg font-bold text-blue-600">1</p>
               </div>
             </div>
-            <Progress className="h-1 mt-4" value={estatisticas.totalAcoes > 0 ? (estatisticas.concluidas / estatisticas.totalAcoes) * 100 : 0} />
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-sky-50 to-white border-sky-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-sky-100 rounded-full opacity-30"></div>
+          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
+            <div className="relative">
+              <div className="h-16 w-16 bg-gradient-to-br from-sky-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 transform -rotate-45">
+                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
+                </svg>
+              </div>
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-yellow-400 rounded-full border-2 border-white"></div>
+            </div>
+          </div>
+          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
+            <div>
+              <p className="text-sm text-sky-600 font-medium">Campanha</p>
+              <h3 className="text-2xl font-bold text-sky-800">Destino Expresso</h3>
+              <p className="text-xs text-sky-500 mt-1">Contratações em destaque</p>
+            </div>
+            <div className="mt-auto pt-4">
+              <Button 
+                onClick={() => navegarPara('/destino-expresso')}
+                className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md h-10"
+              >
+                Ver Campanha
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-purple-100 rounded-full opacity-30"></div>
+          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
+            <div className="relative">
+              <div className="h-16 w-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">
+                  <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16" />
+                  <path d="M1 21h22" />
+                  <path d="M6 12h12" />
+                  <path d="M12 12v9" />
+                </svg>
+              </div>
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-400 rounded-full border-2 border-white"></div>
+            </div>
+          </div>
+          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
+            <div>
+              <p className="text-sm text-purple-600 font-medium">Campanha</p>
+              <h3 className="text-2xl font-bold text-purple-800">Maratona Seguros</h3>
+              <p className="text-xs text-purple-500 mt-1">Proteção para todos os clientes</p>
+            </div>
+            <div className="mt-auto pt-4">
+              <Button 
+                onClick={() => navegarPara('/maratona-seguros')}
+                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md h-10"
+              >
+                Participar
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
       
       {/* Conteúdo principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coluna 1: Ações Diárias e Agenda */}
+        {/* Coluna 1: Agenda do Dia */}
         <div className="lg:col-span-2 space-y-6">
           {/* Agenda do Dia */}
           <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-white shadow hover:shadow-md transition-shadow">
@@ -415,7 +478,7 @@ const Index = () => {
                       </div>
                     </div>
                   ))}
-                </div>
+              </div>
               ) : (
                 <div className="text-center py-8">
                   <CalendarDays className="h-12 w-12 text-indigo-300 mx-auto mb-3" />
@@ -432,7 +495,10 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
-          
+        </div>
+      
+        {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
+        <div className="space-y-6">
           {/* Ações Diárias */}
           <CardsAcaoDiariaContas />
           
@@ -443,10 +509,10 @@ const Index = () => {
               <CardDescription>Acesse os produtos prioritários para atendimento</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-3">
                 <Button 
                   variant="outline"
-                  className="border-2 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                  className="border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 justify-start"
                   onClick={() => navegarPara('/estrategia/abertura-conta')}
                 >
                   <Briefcase className="mr-2 h-4 w-4" />
@@ -454,7 +520,7 @@ const Index = () => {
                 </Button>
                 <Button 
                   variant="outline"
-                  className="border-2 border-green-200 bg-green-50 hover:bg-green-100"
+                  className="border-2 border-green-200 bg-green-50 hover:bg-green-100 justify-start"
                   onClick={() => navegarPara('/estrategia/credito')}
                 >
                   <FileText className="mr-2 h-4 w-4" />
@@ -462,7 +528,7 @@ const Index = () => {
                 </Button>
                 <Button 
                   variant="outline"
-                  className="border-2 border-purple-200 bg-purple-50 hover:bg-purple-100"
+                  className="border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 justify-start"
                   onClick={() => navegarPara('/estrategia/seguro')}
                 >
                   <Users className="mr-2 h-4 w-4" />
@@ -471,70 +537,9 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
-        
-        {/* Coluna 2: Alertas e Acionamentos */}
-        <div>
-          <Card className="border-2 border-amber-200 bg-gradient-to-r from-amber-50 to-white">
-            <CardHeader>
-              <CardTitle className="text-lg text-amber-800">Alertas Comerciais</CardTitle>
-              <CardDescription>Casos que necessitam sua atenção</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {alertas.map(alerta => (
-                  <Card key={alerta.id} className="border-l-4 border-l-amber-500">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h4 className="font-medium">{alerta.titulo}</h4>
-                        <div className={`text-xs px-2 py-1 rounded-full ${
-                          alerta.prioridade === 'alta' ? 'bg-red-100 text-red-700' :
-                          alerta.prioridade === 'media' ? 'bg-amber-100 text-amber-700' :
-                          'bg-blue-100 text-blue-700'
-                        }`}>
-                          {alerta.prioridade === 'alta' ? 'Alta' :
-                           alerta.prioridade === 'media' ? 'Média' : 'Baixa'}
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{alerta.descricao}</p>
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-500">
-                          Prazo: {formatarData(alerta.prazo)}
-                        </span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <ArrowRight className="h-3 w-3 mr-1" />
-                          Tratar
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                {alertas.length === 0 && (
-                  <div className="text-center py-6">
-                    <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-2" />
-                    <p className="text-gray-500">Nenhum alerta pendente no momento</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                className="w-full border-amber-200 hover:bg-amber-50"
-                onClick={() => navegarPara('/alertas')}
-              >
-                Ver todos os alertas
-              </Button>
-            </CardFooter>
-          </Card>
           
           {/* Acesso Rápido */}
-          <Card className="mt-6 border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white">
+          <Card className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white">
             <CardHeader>
               <CardTitle className="text-lg text-purple-800">Acesso Rápido</CardTitle>
             </CardHeader>
@@ -555,7 +560,7 @@ const Index = () => {
                 >
                   <Phone className="mr-2 h-4 w-4 text-purple-600" />
                   Hotlist
-                </Button>
+              </Button>
                 <Button 
                   variant="outline" 
                   className="w-full justify-start border-purple-200 hover:bg-purple-50"
@@ -563,14 +568,14 @@ const Index = () => {
                 >
                   <BarChart2 className="mr-2 h-4 w-4 text-purple-600" />
                   Estratégia Comercial
-                </Button>
-              </div>
+              </Button>
+            </div>
             </CardContent>
           </Card>
           
           {/* Painel do Gerente (condicional) */}
           {isManager && (
-            <Card className="mt-6 border-2 border-green-200 bg-gradient-to-r from-green-50 to-white">
+            <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-white">
               <CardHeader>
                 <CardTitle className="text-lg text-green-800">Painel Gerencial</CardTitle>
               </CardHeader>

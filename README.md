@@ -1,73 +1,75 @@
-# Welcome to your Lovable project
+# Gestão Comercial
 
-## Project info
+## Sobre o Projeto
 
-**URL**: https://lovable.dev/projects/2b5578e3-d6b1-4da4-9f40-b136a03eb67c
+O Gestão Comercial é uma aplicação completa para gestão de atividades comerciais, focada em oportunidades de negócios como abertura de contas, crédito e seguros. O sistema permite o gerenciamento eficiente de correspondentes bancários, com controle hierárquico e monitoramento de indicadores.
 
-## How can I edit this code?
+## Tecnologias Utilizadas
 
-There are several ways of editing your application.
+- **Frontend**: React, TypeScript, Tailwind CSS
+- **Backend**: Node.js, Express
+- **Banco de Dados**: SQL Server
+- **Autenticação**: JWT (JSON Web Token)
 
-**Use Lovable**
+## Principais Funcionalidades
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2b5578e3-d6b1-4da4-9f40-b136a03eb67c) and start prompting.
+- **Dashboard interativo** com métricas e ações pendentes
+- **Gestão de Ações Diárias** para acompanhamento de correspondentes
+- **Estratégias Comerciais** para diferentes produtos (contas, crédito, seguros)
+- **Agenda Comercial** para organização de visitas e compromissos
+- **Controle Hierárquico** para gestores, coordenadores e supervisores
+- **Relatórios Gerenciais** para tomada de decisões
 
-Changes made via Lovable will be committed automatically to this repo.
+## Estrutura do Projeto
 
-**Use your preferred IDE**
+📁 src/
+  📁 backend/         # API REST e conexão com banco de dados
+  📁 components/      # Componentes reutilizáveis de UI
+  📁 context/         # Contextos React e gerenciamento de estado
+  📁 hooks/           # Custom hooks
+  📁 pages/           # Páginas da aplicação
+  📁 services/        # Serviços para comunicação com API
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Como Executar o Projeto
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Pré-requisitos
+- Node.js 16+ e npm instalados
+- SQL Server configurado 
 
-Follow these steps:
+### Passos para Instalação
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+```bash
+# Clonar o repositório
+git clone https://github.com/seu-usuario/gestao-comercial.git
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navegar para o diretório do projeto
+cd gestao-comercial
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Instalar dependências
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Iniciar o servidor de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Configuração do Banco de Dados
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Para configurar a conexão com o SQL Server usando autenticação do Windows:
 
-**Use GitHub Codespaces**
+1. Abra o arquivo `src/backend/config/db.js`
+2. Ajuste o servidor SQL conforme necessário
+3. A aplicação tentará usar autenticação Windows automaticamente
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Estrutura de Dados
 
-## What technologies are used for this project?
+O sistema trabalha com diversas entidades principais:
 
-This project is built with:
+- **Usuários**: Gerentes, coordenadores e supervisores organizados hierarquicamente
+- **Oportunidades**: Registros de contas a serem abertas ou migradas
+- **Ações Diárias**: Tarefas e acompanhamentos para a equipe comercial
+- **Eventos**: Agenda de visitas e compromissos
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Equipe de Desenvolvimento
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/2b5578e3-d6b1-4da4-9f40-b136a03eb67c) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Este projeto está sendo desenvolvido por:
+- Igor Alencar

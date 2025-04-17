@@ -55,21 +55,21 @@ const EstrategiaComercial: React.FC = () => {
               <ProdutoCard
                 titulo="Crédito"
                 descricao="Estratégias para aumento de vendas de produtos de crédito em sua região."
-                icon={<CreditCard size={32} />}
+                icon={<CreditCard size={25} />}
                 onClick={() => handleSelectProduto("credito")}
               />
               
               <ProdutoCard
                 titulo="Abertura de Conta"
                 descricao="Ações estratégicas para captação de novos clientes e contas."
-                icon={<Users size={32} />}
+                icon={<Users size={25} />}
                 onClick={() => handleSelectProduto("abertura-conta")}
               />
               
               <ProdutoCard
                 titulo="Seguro"
                 descricao="Diretrizes para ampliação da base segurada e oportunidades de venda."
-                icon={<Shield size={32} />}
+                icon={<Shield size={25} />}
                 onClick={() => handleSelectProduto("seguro")}
               />
             </div>
@@ -78,21 +78,21 @@ const EstrategiaComercial: React.FC = () => {
               <ProdutoCard
                 titulo="Pontos Ativos"
                 descricao="Análise de performance e estratégias para ativação de pontos comerciais."
-                icon={<MapPin size={32} />}
+                icon={<MapPin size={25} />}
                 onClick={() => handleSelectProduto("pontos-ativos")}
               />
 
               <ProdutoCard
                 titulo="Pontos Realizando Negócio"
                 descricao="Monitoramento de pontos com transações ativas e estratégias de potencialização."
-                icon={<TrendingUp size={32} />}
+                icon={<TrendingUp size={25} />}
                 onClick={() => handleSelectProduto("pontos-realizando-negocio")}
               />
 
               <ProdutoCard
                 titulo="Pontos Bloqueados"
                 descricao="Identificação e estratégias de desbloqueio de pontos comerciais inativos."
-                icon={<Lock size={32} />}
+                icon={<Lock size={25} />}
                 onClick={() => handleSelectProduto("pontos-bloqueados")}
               />
             </div>

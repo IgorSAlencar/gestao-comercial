@@ -239,7 +239,7 @@ export const eventApi = {
       url += `?${params.toString()}`;
     }
 
-    console.log("Requesting events from:", url);
+    console.log("Requisitando eventos do dia:", url);
     
     const options = {
       headers: {
@@ -249,10 +249,10 @@ export const eventApi = {
     
     try {
       const result = await fetchWithErrorHandling(url, options);
-      console.log("Events received:", result);
+      console.log("Eventos Recebidos:", result);
       return result;
     } catch (error) {
-      console.error("Failed to fetch events:", error);
+      console.error("Falha ao buscar eventos:", error);
       return [];
     }
   },
@@ -354,7 +354,7 @@ export const acaoDiariaApi = {
     
     try {
       const result = await fetchWithErrorHandling(url, options);
-      console.log("Ações diárias recebidas:", result);
+      //console.log("Ações diárias recebidas:", result);
       return result.map((acao: any) => ({
         id: acao.ID,
         chaveLoja: acao.CHAVE_LOJA,
