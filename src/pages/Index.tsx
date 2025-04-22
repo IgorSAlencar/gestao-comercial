@@ -255,41 +255,13 @@ const Index = () => {
       </div>
 
       {/* Estatísticas rápidas */}
+
+
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
-          <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
-          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
-            <div className="relative">
-              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                <TrendingUp className="h-8 w-8 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 h-4 w-4 bg-amber-400 rounded-full border-2 border-white"></div>
-            </div>
-          </div>
-          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
-            <div>
-              <p className="text-sm text-blue-600 font-medium">Programa</p>
-              <h3 className="text-2xl font-bold text-blue-800">SUPERA</h3>
-              <p className="text-xs text-blue-500 mt-1">82% de metas alcançadas</p>
-            </div>
-            <div className="flex space-x-3 mt-auto pt-4">
-              <Button 
-                onClick={() => navegarPara('/indicadores-alvo')}
-                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md h-10"
-              >
-                Indicadores Alvo
-              </Button>
-              <Button 
-                onClick={() => navegarPara('/pade')}
-                className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-300 shadow-sm h-10"
-              >
-                PADE
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
+
+
+      <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
             <div className="relative">
@@ -328,6 +300,41 @@ const Index = () => {
           </CardContent>
         </Card>
         
+        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
+          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
+            <div className="relative">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <TrendingUp className="h-8 w-8 text-white" />
+              </div>
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-amber-400 rounded-full border-2 border-white"></div>
+            </div>
+          </div>
+          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Programa</p>
+              <h3 className="text-2xl font-bold text-blue-800">SUPERA</h3>
+              <p className="text-xs text-blue-500 mt-1"></p>
+            </div>
+            <div className="flex space-x-3 mt-auto pt-4">
+              <Button 
+                onClick={() => navegarPara('/indicadores-alvo')}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md h-10"
+              >
+                Ver Campanha
+              </Button>
+              <Button 
+                onClick={() => navegarPara('/pade')}
+                className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-300 shadow-sm h-10"
+              >
+                Manual
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        
+        
+        
         <Card className="bg-gradient-to-br from-sky-50 to-white border-sky-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-sky-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
@@ -343,7 +350,7 @@ const Index = () => {
           <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
             <div>
               <p className="text-sm text-sky-600 font-medium">Campanha</p>
-              <h3 className="text-2xl font-bold text-sky-800">Destino Expresso</h3>
+              <h3 className="text-2xl font-bold text-sky-800">Destino<br/>Expresso</h3>
               <p className="text-xs text-sky-500 mt-1">Contratações em destaque</p>
             </div>
             <div className="mt-auto pt-4">
@@ -383,7 +390,7 @@ const Index = () => {
                 onClick={() => navegarPara('/maratona-seguros')}
                 className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md h-10"
               >
-                Participar
+                Ver Campanha
               </Button>
             </div>
           </CardContent>
@@ -538,40 +545,7 @@ const Index = () => {
             </CardContent>
           </Card>
           
-          {/* Acesso Rápido */}
-          <Card className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white">
-            <CardHeader>
-              <CardTitle className="text-lg text-purple-800">Acesso Rápido</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-purple-200 hover:bg-purple-50"
-                  onClick={() => navegarPara('/agenda')}
-                >
-                  <Calendar className="mr-2 h-4 w-4 text-purple-600" />
-                  Agenda
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-purple-200 hover:bg-purple-50"
-                  onClick={() => navegarPara('/hotlist')}
-                >
-                  <Phone className="mr-2 h-4 w-4 text-purple-600" />
-                  Hotlist
-              </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start border-purple-200 hover:bg-purple-50"
-                  onClick={() => navegarPara('/estrategia-comercial')}
-                >
-                  <BarChart2 className="mr-2 h-4 w-4 text-purple-600" />
-                  Estratégia Comercial
-              </Button>
-            </div>
-            </CardContent>
-          </Card>
+
           
           {/* Painel do Gerente (condicional) */}
           {isManager && (

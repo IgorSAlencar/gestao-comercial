@@ -56,7 +56,6 @@
     "input-otp": "^1.2.4",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.462.0",
-    "msnodesqlv8": "^4.5.0",
     "mssql": "^11.0.1",
     "next-themes": "^0.3.0",
     "react": "^18.3.1",
