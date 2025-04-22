@@ -2,16 +2,12 @@ import React, { useState } from "react";
 import { 
   Home,
   Calendar, 
-  ClipboardList, 
-  MapPin, 
   BarChart3,
   User,
   LogOut,
   Menu,
   ChevronLeft,
-  FileX,
-  Users,
-  Target
+  Flame
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -46,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     },
     {
       title: "HotList",
-      icon: <Target className="h-5 w-5" />,
+      icon: <Flame className="h-5 w-5" />,
       path: "/hotlist",
     },
   ];

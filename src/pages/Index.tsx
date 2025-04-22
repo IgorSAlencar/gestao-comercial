@@ -27,7 +27,9 @@ import {
   MapPin,
   MessageSquare,
   ChevronRight,
-  Loader2
+  Loader2,
+  CreditCard,
+  Shield
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
@@ -522,7 +524,7 @@ const Index = () => {
                   className="border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 justify-start"
                   onClick={() => navegarPara('/estrategia/abertura-conta')}
                 >
-                  <Briefcase className="mr-2 h-4 w-4" />
+                  <Users className="mr-2 h-4 w-4" />
                   Abertura de Contas
                 </Button>
                 <Button 
@@ -530,7 +532,7 @@ const Index = () => {
                   className="border-2 border-green-200 bg-green-50 hover:bg-green-100 justify-start"
                   onClick={() => navegarPara('/estrategia/credito')}
                 >
-                  <FileText className="mr-2 h-4 w-4" />
+                  <CreditCard className="mr-2 h-4 w-4" />
                   Crédito
                 </Button>
                 <Button 
@@ -538,7 +540,7 @@ const Index = () => {
                   className="border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 justify-start"
                   onClick={() => navegarPara('/estrategia/seguro')}
                 >
-                  <Users className="mr-2 h-4 w-4" />
+                  <Shield className="mr-2 h-4 w-4" />
                   Seguros
                 </Button>
               </div>

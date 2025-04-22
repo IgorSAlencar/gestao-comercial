@@ -28,6 +28,13 @@ import {
   X,
   ChevronUp,
   ChevronsUpDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  FileDown,
+  Download,
+  FileSpreadsheet
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Event } from "@/services/api";
@@ -46,6 +53,13 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import * as XLSX from 'xlsx';
 
 interface EventsTableProps {
   events: Event[];
@@ -73,6 +87,8 @@ const EventsTable = ({
   const [dateFilterOpen, setDateFilterOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('dataInicio');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const uniqueSupervisors = Array.from(new Set(events.map(e => e.supervisorName).filter(Boolean)));
   const uniqueLocations = Array.from(new Set(events.map(e => e.location).filter(Boolean)));
@@ -183,6 +199,132 @@ const EventsTable = ({
     }
     
     return `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`;
+  };
+
+  // Calculando os eventos para a página atual
+  const indexOfLastEvent = currentPage * itemsPerPage;
+  const indexOfFirstEvent = indexOfLastEvent - itemsPerPage;
+  const currentEvents = sortedEvents.slice(indexOfFirstEvent, indexOfLastEvent);
+  const totalPages = Math.ceil(sortedEvents.length / itemsPerPage);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const renderPaginationControls = () => {
+    const pageButtons = [];
+    
+    // Botão para primeira página
+    pageButtons.push(
+      <Button
+        key="first"
+        variant="outline"
+        size="sm"
+        className="w-8 h-8 p-0"
+        disabled={currentPage === 1}
+        onClick={() => handlePageChange(1)}
+      >
+        <ChevronsLeft className="h-4 w-4" />
+        <span className="sr-only">Primeira página</span>
+      </Button>
+    );
+    
+    // Botão para página anterior
+    pageButtons.push(
+      <Button
+        key="prev"
+        variant="outline"
+        size="sm"
+        className="w-8 h-8 p-0"
+        disabled={currentPage === 1}
+        onClick={() => handlePageChange(currentPage - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+        <span className="sr-only">Página anterior</span>
+      </Button>
+    );
+    
+    // Determinar quais números de página mostrar
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    
+    // Ajustar startPage se não tivermos 5 páginas para exibir
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
+    }
+    
+    // Adicionar botões de número
+    for (let i = startPage; i <= endPage; i++) {
+      pageButtons.push(
+        <Button
+          key={i}
+          variant={currentPage === i ? "default" : "outline"}
+          size="sm"
+          className="w-8 h-8 p-0"
+          onClick={() => handlePageChange(i)}
+        >
+          {i}
+        </Button>
+      );
+    }
+    
+    // Botão para próxima página
+    pageButtons.push(
+      <Button
+        key="next"
+        variant="outline"
+        size="sm"
+        className="w-8 h-8 p-0"
+        disabled={currentPage === totalPages || totalPages === 0}
+        onClick={() => handlePageChange(currentPage + 1)}
+      >
+        <ChevronRight className="h-4 w-4" />
+        <span className="sr-only">Próxima página</span>
+      </Button>
+    );
+    
+    // Botão para última página
+    pageButtons.push(
+      <Button
+        key="last"
+        variant="outline"
+        size="sm"
+        className="w-8 h-8 p-0"
+        disabled={currentPage === totalPages || totalPages === 0}
+        onClick={() => handlePageChange(totalPages)}
+      >
+        <ChevronsRight className="h-4 w-4" />
+        <span className="sr-only">Última página</span>
+      </Button>
+    );
+    
+    return pageButtons;
+  };
+
+  const exportarParaExcel = () => {
+    // Preparar os dados para exportação
+    const dadosParaExportar = sortedEvents.map(event => ({
+      'Título': event.titulo,
+      'Subcategoria': event.subcategory || '',
+      'Data Início': format(new Date(event.dataInicio), "dd/MM/yyyy", { locale: ptBR }),
+      'Data Fim': format(new Date(event.dataFim), "dd/MM/yyyy", { locale: ptBR }),
+      'Local': event.location || '',
+      'Município': event.municipio || '',
+      'UF': event.uf || '',
+      'Agência/PA': event.agencia_pa_number || '',
+      'É PA': event.is_pa ? 'Sim' : 'Não',
+      'Status': getEventStatus(event),
+      'Parecer/Tratativa': event.tratativa || '',
+      'Supervisor': event.supervisorName || '',
+    }));
+
+    // Criar uma nova planilha
+    const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Eventos");
+
+    // Gerar o arquivo Excel
+    XLSX.writeFile(wb, `Eventos_Agenda_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
   };
 
   return (
@@ -303,11 +445,30 @@ const EventsTable = ({
             </div>
           )}
           
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="ml-auto flex items-center gap-2 border-green-600 text-green-700 hover:bg-green-50"
+                  onClick={exportarParaExcel}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span className="hidden sm:inline">Exportar Excel</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Exportar dados para Excel</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
           {(statusFilter || categoryFilter || supervisorFilter || locationFilter || dateRange) && (
             <Button 
               variant="outline" 
               size="sm" 
-              className="ml-auto"
+              className="sm:ml-0"
               onClick={clearAllFilters}
             >
               Limpar filtros
@@ -319,54 +480,57 @@ const EventsTable = ({
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="bg-gray-50">
-              <TableHead className="w-[200px]">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => handleSort('titulo')}
-                >
-                  Evento
-                  {getSortIcon('titulo')}
-                </Button>
+            <TableRow>
+              <TableHead className="w-[22%] py-3">
+                <div className="flex w-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => handleSort('titulo')}
+                  >
+                    Título
+                    {getSortIcon('titulo')}
+                  </Button>
+                </div>
               </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => handleSort('dataInicio')}
-                >
-                  Data
-                  {getSortIcon('dataInicio')}
-                </Button>
+              <TableHead className="w-[22%] text-center py-3">
+                <div className="flex justify-center w-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => handleSort('dataInicio')}
+                  >
+                    Data
+                    {getSortIcon('dataInicio')}
+                  </Button>
+                </div>
               </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => handleSort('dataFim')}
-                >
-                  Data
-                  {getSortIcon('dataFim')}
-                </Button>
+              <TableHead className="w-[26%] text-center py-3">
+                <div className="flex justify-center w-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={() => handleSort('location')}
+                  >
+                    Local
+                    {getSortIcon('location')}
+                  </Button>
+                </div>
               </TableHead>
-              <TableHead>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1"
-                  onClick={() => handleSort('location')}
-                >
-                  Local
-                  {getSortIcon('location')}
-                </Button>
+              {isManagerView && (
+                <TableHead className="w-[10%] text-center py-3">
+                  <div className="flex justify-center w-full">Supervisor</div>
+                </TableHead>
+              )}
+              <TableHead className="w-[10%] text-center py-3">
+                <div className="flex justify-center w-full">Status</div>
               </TableHead>
-              {isManagerView && <TableHead>Supervisor</TableHead>}
-              <TableHead className="w-[150px]">Status</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+              <TableHead className="w-[10%] text-right py-3">
+                <div className="flex justify-end w-full">Ações</div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -380,19 +544,21 @@ const EventsTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              sortedEvents.map((event) => {
+              currentEvents.map((event) => {
                 const status = getEventStatus(event);
                 return (
                   <TableRow key={event.id}>
-                    <TableCell className="font-medium">
-                      {event.titulo}
-                      {event.subcategory && (
-                        <div className="text-xs text-gray-500 mt-1">{event.subcategory}</div>
-                      )}
+                    <TableCell className="font-medium w-[22%] align-middle py-3">
+                      <div className="truncate">
+                        {event.titulo}
+                        {event.subcategory && (
+                          <div className="text-xs text-gray-500 mt-1 truncate">{event.subcategory}</div>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <CalendarIcon className="h-4 w-4 text-gray-500" />
+                    <TableCell className="text-center w-[22%] align-middle py-3">
+                      <div className="flex items-center gap-1.5 justify-center">
+                        <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                         <span>
                           {format(
                             new Date(event.dataInicio), 
@@ -405,77 +571,102 @@ const EventsTable = ({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <CalendarIcon className="h-4 w-4 text-gray-500" />
-                        <span>
-                          {format(
-                            new Date(event.dataInicio), 
-                            "dd/MM/yyyy", 
-                            { locale: ptBR }
-                          )}
-                          {new Date(event.dataInicio).getTime() !== new Date(event.dataFim).getTime() && (
-                            <> - {format(new Date(event.dataFim), "dd/MM/yyyy", { locale: ptBR })}</>
-                          )}
-                        </span>
+                    <TableCell className="text-center w-[26%] align-middle py-3">
+                      <div className="flex flex-col items-center justify-center">
+                        <span className="truncate max-w-full">{event.location || "-"}</span>
+                        {event.municipio && event.uf && (
+                          <div className="text-xs text-gray-500 mt-1 truncate max-w-full">
+                            {event.municipio}, {event.uf}
+                          </div>
+                        )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      {event.location || "-"}
-                      {event.municipio && event.uf && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {event.municipio}, {event.uf}
-                        </div>
-                      )}
                     </TableCell>
                     {isManagerView && (
-                      <TableCell>
+                      <TableCell className="text-center w-[10%] align-middle py-3">
                         {event.supervisorName || "-"}
                       </TableCell>
                     )}
-                    <TableCell>
-                      <TableStatus status={status} />
+                    <TableCell className="text-center w-[10%] align-middle py-3">
+                      <div className="flex justify-center">
+                        <TableStatus status={status} />
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <span className="sr-only">Abrir menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 cursor-pointer"
-                            onClick={() => onEditEvent(event.id)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                            <span>Editar</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 cursor-pointer"
-                            onClick={() => onAddFeedback(event.id)}
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                            <span>Adicionar parecer</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="flex items-center gap-2 text-red-600 cursor-pointer"
-                            onClick={() => onDeleteEvent(event.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span>Excluir</span>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell className="text-right w-[10%] align-middle py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                onClick={() => onEditEvent(event.id)}
+                              >
+                                <span className="sr-only">Editar</span>
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Editar</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                                onClick={() => onAddFeedback(event.id)}
+                              >
+                                <span className="sr-only">Adicionar parecer</span>
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Adicionar parecer</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
+                                onClick={() => onDeleteEvent(event.id)}
+                              >
+                                <span className="sr-only">Excluir</span>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Excluir</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })
             )}
           </TableBody>
-          <TableCaption className="px-4">
-            Total: {sortedEvents.length} de {events.length} eventos
+          <TableCaption className="px-4 py-2">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <span>
+                Mostrando {indexOfFirstEvent + 1}-{Math.min(indexOfLastEvent, sortedEvents.length)} de {sortedEvents.length} eventos
+              </span>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  {renderPaginationControls()}
+                </div>
+              )}
+            </div>
           </TableCaption>
         </Table>
       </div>
