@@ -84,18 +84,22 @@ const AgendaPage = () => {
   const { user, isManager, isCoordinator, isAdmin } = useAuth();
   const queryClient = useQueryClient();
 
+  // Estado para controlar quando exibir notificações de erro
+  const [errorNotificationShown, setErrorNotificationShown] = useState(false);
+
   const { data: supervisors = [] } = useQuery({
     queryKey: ['supervisors', user?.id],
     queryFn: () => {
-      if (isAdmin && user?.id) {
-        return userApi.getAllUsers();
+      if (isAdmin) {
+        console.log("Usuário é admin, não buscando lista de supervisores");
+        return Promise.resolve([]);
       } 
       else if ((isManager || isCoordinator) && user?.id) {
         return userApi.getSupervisors(user.id);
       }
       return Promise.resolve([]);
     },
-    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
+    enabled: !!(user?.id && (isManager || isCoordinator)),
   });
 
   const { data: eventos = [], isLoading, error } = useQuery({
@@ -105,7 +109,24 @@ const AgendaPage = () => {
       selectedSupervisor || undefined
     ),
     enabled: !!user?.id,
+    retry: isAdmin ? 1 : 3,
+    retryDelay: 5000,
+    refetchOnWindowFocus: !isAdmin,
+    refetchInterval: isAdmin ? false : undefined,
   });
+
+  // Exibe mensagem de erro apenas uma vez para usuários admin
+  useEffect(() => {
+    if (error && isAdmin && !errorNotificationShown) {
+      console.error("Erro ao carregar eventos para usuário admin:", error);
+      toast({
+        title: "Atenção",
+        description: "A visualização de eventos para administradores pode estar indisponível temporariamente.",
+        variant: "destructive",
+      });
+      setErrorNotificationShown(true);
+    }
+  }, [error, isAdmin, toast, errorNotificationShown]);
 
   const createEventMutation = useMutation({
     mutationFn: eventApi.createEvent,
@@ -463,7 +484,7 @@ const AgendaPage = () => {
         <h1 className="text-2xl font-bold">Agenda de Atividades</h1>
         
         <div className="flex space-x-2">
-          {(isManager || isCoordinator || isAdmin) && (
+          {(isManager || isCoordinator) && (
             <Drawer open={isFilterDrawerOpen} onOpenChange={setIsFilterDrawerOpen}>
               <DrawerTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
@@ -799,6 +820,28 @@ const AgendaPage = () => {
           >
             Limpar filtro
           </Button>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <div className="text-amber-600 mt-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-medium text-amber-800">Modo Administrador</h3>
+              <p className="text-sm text-amber-700 mt-1">
+                Atualmente, a funcionalidade de agenda para administradores está limitada. 
+                Você está vendo uma visão simplificada da agenda. Para visualizar detalhes 
+                específicos de um supervisor, por favor acesse como Coordenador ou Gerente.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

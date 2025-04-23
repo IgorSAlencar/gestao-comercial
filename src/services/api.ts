@@ -219,7 +219,26 @@ export const userApi = {
       },
     };
     
-    return await fetchWithErrorHandling(`${API_URL}/users/all`, options);
+    try {
+      // Usar fetch diretamente em vez de fetchWithErrorHandling para evitar toasts de erro
+      const response = await fetch(`${API_URL}/users/all`, options);
+      
+      if (!response.ok) {
+        console.error("Erro ao buscar todos os usuários:", response.status, response.statusText);
+        return [];
+      }
+      
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") === -1) {
+        console.warn("Response is not JSON:", contentType);
+        return [];
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Falha ao buscar todos os usuários:", error);
+      return [];
+    }
   }
 };
 
@@ -248,7 +267,21 @@ export const eventApi = {
     };
     
     try {
-      const result = await fetchWithErrorHandling(url, options);
+      // Usa fetch diretamente em vez de fetchWithErrorHandling para evitar toast spam
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        console.error("Erro ao buscar eventos:", response.status, response.statusText);
+        return [];
+      }
+      
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") === -1) {
+        console.warn("Response is not JSON:", contentType);
+        return [];
+      }
+      
+      const result = await response.json();
       console.log("Eventos Recebidos:", result);
       return result;
     } catch (error) {
