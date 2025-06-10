@@ -29,6 +29,8 @@ export interface Event {
   uf?: string;
   supervisorId?: string;
   supervisorName?: string;
+  createdById?: string; // ID of the user who created the event (if different from supervisor)
+  createdByName?: string; // Name of the user who created the event
 }
 
 export interface AuthResponse {
@@ -70,80 +72,111 @@ interface ApiError {
 
 // Helper function to handle API errors
 const handleApiError = (error: unknown): never => {
-  console.error("API Error:", error);
-  
-  // If the error has a response and we can get text from it
   if (error instanceof Response) {
-    error.text().then(text => {
-      console.error("Server response:", text);
-      
-      try {
-        // Try to parse as JSON
-        const data = JSON.parse(text);
-        const message = data.message || "Erro ao comunicar com o servidor";
-        toast({
-          title: "Erro",
-          description: message,
-          variant: "destructive",
-        });
-      } catch (e) {
-        // If not JSON, provide more context
-        toast({
-          title: "Erro",
-          description: "O servidor retornou uma resposta inválida. Verifique se o servidor está rodando.",
-          variant: "destructive",
-        });
-        console.error("Failed to parse server response:", e);
-      }
-    }).catch(e => {
-      toast({
-        title: "Erro",
-        description: "Falha ao processar resposta do servidor",
-        variant: "destructive",
-      });
-      console.error("Failed to read response text:", e);
-    });
-  } else {
-    // For other types of errors
-    const message = error instanceof Error ? error.message : "Erro ao comunicar com o servidor";
+    console.error("API Response Error:", error.status, error.statusText);
+    
     toast({
       title: "Erro",
-      description: message,
+      description: "Erro na comunicação com o servidor",
       variant: "destructive",
     });
+    
+    throw new Error("Erro na comunicação com o servidor");
   }
   
-  throw new Error(typeof error === 'string' ? error : "Erro na comunicação com o servidor");
+  if (error instanceof Error) {
+    console.error("API Error:", error);
+    
+    toast({
+      title: "Erro",
+      description: error.message,
+      variant: "destructive",
+    });
+    
+    throw error;
+  }
+  
+  console.error("Unknown API Error:", error);
+  
+  toast({
+    title: "Erro",
+    description: "Erro desconhecido na comunicação com a API",
+    variant: "destructive",
+  });
+  
+  throw new Error("Erro desconhecido na comunicação com a API");
 };
 
 // Improved fetch function with proper error handling
 const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
   try {
+    console.log(`[API] Chamando endpoint: ${url} - Método: ${options?.method || 'GET'}`);
+    
     const response = await fetch(url, options);
     
-    // Check if response is ok (status in the range 200-299)
     if (!response.ok) {
-      return handleApiError(response);
+      const contentType = response.headers.get("content-type");
+      
+      // Registrar informações detalhadas do erro
+      console.error(`[API] Erro HTTP: ${response.status} ${response.statusText} - URL: ${url}`);
+      
+      // Se a resposta for JSON, tente extrair a mensagem de erro
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          const errorData = await response.json();
+          console.error("[API] Resposta de erro JSON:", JSON.stringify(errorData, null, 2));
+          
+          // Para o caso específico de erro de permissão
+          if (errorData.message && errorData.message.includes("permissão")) {
+            throw new Error("Sem permissão para criar evento para este supervisor. Verifique se o usuário selecionado está na sua equipe.");
+          }
+          
+          // Para outros erros com mensagem específica
+          if (errorData.message) {
+            throw new Error(errorData.message);
+          }
+          
+          throw new Error("Erro no servidor: " + JSON.stringify(errorData));
+        } catch (jsonError) {
+          console.error("[API] Erro ao processar resposta JSON:", jsonError);
+          throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+      } else {
+        // Se não for JSON, tente obter o texto da resposta
+        try {
+          const textData = await response.text();
+          console.error("[API] Resposta de erro (texto):", textData);
+          throw new Error(`Erro ${response.status}: ${response.statusText} - ${textData.substring(0, 100)}`);
+        } catch (textError) {
+          // Se não conseguir obter texto, lance um erro genérico com o status
+          console.error("[API] Erro ao obter texto de resposta:", textError);
+          throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+      }
     }
     
-    // Check if the content is JSON (prevent HTML parsing errors)
     const contentType = response.headers.get("content-type");
-    if (contentType && contentType.indexOf("application/json") === -1) {
-      console.warn("Response is not JSON:", contentType);
-      const text = await response.text();
-      console.error("Non-JSON response:", text);
-      throw new Error("Resposta do servidor não é JSON válido");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error("[API] Erro ao processar resposta JSON bem-sucedida:", error);
+        throw new Error("Erro ao processar resposta do servidor: formato JSON inválido");
+      }
     }
     
-    // Parse JSON
-    return await response.json();
+    return await response.text();
   } catch (error) {
-    if (error instanceof SyntaxError) {
-      // JSON parse error
-      console.error("JSON Parse Error:", error);
-      throw new Error("Erro ao processar resposta do servidor: formato inválido");
+    console.error("[API] Erro na chamada de API:", error);
+    
+    if (error instanceof Error) {
+      // Se já for um erro processado (com mensagem personalizada), apenas repasse
+      throw error;
     }
-    return handleApiError(error);
+    
+    // Outros tipos de erro são processados pelo handleApiError
+    handleApiError(error);
   }
 };
 
@@ -173,6 +206,24 @@ export const userApi = {
     };
     
     return await fetchWithErrorHandling(`${API_URL}/users/${userId}/subordinates`, options);
+  },
+
+  getUserSubordinates: async (targetUserId: string): Promise<User[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      return await fetchWithErrorHandling(`${API_URL}/users/${targetUserId}/subordinates`, options);
+    } catch (error) {
+      console.error(`Erro ao buscar subordinados do usuário ${targetUserId}:`, error);
+      return [];
+    }
   },
 
   getSuperior: async (userId: string): Promise<User | null> => {
@@ -206,7 +257,25 @@ export const userApi = {
       },
     };
     
-    return await fetchWithErrorHandling(`${API_URL}/users/${userId}/supervisors`, options);
+    try {
+      console.log(`[API] Buscando supervisores para o usuário ${userId}`);
+      const result = await fetchWithErrorHandling(`${API_URL}/users/${userId}/supervisors`, options);
+      console.log(`[API] Retornados ${result?.length || 0} supervisores para o usuário ${userId}`);
+      return result || [];
+    } catch (error) {
+      console.error(`[API] Erro ao buscar supervisores do usuário ${userId}:`, error);
+      // Tente obter subordinados e filtrar supervisores como fallback
+      try {
+        console.log(`[API] Tentando buscar subordinados para o usuário ${userId} como alternativa`);
+        const allSubordinates = await userApi.getSubordinates(userId);
+        const supervisors = allSubordinates.filter(user => user.role === "supervisor");
+        console.log(`[API] Encontrados ${supervisors.length} supervisores no fallback`);
+        return supervisors;
+      } catch (fallbackError) {
+        console.error(`[API] Erro no fallback ao buscar subordinados:`, fallbackError);
+        return [];
+      }
+    }
   },
   
   getAllUsers: async (): Promise<User[]> => {
@@ -220,26 +289,63 @@ export const userApi = {
     };
     
     try {
-      // Usar fetch diretamente em vez de fetchWithErrorHandling para evitar toasts de erro
+      console.debug('[UserAPI] Buscando todos os usuários...');
       const response = await fetch(`${API_URL}/users/all`, options);
       
       if (!response.ok) {
-        console.error("Erro ao buscar todos os usuários:", response.status, response.statusText);
+        const errorText = await response.text();
+        console.error("Erro ao buscar todos os usuários:", response.status, response.statusText, errorText);
+        toast({
+          title: "Erro ao carregar usuários",
+          description: `Status: ${response.status} - ${response.statusText}`,
+          variant: "destructive",
+        });
         return [];
       }
       
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") === -1) {
         console.warn("Response is not JSON:", contentType);
+        toast({
+          title: "Erro ao processar dados",
+          description: "O servidor retornou um formato inesperado",
+          variant: "destructive",
+        });
         return [];
       }
       
-      return await response.json();
+      const data = await response.json();
+      console.debug(`[UserAPI] ${data.length} usuários carregados`);
+      return data;
     } catch (error) {
       console.error("Falha ao buscar todos os usuários:", error);
+      toast({
+        title: "Erro de comunicação",
+        description: error instanceof Error ? error.message : "Falha ao buscar usuários",
+        variant: "destructive",
+      });
       return [];
     }
-  }
+  },
+
+  getUsersByRole: async (role: "gerente" | "coordenador" | "supervisor" | "admin"): Promise<User[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      const allUsers = await fetchWithErrorHandling(`${API_URL}/users/all`, options);
+      return allUsers.filter((user: User) => user.role === role);
+    } catch (error) {
+      console.error(`Erro ao buscar usuários com papel ${role}:`, error);
+      return [];
+    }
+  },
 };
 
 // Events API
@@ -257,8 +363,9 @@ export const eventApi = {
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
-
-    console.log("Requisitando eventos do dia:", url);
+    
+    // Log mais informativo mas único
+    console.debug(`[EventsAPI] Carregando eventos...`);
     
     const options = {
       headers: {
@@ -281,9 +388,9 @@ export const eventApi = {
         return [];
       }
       
-      const result = await response.json();
-      console.log("Eventos Recebidos:", result);
-      return result;
+      const data = await response.json();
+      console.debug(`[EventsAPI] ${data.length} eventos carregados`);
+      return data;
     } catch (error) {
       console.error("Falha ao buscar eventos:", error);
       return [];
@@ -307,16 +414,55 @@ export const eventApi = {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
 
+    // Verificar e logar informações importantes sobre o evento
+    if (eventData.supervisorId) {
+      console.log("API - Criando evento para supervisorId:", eventData.supervisorId);
+      
+      if (typeof eventData.supervisorId !== 'string') {
+        console.error("supervisorId inválido:", eventData.supervisorId);
+        throw new Error("ID do supervisor inválido");
+      }
+    } else {
+      console.error("supervisorId ausente nos dados do evento");
+      throw new Error("ID do supervisor é obrigatório");
+    }
+
+    // Garantir que as datas estão no formato correto
+    const processedEventData = {
+      ...eventData,
+      // Converter datas para strings ISO
+      dataInicio: eventData.dataInicio instanceof Date 
+        ? eventData.dataInicio.toISOString() 
+        : new Date(eventData.dataInicio).toISOString(),
+      dataFim: eventData.dataFim instanceof Date 
+        ? eventData.dataFim.toISOString() 
+        : new Date(eventData.dataFim).toISOString()
+    };
+
     const options = {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(eventData),
+      body: JSON.stringify(processedEventData),
     };
     
-    return await fetchWithErrorHandling(`${API_URL}/events`, options);
+    console.log("API - Enviando dados do evento:", JSON.stringify(processedEventData, null, 2));
+    
+    try {
+      return await fetchWithErrorHandling(`${API_URL}/events`, options);
+    } catch (error) {
+      console.error("API - Erro detalhado ao criar evento:", error);
+      
+      // Verificar se é um erro de permissão relacionado à hierarquia
+      if (error instanceof Error && error.message.includes("permissão")) {
+        throw new Error("Sem permissão para criar evento para este supervisor. Verifique se ele está na sua equipe.");
+      }
+      
+      // Se for qualquer outro erro, retransmitir
+      throw error;
+    }
   },
 
   updateEvent: async (eventId: string, eventData: Omit<Event, "id">): Promise<void> => {
@@ -436,7 +582,6 @@ export const acaoDiariaApi = {
     
     try {
       const result = await fetchWithErrorHandling(`${API_URL}/acoes-diarias/equipe`, options);
-      console.log("Ações diárias da equipe recebidas:", result);
       return result.map((acao: any) => ({
         id: acao.ID,
         chaveLoja: acao.CHAVE_LOJA,

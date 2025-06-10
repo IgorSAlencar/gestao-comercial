@@ -7,13 +7,14 @@ import {
   LogOut,
   Menu,
   ChevronLeft,
-  Flame
+  Flame,
+  Users,
+  Network
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import HierarchyViewer from "./HierarchyViewer";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, isManager, isAdmin } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
   const navItems = [
@@ -44,7 +45,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       title: "HotList",
       icon: <Flame className="h-5 w-5" />,
       path: "/hotlist",
-    },
+    }
+  ];
+  
+  // Item de navegação específico para coordenadores e gerentes
+  const managerItems = [
+    {
+      title: "Minha Equipe",
+      icon: <Users className="h-5 w-5" />,
+      path: "/equipe",
+    }
+  ];
+  
+  // Item de navegação específico para administradores
+  const adminItems = [
+    {
+      title: "Equipe Comercial",
+      icon: <Network className="h-5 w-5" />,
+      path: "/equipe",
+    }
   ];
 
   const toggleSidebar = () => {
@@ -86,8 +105,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         
         {/* Nav Items */}
         <div className="flex-1 overflow-auto py-4">
-          {!isSidebarCollapsed && <HierarchyViewer />}
-          
           <nav className="px-2 space-y-1">
             {navItems.map((item) => (
               <Link
@@ -102,6 +119,44 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     : location.pathname.startsWith(item.path)
                       ? "bg-bradesco-blue text-white"
                       : "text-gray-700 hover:bg-gray-100",
+                  isSidebarCollapsed && "justify-center"
+                )}
+                title={isSidebarCollapsed ? item.title : undefined}
+              >
+                {item.icon}
+                {!isSidebarCollapsed && <span className="ml-3">{item.title}</span>}
+              </Link>
+            ))}
+            
+            {/* Itens de navegação específicos para gerentes e coordenadores */}
+            {isManager && !isAdmin && managerItems.map((item) => (
+              <Link
+                key={item.title}
+                to={item.path}
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  location.pathname.startsWith(item.path)
+                    ? "bg-bradesco-blue text-white"
+                    : "text-gray-700 hover:bg-gray-100",
+                  isSidebarCollapsed && "justify-center"
+                )}
+                title={isSidebarCollapsed ? item.title : undefined}
+              >
+                {item.icon}
+                {!isSidebarCollapsed && <span className="ml-3">{item.title}</span>}
+              </Link>
+            ))}
+            
+            {/* Itens de navegação específicos para administradores */}
+            {isAdmin && adminItems.map((item) => (
+              <Link
+                key={item.title}
+                to={item.path}
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                  location.pathname.startsWith(item.path)
+                    ? "bg-bradesco-blue text-white"
+                    : "text-gray-700 hover:bg-gray-100",
                   isSidebarCollapsed && "justify-center"
                 )}
                 title={isSidebarCollapsed ? item.title : undefined}

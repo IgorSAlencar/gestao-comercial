@@ -12,6 +12,7 @@ import AgendaPage from "@/pages/Agenda";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import Hotlist from "@/pages/Hotlist";
+import Equipe from "@/pages/Equipe";
 
 import NotFound from "./pages/NotFound";
 
@@ -61,6 +62,14 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><Hotlist /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/equipe" 
+              element={
+                <PrivateRoute>
+                  <Layout><Equipe /></Layout>
                 </PrivateRoute>
               } 
             />

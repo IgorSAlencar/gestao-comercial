@@ -316,6 +316,7 @@ const EventsTable = ({
       'Status': getEventStatus(event),
       'Parecer/Tratativa': event.tratativa || '',
       'Supervisor': event.supervisorName || '',
+      'Criado por': (event.createdById && event.createdById !== event.supervisorId) ? event.createdByName || '' : '',
     }));
 
     // Criar uma nova planilha
@@ -583,7 +584,14 @@ const EventsTable = ({
                     </TableCell>
                     {isManagerView && (
                       <TableCell className="text-center w-[10%] align-middle py-3">
-                        {event.supervisorName || "-"}
+                        <div className="flex flex-col items-center justify-center">
+                          <span>{event.supervisorName || "-"}</span>
+                          {event.createdById && event.createdById !== event.supervisorId && event.createdByName && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Criado por: {event.createdByName}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                     <TableCell className="text-center w-[10%] align-middle py-3">

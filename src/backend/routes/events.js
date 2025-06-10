@@ -186,7 +186,9 @@ router.get('/:eventId', authenticateToken, async (req, res) => {
       municipio: event.municipality,
       uf: event.state,
       supervisorId: event.supervisor_id,
-      supervisorName: event.supervisor_name
+      supervisorName: event.supervisor_name,
+      createdById: event.creator_id,
+      createdByName: event.creator_name
     };
     
     res.json(eventData);
@@ -197,15 +199,33 @@ router.get('/:eventId', authenticateToken, async (req, res) => {
   }
 });
 
+// Função para normalizar UUID
+function normalizeUUID(uuid) {
+  if (!uuid) return null;
+  
+  // Garantir que o UUID esteja no formato correto com hífens
+  // Primeiro remover hífens e converter para maiúsculas
+  const clean = uuid.replace(/-/g, '').toUpperCase();
+  
+  // Então reinsere os hífens no formato correto para SQL Server
+  if (clean.length === 32) {
+    return `${clean.slice(0, 8)}-${clean.slice(8, 12)}-${clean.slice(12, 16)}-${clean.slice(16, 20)}-${clean.slice(20)}`;
+  }
+  
+  // Se não conseguir formatar, retorna o original
+  console.log(`AVISO: UUID inválido ou mal-formatado: ${uuid}`);
+  return uuid;
+}
+
 // Create a new event
 router.post('/', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
-    const { id: userId, role: userRole } = req.user;
+    const { id: userId, role: userRole, name: userName } = req.user;
     const { 
       titulo, descricao, dataInicio, dataFim, tipo, location, subcategory, 
       other_description, informar_agencia_pa, agencia_pa_number, is_pa, 
-      municipio, uf, supervisorId 
+      municipio, uf, supervisorId, createdById, createdByName
     } = req.body;
     
     // Validate required fields
@@ -213,27 +233,220 @@ router.post('/', authenticateToken, async (req, res) => {
       return res.status(400).json({ message: 'Campos obrigatórios não preenchidos' });
     }
     
+    // Normalize os UUIDs para garantir consistência
+    const normalizedUserId = normalizeUUID(userId);
+    const normalizedSupervisorId = supervisorId ? normalizeUUID(supervisorId) : null;
+    
+    console.log('IDs normalizados para comparação:');
+    console.log('- normalizedUserId:', normalizedUserId);
+    console.log('- normalizedSupervisorId:', normalizedSupervisorId);
+    console.log('- Formatos originais - userId:', userId, 'supervisorId:', supervisorId);
+    
     // Determine the supervisor_id 
     // If user is manager/coordinator and specified a supervisorId, use that
     // Otherwise use the current user's ID
-    let actualSupervisorId = userId.toUpperCase();
+    let actualSupervisorId = normalizedUserId;
     
-    if (supervisorId && supervisorId !== userId && (userRole === 'gerente' || userRole === 'coordenador')) {
-      // Check if the specified supervisor is actually a subordinate
-      const checkSubordinate = await pool.request()
-        .input('supervisorId', sql.UniqueIdentifier, supervisorId.toUpperCase())
-        .input('userId', sql.UniqueIdentifier, userId.toUpperCase())
-        .query(`
-          SELECT COUNT(*) as count FROM TESTE..hierarchy 
-          WHERE subordinate_id = @supervisorId AND superior_id = @userId
-        `);
+    if (normalizedSupervisorId && normalizedSupervisorId !== normalizedUserId && (userRole === 'gerente' || userRole === 'coordenador' || userRole === 'admin')) {
+      console.log(`Tentando criar evento para supervisor: ${normalizedSupervisorId} por usuário: ${normalizedUserId} com papel: ${userRole}`);
       
-      if (checkSubordinate.recordset[0].count > 0) {
-        actualSupervisorId = supervisorId.toUpperCase();
-      } else {
-        return res.status(403).json({ message: 'Sem permissão para criar evento para este supervisor' });
+      // Para admins, permitir criar para qualquer supervisor
+      if (userRole === 'admin') {
+        console.log('Usuário é admin, verificando se o alvo é supervisor');
+        const checkIsSupervisor = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .query(`
+            SELECT COUNT(*) as count FROM TESTE..users
+            WHERE id = @supervisorId AND role = 'supervisor'
+          `);
+        
+        if (checkIsSupervisor.recordset[0].count > 0) {
+          actualSupervisorId = normalizedSupervisorId;
+          console.log('Alvo confirmado como supervisor, admin tem permissão');
+        } else {
+          console.log('Alvo não é supervisor, negando permissão para admin');
+          return res.status(403).json({ message: 'O usuário selecionado não é um supervisor' });
+        }
+      } 
+      // Para gerentes, verificar se o supervisor existe
+      else if (userRole === 'gerente') {
+        console.log('Verificando permissão para gerente (inclui subordinados indiretos)');
+        
+        // Vamos verificar diretamente se o supervisor existe
+        const supervisorCheck = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .query(`
+            SELECT id, name, role FROM TESTE..users
+            WHERE id = @supervisorId
+          `);
+        
+        console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
+        
+        if (supervisorCheck.recordset.length === 0) {
+          console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado na base de dados`);
+          return res.status(404).json({ message: 'Supervisor não encontrado' });
+        }
+        
+        // Verificar se o usuário atual é um gerente
+        const managerCheck = await pool.request()
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(`
+            SELECT id, name, role FROM TESTE..users
+            WHERE id = @userId AND role = 'gerente'
+          `);
+        
+        console.log(`Verificação de gerente - Resultado: ${JSON.stringify(managerCheck.recordset)}`);
+        
+        if (managerCheck.recordset.length === 0) {
+          console.log(`ERRO: Usuário ${normalizedUserId} não é um gerente ou não foi encontrado`);
+          return res.status(403).json({ message: 'Usuário não tem papel de gerente' });
+        }
+        
+        // Verificar hierarquia direta (gerente -> supervisor)
+        const directHierarchyCheck = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(`
+            SELECT h.id, h.superior_id, h.subordinate_id
+            FROM TESTE..hierarchy h
+            WHERE h.subordinate_id = @supervisorId 
+            AND h.superior_id = @userId
+          `);
+        
+        console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
+        
+        // Verificar hierarquia indireta (gerente -> coordenador -> supervisor)
+        const indirectHierarchyCheck = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(`
+            SELECT h1.id as h1_id, h1.superior_id, h1.subordinate_id as coordenador_id,
+                   h2.id as h2_id, h2.superior_id, h2.subordinate_id as supervisor_id,
+                   u1.name as coordenador_nome, u1.role as coordenador_role,
+                   u2.name as supervisor_nome, u2.role as supervisor_role
+            FROM TESTE..hierarchy h1
+            JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
+            JOIN TESTE..users u1 ON h1.subordinate_id = u1.id
+            JOIN TESTE..users u2 ON h2.subordinate_id = u2.id
+            WHERE h1.superior_id = @userId
+            AND h2.subordinate_id = @supervisorId
+          `);
+        
+        console.log(`Verificação de hierarquia indireta - Resultado: ${JSON.stringify(indirectHierarchyCheck.recordset)}`);
+        
+        // Se encontramos qualquer relação, conceder permissão
+        if (directHierarchyCheck.recordset.length > 0 || indirectHierarchyCheck.recordset.length > 0) {
+          console.log(`SUCESSO: Permissão concedida para ${normalizedUserId} criar evento para ${normalizedSupervisorId}`);
+          actualSupervisorId = normalizedSupervisorId;
+        } else {
+          console.log(`FALHA: Nenhuma relação hierárquica encontrada entre ${normalizedUserId} e ${normalizedSupervisorId}`);
+          
+          // Mostrar todas as relações hierárquicas do gerente para debug
+          const allHierarchyCheck = await pool.request()
+            .input('userId', sql.UniqueIdentifier, normalizedUserId)
+            .query(`
+              SELECT h.id, h.superior_id, h.subordinate_id, u.name, u.role
+              FROM TESTE..hierarchy h
+              JOIN TESTE..users u ON h.subordinate_id = u.id
+              WHERE h.superior_id = @userId
+              
+              UNION
+              
+              SELECT h2.id, h1.superior_id, h2.subordinate_id, u.name, u.role
+              FROM TESTE..hierarchy h1
+              JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
+              JOIN TESTE..users u ON h2.subordinate_id = u.id
+              WHERE h1.superior_id = @userId
+            `);
+          
+          console.log(`Todas as relações hierárquicas do gerente - Resultado: ${JSON.stringify(allHierarchyCheck.recordset)}`);
+          
+          return res.status(403).json({ 
+            message: 'Sem permissão para criar evento para este supervisor',
+            details: 'O supervisor selecionado não está na sua hierarquia direta ou indireta'
+          });
+        }
+      } 
+      // Para coordenadores, apenas supervisores diretos
+      else if (userRole === 'coordenador') {
+        console.log('Verificando permissão para coordenador (apenas subordinados diretos)');
+        
+        // Vamos verificar diretamente se o supervisor existe
+        const supervisorCheck = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .query(`
+            SELECT id, name, role FROM TESTE..users
+            WHERE id = @supervisorId AND role = 'supervisor'
+          `);
+        
+        console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
+        
+        if (supervisorCheck.recordset.length === 0) {
+          console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado ou não tem papel de supervisor`);
+          return res.status(404).json({ message: 'Supervisor não encontrado ou não tem papel de supervisor' });
+        }
+        
+        // Verificar se o usuário atual é um coordenador
+        const coordCheck = await pool.request()
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(`
+            SELECT id, name, role FROM TESTE..users
+            WHERE id = @userId AND role = 'coordenador'
+          `);
+        
+        console.log(`Verificação de coordenador - Resultado: ${JSON.stringify(coordCheck.recordset)}`);
+        
+        if (coordCheck.recordset.length === 0) {
+          console.log(`ERRO: Usuário ${normalizedUserId} não é um coordenador ou não foi encontrado`);
+          return res.status(403).json({ message: 'Usuário não tem papel de coordenador' });
+        }
+        
+        // Verificar relação direta entre coordenador e supervisor
+        const directHierarchyCheck = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(`
+            SELECT h.id, h.superior_id, h.subordinate_id,
+                   u1.name as coord_name, u1.role as coord_role,
+                   u2.name as super_name, u2.role as super_role
+            FROM TESTE..hierarchy h
+            JOIN TESTE..users u1 ON h.superior_id = u1.id
+            JOIN TESTE..users u2 ON h.subordinate_id = u2.id
+            WHERE h.subordinate_id = @supervisorId 
+            AND h.superior_id = @userId
+          `);
+        
+        console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
+        
+        if (directHierarchyCheck.recordset.length > 0) {
+          console.log(`SUCESSO: Permissão concedida para coordenador ${normalizedUserId} criar evento para supervisor ${normalizedSupervisorId}`);
+          actualSupervisorId = normalizedSupervisorId;
+        } else {
+          console.log(`FALHA: Coordenador ${normalizedUserId} não é superior direto do supervisor ${normalizedSupervisorId}`);
+          
+          // Listar todos os subordinados do coordenador para debug
+          const allSubordinatesCheck = await pool.request()
+            .input('userId', sql.UniqueIdentifier, normalizedUserId)
+            .query(`
+              SELECT h.id, h.superior_id, h.subordinate_id, u.name, u.role
+              FROM TESTE..hierarchy h
+              JOIN TESTE..users u ON h.subordinate_id = u.id
+              WHERE h.superior_id = @userId
+            `);
+          
+          console.log(`Todos os subordinados do coordenador - Resultado: ${JSON.stringify(allSubordinatesCheck.recordset)}`);
+          
+          return res.status(403).json({ 
+            message: 'Sem permissão para criar evento para este supervisor',
+            details: 'O supervisor selecionado não está subordinado diretamente a você'
+          });
+        }
       }
     }
+    
+    // Use the creator from the request or default to the current user
+    const actualCreatorId = normalizedUserId;
+    const actualCreatorName = userName;
     
     // Insert the event
     const result = await pool.request()
@@ -251,15 +464,19 @@ router.post('/', authenticateToken, async (req, res) => {
       .input('municipality', sql.NVarChar, municipio || '')
       .input('state', sql.NVarChar, uf || '')
       .input('supervisor_id', sql.UniqueIdentifier, actualSupervisorId)
+      .input('creator_id', sql.UniqueIdentifier, actualCreatorId)
+      .input('creator_name', sql.NVarChar, actualCreatorName)
       .query(`
         INSERT INTO TESTE..EVENTOS (
           title, description, start_date, end_date, event_type, location, subcategory, 
-          other_description, inform_agency, agency_number, is_pa, municipality, state, supervisor_id
+          other_description, inform_agency, agency_number, is_pa, municipality, state, 
+          supervisor_id, creator_id, creator_name
         )
         OUTPUT INSERTED.id
         VALUES (
           @title, @description, @start_date, @end_date, @event_type, @location, @subcategory, 
-          @other_description, @inform_agency, @agency_number, @is_pa, @municipality, @state, @supervisor_id
+          @other_description, @inform_agency, @agency_number, @is_pa, @municipality, @state, 
+          @supervisor_id, @creator_id, @creator_name
         )
       `);
     
@@ -284,10 +501,18 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
     
+    // Normalize os UUIDs para garantir consistência
+    const normalizedUserId = normalizeUUID(userId);
+    const normalizedEventId = normalizeUUID(eventId);
+    
+    console.log('Update - IDs normalizados:');
+    console.log('- normalizedUserId:', normalizedUserId);
+    console.log('- normalizedEventId:', normalizedEventId);
+    
     // Check if user has permission to update this event
     const permissionCheck = await pool.request()
-      .input('eventId', sql.UniqueIdentifier, eventId)
-      .input('userId', sql.UniqueIdentifier, userId)
+      .input('eventId', sql.UniqueIdentifier, normalizedEventId)
+      .input('userId', sql.UniqueIdentifier, normalizedUserId)
       .query(`
         SELECT 
           e.supervisor_id,
@@ -299,13 +524,16 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
       `);
     
     if (permissionCheck.recordset.length === 0) {
+      console.log(`Evento não encontrado: ${normalizedEventId}`);
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
     const eventPermission = permissionCheck.recordset[0];
+    console.log('Permissões do evento:', eventPermission);
     
     // Only owner or superior can update an event
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
+      console.log(`Permissão negada para atualizar evento: ${normalizedEventId}`);
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
     
@@ -322,27 +550,59 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
     
     // Determine if supervisor_id can be changed
     let actualSupervisorId = eventPermission.supervisor_id;
+    const normalizedSupervisorId = supervisorId ? normalizeUUID(supervisorId) : null;
     
-    if (supervisorId && supervisorId !== actualSupervisorId && userRole === 'gerente') {
-      // Only managers can reassign events to different supervisors
-      const checkSubordinate = await pool.request()
-        .input('supervisorId', sql.UniqueIdentifier, supervisorId)
-        .input('userId', sql.UniqueIdentifier, userId)
-        .query(`
-          SELECT COUNT(*) as count FROM TESTE..hierarchy 
-          WHERE subordinate_id = @supervisorId AND superior_id = @userId
-        `);
-      
-      if (checkSubordinate.recordset[0].count > 0) {
-        actualSupervisorId = supervisorId;
-      } else {
-        return res.status(403).json({ message: 'Sem permissão para atribuir evento a este supervisor' });
+    if (normalizedSupervisorId && normalizedSupervisorId !== normalizeUUID(actualSupervisorId) && (userRole === 'gerente' || userRole === 'admin')) {
+      // Para gerentes, verificar se o supervisor é subordinado direto ou indireto
+      if (userRole === 'gerente') {
+        const query = `
+          SELECT COUNT(*) as count FROM (
+            -- Supervisores diretamente subordinados ao gerente
+            SELECT subordinate_id 
+            FROM TESTE..hierarchy 
+            WHERE subordinate_id = @supervisorId AND superior_id = @userId
+            
+            UNION
+            
+            -- Supervisores sob coordenadores que estão subordinados ao gerente
+            SELECT h2.subordinate_id
+            FROM TESTE..hierarchy h1
+            JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
+            WHERE h1.superior_id = @userId AND h2.subordinate_id = @supervisorId
+          ) AS subordinates
+        `;
+        
+        const checkSubordinate = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .input('userId', sql.UniqueIdentifier, normalizedUserId)
+          .query(query);
+        
+        if (checkSubordinate.recordset[0].count > 0) {
+          actualSupervisorId = normalizedSupervisorId;
+        } else {
+          return res.status(403).json({ message: 'Sem permissão para atribuir evento a este supervisor' });
+        }
+      } 
+      // Para admins, permitir atribuir a qualquer supervisor
+      else if (userRole === 'admin') {
+        const checkIsSupervisor = await pool.request()
+          .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
+          .query(`
+            SELECT COUNT(*) as count FROM TESTE..users
+            WHERE id = @supervisorId AND role = 'supervisor'
+          `);
+        
+        if (checkIsSupervisor.recordset[0].count > 0) {
+          actualSupervisorId = normalizedSupervisorId;
+        } else {
+          return res.status(403).json({ message: 'O usuário selecionado não é um supervisor' });
+        }
       }
     }
     
     // Update the event
     await pool.request()
-      .input('eventId', sql.UniqueIdentifier, eventId)
+      .input('eventId', sql.UniqueIdentifier, normalizedEventId)
       .input('title', sql.NVarChar, titulo)
       .input('description', sql.NVarChar, descricao || '')
       .input('start_date', sql.DateTime, new Date(dataInicio))

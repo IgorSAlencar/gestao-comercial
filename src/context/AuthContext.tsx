@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, authApi, userApi } from "@/services/api";
@@ -22,6 +21,8 @@ interface AuthContextType {
   allUsers: User[];
   loadingAllUsers: boolean;
   refreshAllUsers: () => Promise<void>;
+  getUserSubordinates: (userId: string) => Promise<User[]>;
+  getUsersByRole: (role: "gerente" | "coordenador" | "supervisor" | "admin") => Promise<User[]>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -42,6 +43,8 @@ const AuthContext = createContext<AuthContextType>({
   allUsers: [],
   loadingAllUsers: false,
   refreshAllUsers: async () => {},
+  getUserSubordinates: async () => [],
+  getUsersByRole: async () => [],
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -56,6 +59,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loadingAllUsers, setLoadingAllUsers] = useState(false);
   const navigate = useNavigate();
+  
+  // Ref para controlar chamadas duplicadas
+  const isRefreshingSubordinates = React.useRef(false);
+  const isRefreshingAllUsers = React.useRef(false);
+  const lastRefreshSubordinates = React.useRef<number>(0);
+  const lastRefreshAllUsers = React.useRef<number>(0);
 
   // Verificar se já existe um usuário e token no localStorage ao iniciar
   useEffect(() => {
@@ -92,10 +101,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchSubordinates = async () => {
     if (!user) return;
     
+    // Evitar chamadas duplicadas com menos de 2 segundos de intervalo
+    const now = Date.now();
+    if (isRefreshingSubordinates.current || (now - lastRefreshSubordinates.current < 2000)) {
+      console.debug("[AuthContext] Ignorando chamada duplicada de refreshSubordinates");
+      return;
+    }
+    
+    isRefreshingSubordinates.current = true;
     setLoadingSubordinates(true);
+    
     try {
       const data = await userApi.getSubordinates(user.id);
       setSubordinates(data);
+      lastRefreshSubordinates.current = Date.now();
     } catch (error) {
       console.error("Erro ao carregar subordinados:", error);
       toast({
@@ -106,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSubordinates([]);
     } finally {
       setLoadingSubordinates(false);
+      isRefreshingSubordinates.current = false;
     }
   };
 
@@ -126,12 +146,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Nova função para buscar todos os usuários
   const fetchAllUsers = async () => {
-    if (!user || user.role !== "admin") return;
+    if (!user) return;
     
+    // Verificar se o usuário é admin (apenas para diagnóstico)
+    if (user.role !== "admin") {
+      console.debug(`[AuthContext] Usuário não é admin (role=${user.role}), mas tentou buscar todos usuários`);
+    }
+    
+    // Evitar chamadas duplicadas com menos de 2 segundos de intervalo
+    const now = Date.now();
+    if (isRefreshingAllUsers.current || (now - lastRefreshAllUsers.current < 2000)) {
+      console.debug("[AuthContext] Ignorando chamada duplicada de refreshAllUsers");
+      return;
+    }
+    
+    isRefreshingAllUsers.current = true;
     setLoadingAllUsers(true);
+    
     try {
+      console.debug("[AuthContext] Iniciando busca de todos os usuários");
       const data = await userApi.getAllUsers();
+      console.debug(`[AuthContext] ${data.length} usuários recebidos`);
       setAllUsers(data);
+      lastRefreshAllUsers.current = Date.now();
     } catch (error) {
       console.error("Erro ao carregar todos os usuários:", error);
       toast({
@@ -142,6 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAllUsers([]);
     } finally {
       setLoadingAllUsers(false);
+      isRefreshingAllUsers.current = false;
     }
   };
 
@@ -183,6 +221,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isCoordinator = user?.role === "coordenador";
   const isSupervisor = user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
+  const canSeeSubordinates = user?.role === "gerente" || user?.role === "coordenador" || user?.role === "admin";
+
+  // Nova função para buscar subordinados de qualquer usuário
+  const getUserSubordinates = async (userId: string): Promise<User[]> => {
+    try {
+      return await userApi.getUserSubordinates(userId);
+    } catch (error) {
+      console.error(`Erro ao buscar subordinados do usuário ${userId}:`, error);
+      return [];
+    }
+  };
+  
+  // Nova função para buscar usuários por papel
+  const getUsersByRole = async (role: "gerente" | "coordenador" | "supervisor" | "admin"): Promise<User[]> => {
+    try {
+      return await userApi.getUsersByRole(role);
+    } catch (error) {
+      console.error(`Erro ao buscar usuários com papel ${role}:`, error);
+      return [];
+    }
+  };
 
   return (
     <AuthContext.Provider
@@ -203,7 +262,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshSubordinates: fetchSubordinates,
         allUsers,
         loadingAllUsers,
-        refreshAllUsers: fetchAllUsers
+        refreshAllUsers: fetchAllUsers,
+        getUserSubordinates,
+        getUsersByRole
       }}
     >
       {children}

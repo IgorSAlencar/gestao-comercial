@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -50,6 +50,8 @@ const AgendaPage = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTeamMemberDialogOpen, setIsTeamMemberDialogOpen] = useState(false);
+  const [selectedTeamMember, setSelectedTeamMember] = useState<{ id: string; name: string } | null>(null);
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [parecerText, setParecerText] = useState("");
@@ -102,6 +104,42 @@ const AgendaPage = () => {
     enabled: !!(user?.id && (isManager || isCoordinator)),
   });
 
+  // New query to fetch team members (subordinates) for creating events on their behalf
+  const { data: teamMembers = [], isLoading: isLoadingTeamMembers } = useQuery({
+    queryKey: ['teamMembers', user?.id],
+    queryFn: async () => {
+      if ((isManager || isCoordinator || isAdmin) && user?.id) {
+        try {
+          // Para gerentes e coordenadores, buscar supervisores subordinados
+          if (isManager || isCoordinator) {
+            // Usar getSubordinates em vez de getSupervisors para garantir que pegamos todos os subordinados
+            const allSubordinates = await userApi.getSubordinates(user.id);
+            // Filtrar apenas supervisores
+            const supervisors = allSubordinates.filter(user => user.role === "supervisor");
+            console.log(`Encontrados ${supervisors.length} supervisores para criar eventos (de ${allSubordinates.length} subordinados)`);
+            return supervisors;
+          }
+          // Para admins, buscar todos os supervisores
+          else if (isAdmin) {
+            const supervisors = await userApi.getUsersByRole("supervisor");
+            console.log(`Admin: Encontrados ${supervisors.length} supervisores para criar eventos`);
+            return supervisors;
+          }
+        } catch (error) {
+          console.error("Erro ao buscar membros da equipe:", error);
+          toast({
+            title: "Erro",
+            description: "Não foi possível carregar a lista de membros da equipe",
+            variant: "destructive",
+          });
+        }
+      }
+      return [];
+    },
+    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
+    retry: 3 // Adiciona algumas tentativas adicionais em caso de falha
+  });
+
   const { data: eventos = [], isLoading, error } = useQuery({
     queryKey: ['events', selectedSupervisor],
     queryFn: () => eventApi.getEvents(
@@ -140,9 +178,17 @@ const AgendaPage = () => {
       resetForm();
     },
     onError: (error: Error) => {
+      console.error("Erro ao criar evento:", error);
+      let mensagemErro = error.message || "Erro ao adicionar evento";
+      
+      // Mensagens específicas para erros comuns
+      if (mensagemErro.includes("permissão para criar evento")) {
+        mensagemErro = "Você não tem permissão para criar eventos para este supervisor. Verifique se ele está na sua equipe.";
+      }
+      
       toast({
         title: "Erro",
-        description: error.message || "Erro ao adicionar evento",
+        description: mensagemErro,
         variant: "destructive",
       });
     }
@@ -227,30 +273,150 @@ const AgendaPage = () => {
     });
     setEditingEvent(null);
     setSelectedRange(undefined);
+    setSelectedTeamMember(null);
+  };
+
+  // Helper para normalizar UUID
+  const normalizeUUID = (uuid: string | undefined | null): string | null => {
+    if (!uuid) return null;
+    // Remover hífens e converter para maiúsculas para garantir consistência
+    return uuid.replace(/-/g, '').toUpperCase();
   };
 
   const handleSalvarEvento = () => {
-    if (!novoEvento.titulo || !novoEvento.location) {
+    if (!novoEvento.titulo) {
       toast({
-        title: "Campos obrigatórios",
-        description: "Preencha todos os campos obrigatórios",
+        title: "Campo obrigatório",
+        description: "O título do evento é obrigatório",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!novoEvento.location) {
+      toast({
+        title: "Campo obrigatório",
+        description: "A ocorrência do evento é obrigatória",
         variant: "destructive",
       });
       return;
     }
     
+    // Verificar datas
+    if (!novoEvento.dataInicio || !novoEvento.dataFim) {
+      toast({
+        title: "Datas inválidas",
+        description: "As datas de início e fim são obrigatórias",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar subcategoria quando necessária
+    if (novoEvento.location !== "Outros" && !novoEvento.subcategory) {
+      toast({
+        title: "Campo obrigatório",
+        description: "A subcategoria é obrigatória para esta ocorrência",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validar campo de descrição para "Outros"
+    if (novoEvento.location === "Outros" && !novoEvento.other_description) {
+      toast({
+        title: "Campo obrigatório",
+        description: "A descrição é obrigatória quando a ocorrência é 'Outros'",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Determine whose behalf we're creating the event for
+    let eventSupervisorId = user?.id;  // Default para o próprio usuário
+    
+    // Se temos um membro da equipe selecionado, usar o ID dele
+    if (selectedTeamMember && selectedTeamMember.id) {
+      console.log("Usando selectedTeamMember:", selectedTeamMember);
+      eventSupervisorId = selectedTeamMember.id;
+    } 
+    // Se não temos membro da equipe mas temos supervisor selecionado (do filtro)
+    else if ((isManager || isCoordinator || isAdmin) && selectedSupervisor) {
+      console.log("Usando selectedSupervisor:", selectedSupervisor);
+      eventSupervisorId = selectedSupervisor;
+    }
+    
+    if (!eventSupervisorId) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível determinar o supervisor para o evento",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log("Criando evento com as seguintes informações:");
+    console.log("- Usuário atual:", user?.id, user?.name, user?.role);
+    console.log("- Supervisor selecionado:", eventSupervisorId);
+    console.log("- selectedTeamMember:", selectedTeamMember);
+    console.log("- selectedSupervisor:", selectedSupervisor);
+    console.log("- ID normalizado:", normalizeUUID(eventSupervisorId));
+    
+    // Verificar se o supervisor selecionado existe na lista de membros da equipe
+    const supervisorExistsInTeam = teamMembers.length > 0 && 
+      teamMembers.some(member => 
+        normalizeUUID(member.id) === normalizeUUID(eventSupervisorId)
+      );
+    
+    console.log("Supervisor existe na equipe:", supervisorExistsInTeam);
+    
+    if (!supervisorExistsInTeam && eventSupervisorId !== user?.id && teamMembers.length > 0) {
+      console.log("Verificação da equipe:", teamMembers.map(m => m.id));
+      
+      // Aviso mas ainda permite criar
+      toast({
+        title: "Aviso",
+        description: "O supervisor selecionado não parece estar na sua equipe. Isso pode causar erro de permissão.",
+        variant: "destructive",
+      });
+    }
+    
+    // Certificar-se de que as datas estão no formato correto
+    const dataInicio = novoEvento.dataInicio instanceof Date 
+      ? novoEvento.dataInicio 
+      : new Date(novoEvento.dataInicio);
+    
+    const dataFim = novoEvento.dataFim instanceof Date 
+      ? novoEvento.dataFim 
+      : new Date(novoEvento.dataFim);
+    
     const eventData = {
       ...novoEvento,
-      supervisorId: (isManager || isCoordinator || isAdmin) && selectedSupervisor ? selectedSupervisor : user?.id
+      dataInicio,
+      dataFim,
+      supervisorId: eventSupervisorId,
+      createdById: user?.id, // Add creator information
+      createdByName: user?.name // Add creator name
     };
     
-    if (editingEvent) {
-      updateEventMutation.mutate({ 
-        eventId: editingEvent, 
-        data: eventData 
+    console.log("Dados do evento a serem enviados:", eventData);
+    
+    try {
+      if (editingEvent) {
+        updateEventMutation.mutate({ 
+          eventId: editingEvent, 
+          data: eventData 
+        });
+      } else {
+        createEventMutation.mutate(eventData);
+      }
+    } catch (error) {
+      console.error("Erro ao tentar criar/atualizar evento:", error);
+      toast({
+        title: "Erro no sistema",
+        description: "Ocorreu um erro ao processar sua solicitação. Tente novamente.",
+        variant: "destructive",
       });
-    } else {
-      createEventMutation.mutate(eventData);
     }
   };
 
@@ -539,15 +705,102 @@ const AgendaPage = () => {
             </Drawer>
           )}
           
+          {(isManager || isCoordinator || isAdmin) ? (
+            <Dialog open={isTeamMemberDialogOpen} onOpenChange={setIsTeamMemberDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-bradesco-blue">
+                  <UserPlus className="h-4 w-4 mr-2" /> Agendar para Equipe
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Selecionar membro da equipe</DialogTitle>
+                </DialogHeader>
+                
+                <div className="py-4">
+                  <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                    {isLoadingTeamMembers ? (
+                      <div className="flex justify-center p-4">
+                        <div className="animate-spin h-6 w-6 border-2 border-bradesco-blue border-t-transparent rounded-full"></div>
+                      </div>
+                    ) : teamMembers.length === 0 ? (
+                      <div className="space-y-3">
+                        <div className="text-center py-4 text-gray-500">
+                          Nenhum membro encontrado na sua equipe.
+                        </div>
+                        <Button 
+                          className="w-full" 
+                          onClick={() => {
+                            queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+                          }}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Tentar novamente
+                        </Button>
+                      </div>
+                    ) : (
+                      teamMembers.map((member) => (
+                        <div 
+                          key={member.id} 
+                          className="p-3 border rounded-md cursor-pointer transition-colors hover:bg-gray-100"
+                          onClick={() => {
+                            setSelectedTeamMember({ id: member.id, name: member.name });
+                            setIsTeamMemberDialogOpen(false);
+                            setIsDialogOpen(true);
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <Users className="h-5 w-5 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{member.name}</p>
+                              <p className="text-sm opacity-70">{member.role.charAt(0).toUpperCase() + member.role.slice(1)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsTeamMemberDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    className="bg-bradesco-blue"
+                    onClick={() => {
+                      setSelectedTeamMember(null);
+                      setIsTeamMemberDialogOpen(false);
+                      setIsDialogOpen(true);
+                    }}
+                  >
+                    Criar para mim mesmo
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-bradesco-blue">
+                  <Plus className="h-4 w-4 mr-2" /> Novo Evento
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          )}
+          
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-bradesco-blue">
-                <Plus className="h-4 w-4 mr-2" /> Novo Evento
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingEvent ? "Editar evento" : "Adicionar novo evento"}</DialogTitle>
+                <DialogTitle>
+                  {editingEvent ? "Editar evento" : (
+                    selectedTeamMember 
+                      ? `Adicionar evento para ${selectedTeamMember.name}` 
+                      : "Adicionar novo evento"
+                  )}
+                </DialogTitle>
               </DialogHeader>
               
               <div className="grid gap-4 py-4">
@@ -1033,6 +1286,14 @@ const AgendaPage = () => {
                               <div className="mt-1 text-xs font-medium text-bradesco-blue flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 {evento.supervisorName}
+                              </div>
+                            )}
+                            
+                            {/* Show creator information if event was created on behalf of someone */}
+                            {evento.createdById && evento.createdById !== evento.supervisorId && evento.createdByName && (
+                              <div className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+                                <UserPlus className="h-3 w-3" />
+                                Criado por: {evento.createdByName}
                               </div>
                             )}
                             

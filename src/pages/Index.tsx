@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
+import DashboardGerencial from "@/components/DashboardGerencial";
 import { acaoDiariaApi, AcaoDiariaContas, eventApi, Event } from "@/services/api";
 import { format, isPast, isToday, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -135,7 +136,11 @@ const Index = () => {
     };
     
     carregarDados();
+    
+    // Só carrega eventos se não for gerente ou coordenador
+    if (!isManager) {
     carregarEventos();
+    }
   }, [user?.id, isManager]);
   
   // Função para verificar se as datas de início e fim são iguais
@@ -257,12 +262,7 @@ const Index = () => {
       </div>
 
       {/* Estatísticas rápidas */}
-
-
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-
-
       <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
@@ -335,8 +335,6 @@ const Index = () => {
           </CardContent>
         </Card>
         
-        
-        
         <Card className="bg-gradient-to-br from-sky-50 to-white border-sky-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-sky-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
@@ -400,6 +398,11 @@ const Index = () => {
       </div>
       
       {/* Conteúdo principal */}
+      {isManager ? (
+        /* Dashboard Gerencial para Gerentes e Coordenadores */
+        <DashboardGerencial />
+      ) : (
+        /* Conteúdo de Agenda e Ações para outros usuários */
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna 1: Agenda do Dia */}
         <div className="lg:col-span-2 space-y-6">
@@ -410,10 +413,7 @@ const Index = () => {
                 <div>
                   <CardTitle className="text-lg text-indigo-800">Agenda Comercial</CardTitle>
                   <CardDescription>
-                    {isManager 
-                      ? "Compromissos e visitas da equipe para hoje" 
-                      : "Seus compromissos e visitas agendadas para hoje"
-                    }
+                      Seus compromissos e visitas agendadas para hoje
                   </CardDescription>
                 </div>
                 <Button 
@@ -460,12 +460,6 @@ const Index = () => {
                           <span>{evento.location || "Sem local definido"}</span>
                         </div>
                       </div>
-
-                      {isManager && evento.supervisorName && (
-                        <div className="mt-1 text-xs text-gray-500">
-                          Responsável: {evento.supervisorName}
-                        </div>
-                      )}
 
                       <div className="flex flex-wrap gap-2 mt-2">
                         {!eventoHoje(evento) && (
@@ -546,43 +540,9 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
-          
-
-          
-          {/* Painel do Gerente (condicional) */}
-          {isManager && (
-            <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-white">
-              <CardHeader>
-                <CardTitle className="text-lg text-green-800">Painel Gerencial</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-200">
-                    <div>
-                      <p className="font-medium">Performance da Equipe</p>
-                      <p className="text-sm text-gray-500">Mês Atual</p>
-                    </div>
-                    <div className="text-lg font-semibold text-green-600">78%</div>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-gray-200">
-                    <div>
-                      <p className="font-medium">Ações Pendentes</p>
-                      <p className="text-sm text-gray-500">Equipe</p>
-                    </div>
-                    <div className="text-lg font-semibold text-amber-600">12</div>
-                  </div>
                 </div>
-                <Button 
-                  className="w-full mt-4 bg-green-600 hover:bg-green-700"
-                  onClick={() => navegarPara('/relatorios')}
-                >
-                  Relatórios Gerenciais
-                </Button>
-              </CardContent>
-            </Card>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 };
