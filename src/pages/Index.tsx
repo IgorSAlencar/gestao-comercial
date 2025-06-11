@@ -34,6 +34,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
 import DashboardGerencial from "@/components/DashboardGerencial";
+import AgendaStats from "@/components/AgendaStats";
 import { acaoDiariaApi, AcaoDiariaContas, eventApi, Event } from "@/services/api";
 import { format, isPast, isToday, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -139,7 +140,7 @@ const Index = () => {
     
     // Só carrega eventos se não for gerente ou coordenador
     if (!isManager) {
-    carregarEventos();
+      carregarEventos();
     }
   }, [user?.id, isManager]);
   
@@ -263,7 +264,7 @@ const Index = () => {
 
       {/* Estatísticas rápidas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
+        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
             <div className="relative">
@@ -403,144 +404,144 @@ const Index = () => {
         <DashboardGerencial />
       ) : (
         /* Conteúdo de Agenda e Ações para outros usuários */
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coluna 1: Agenda do Dia */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Agenda do Dia */}
-          <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-white shadow hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle className="text-lg text-indigo-800">Agenda Comercial</CardTitle>
-                  <CardDescription>
-                      Seus compromissos e visitas agendadas para hoje
-                  </CardDescription>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
-                  onClick={() => navegarPara('/agenda')}
-                >
-                  Ver Completa <ChevronRight className="ml-1 h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loadingEvents ? (
-                <div className="flex justify-center py-8">
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-                    <p className="text-sm text-indigo-600">Carregando eventos...</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Coluna 1: Agenda do Dia */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Agenda do Dia */}
+            <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-white shadow hover:shadow-md transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-lg text-indigo-800">Agenda Comercial</CardTitle>
+                    <CardDescription>
+                        Seus compromissos e visitas agendadas para hoje
+                    </CardDescription>
                   </div>
-                </div>
-              ) : eventosHoje.length > 0 ? (
-                <div className="space-y-3">
-                  {eventosParaMostrar(eventosHoje).map((evento) => (
-                    <div 
-                      key={evento.id} 
-                      className={`p-3 rounded-md border-l-4 ${
-                        !eventoHoje(evento) ? 'border-l-red-500 bg-red-50' :
-                        eventoPassado(evento) && !temTratativa(evento) ? 'border-l-red-500 bg-red-50' : 
-                        eventoPassado(evento) && temTratativa(evento) ? 'border-l-green-500 bg-green-50' : 
-                        'border-l-indigo-500 bg-indigo-50'
-                      } cursor-pointer hover:shadow-sm transition-shadow`}
-                      onClick={() => navegarParaEvento(evento.id)}
-                    >
-                      <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
-                        <div className="font-medium">{evento.titulo}</div>
-                        <div className="text-sm font-medium text-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-md whitespace-nowrap">
-                          <CalendarDays className="h-3.5 w-3.5 inline-block mr-1" />
-                          {formatarRangeDatas(evento.dataInicio, evento.dataFim)}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-2 text-sm text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3.5 w-3.5" />
-                          <span>{evento.location || "Sem local definido"}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {!eventoHoje(evento) && (
-                          <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
-                            Pendente de tratativa
-                          </div>
-                        )}
-                        {eventoHoje(evento) && eventoPassado(evento) && !temTratativa(evento) && (
-                          <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
-                            Evento finalizado sem tratativa
-                          </div>
-                        )}
-                        {temTratativa(evento) && (
-                          <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded inline-block">
-                            <MessageSquare className="h-3 w-3 inline mr-1" />
-                            Com tratativa
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CalendarDays className="h-12 w-12 text-indigo-300 mx-auto mb-3" />
-                  <p className="text-gray-500">Não há eventos agendados para hoje</p>
                   <Button 
-                    variant="outline" 
-                    className="mt-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    variant="ghost" 
+                    className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
                     onClick={() => navegarPara('/agenda')}
                   >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    Adicionar Evento
+                    Ver Completa <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      
-        {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
-        <div className="space-y-6">
-          {/* Ações Diárias */}
-          <CardsAcaoDiariaContas />
-          
-          {/* Links para Estratégias Comerciais */}
-          <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white">
-            <CardHeader>
-              <CardTitle className="text-lg text-blue-800">Estratégias Comerciais</CardTitle>
-              <CardDescription>Acesse os produtos prioritários para atendimento</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-3">
-                <Button 
-                  variant="outline"
-                  className="border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 justify-start"
-                  onClick={() => navegarPara('/estrategia/abertura-conta')}
-                >
-                  <Users className="mr-2 h-4 w-4" />
-                  Abertura de Contas
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="border-2 border-green-200 bg-green-50 hover:bg-green-100 justify-start"
-                  onClick={() => navegarPara('/estrategia/credito')}
-                >
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Crédito
-                </Button>
-                <Button 
-                  variant="outline"
-                  className="border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 justify-start"
-                  onClick={() => navegarPara('/estrategia/seguro')}
-                >
-                  <Shield className="mr-2 h-4 w-4" />
-                  Seguros
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {loadingEvents ? (
+                  <div className="flex justify-center py-8">
+                    <div className="flex flex-col items-center gap-2">
+                      <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+                      <p className="text-sm text-indigo-600">Carregando eventos...</p>
+                    </div>
+                  </div>
+                ) : eventosHoje.length > 0 ? (
+                  <div className="space-y-3">
+                    {eventosParaMostrar(eventosHoje).map((evento) => (
+                      <div 
+                        key={evento.id} 
+                        className={`p-3 rounded-md border-l-4 ${
+                          !eventoHoje(evento) ? 'border-l-red-500 bg-red-50' :
+                          eventoPassado(evento) && !temTratativa(evento) ? 'border-l-red-500 bg-red-50' : 
+                          eventoPassado(evento) && temTratativa(evento) ? 'border-l-green-500 bg-green-50' : 
+                          'border-l-indigo-500 bg-indigo-50'
+                        } cursor-pointer hover:shadow-sm transition-shadow`}
+                        onClick={() => navegarParaEvento(evento.id)}
+                      >
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
+                          <div className="font-medium">{evento.titulo}</div>
+                          <div className="text-sm font-medium text-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-md whitespace-nowrap">
+                            <CalendarDays className="h-3.5 w-3.5 inline-block mr-1" />
+                            {formatarRangeDatas(evento.dataInicio, evento.dataFim)}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-1">
+                            <MapPin className="h-3.5 w-3.5" />
+                            <span>{evento.location || "Sem local definido"}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {!eventoHoje(evento) && (
+                            <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
+                              Pendente de tratativa
+                            </div>
+                          )}
+                          {eventoHoje(evento) && eventoPassado(evento) && !temTratativa(evento) && (
+                            <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
+                              Evento finalizado sem tratativa
+                            </div>
+                          )}
+                          {temTratativa(evento) && (
+                            <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded inline-block">
+                              <MessageSquare className="h-3 w-3 inline mr-1" />
+                              Com tratativa
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <CalendarDays className="h-12 w-12 text-indigo-300 mx-auto mb-3" />
+                    <p className="text-gray-500">Não há eventos agendados para hoje</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                      onClick={() => navegarPara('/agenda')}
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      Adicionar Evento
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        
+          {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
+          <div className="space-y-6">
+            {/* Ações Diárias */}
+            <CardsAcaoDiariaContas />
+            
+            {/* Links para Estratégias Comerciais */}
+            <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white">
+              <CardHeader>
+                <CardTitle className="text-lg text-blue-800">Estratégias Comerciais</CardTitle>
+                <CardDescription>Acesse os produtos prioritários para atendimento</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 gap-3">
+                  <Button 
+                    variant="outline"
+                    className="border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 justify-start"
+                    onClick={() => navegarPara('/estrategia/abertura-conta')}
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    Abertura de Contas
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="border-2 border-green-200 bg-green-50 hover:bg-green-100 justify-start"
+                    onClick={() => navegarPara('/estrategia/credito')}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Crédito
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    className="border-2 border-purple-200 bg-purple-50 hover:bg-purple-100 justify-start"
+                    onClick={() => navegarPara('/estrategia/seguro')}
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    Seguros
+                  </Button>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

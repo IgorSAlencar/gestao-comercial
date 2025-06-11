@@ -397,6 +397,138 @@ export const eventApi = {
     }
   },
 
+  // Novo método para buscar eventos de toda a equipe para gerentes/coordenadores
+  getTeamEvents: async (startDate?: string, endDate?: string): Promise<Event[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    let url = `${API_URL}/events/team`;
+    const params = new URLSearchParams();
+    
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    console.debug(`[EventsAPI] Carregando eventos da equipe (${startDate} até ${endDate})...`);
+    
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      // Verificar se o endpoint principal funciona
+      try {
+        console.debug(`[EventsAPI] Tentando endpoint team: ${url}`);
+        const response = await fetch(url, options);
+        if (response.ok) {
+          const data = await response.json();
+          console.debug(`[EventsAPI] ${data.length} eventos da equipe carregados com sucesso da API`);
+          return data;
+        } else {
+          console.warn(`[EventsAPI] Endpoint de equipe retornou erro ${response.status}, usando fallback`);
+          throw new Error(`API retornou status ${response.status}`);
+        }
+      } catch (endpointError) {
+        console.warn("[EventsAPI] Erro ao tentar usar endpoint de equipe, usando fallback:", endpointError);
+        // Continua para o método fallback
+      }
+      
+      // FALLBACK: Se o endpoint não existir ou falhar, usamos a API de subordinados + eventos individuais
+      console.debug("[EventsAPI] Iniciando método fallback para buscar eventos da equipe");
+      
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (!user.id) {
+        console.error("[EventsAPI] Usuário não encontrado no localStorage para fallback");
+        return [];
+      }
+      
+      // Buscar subordinados do usuário
+      let supervisors: User[] = [];
+      try {
+        const userApi = await import("@/services/api").then(m => m.userApi);
+        const allSubordinates = await userApi.getSubordinates(user.id);
+        supervisors = allSubordinates.filter(u => u.role === "supervisor");
+        console.debug(`[EventsAPI-Fallback] Encontrados ${supervisors.length} supervisores para buscar eventos`);
+      } catch (subordinatesError) {
+        console.error("[EventsAPI-Fallback] Erro ao buscar subordinados:", subordinatesError);
+        return [];
+      }
+      
+      if (supervisors.length === 0) {
+        console.warn("[EventsAPI-Fallback] Nenhum supervisor encontrado, retornando lista vazia");
+        return [];
+      }
+      
+      // Buscar eventos para cada supervisor
+      console.debug(`[EventsAPI-Fallback] Buscando eventos para ${supervisors.length} supervisores`);
+      
+      const allPromises = supervisors.map(async (supervisor) => {
+        try {
+          // Construir URL com parâmetros de data se fornecidos
+          let supervisorUrl = `${API_URL}/events?supervisorId=${supervisor.id}`;
+          if (startDate) supervisorUrl += `&startDate=${startDate}`;
+          if (endDate) supervisorUrl += `&endDate=${endDate}`;
+          
+          const response = await fetch(supervisorUrl, options);
+          if (!response.ok) {
+            console.warn(`[EventsAPI-Fallback] Erro ao buscar eventos para supervisor ${supervisor.id}: ${response.status}`);
+            return [];
+          }
+          
+          const events = await response.json();
+          return events.map((event: Event) => ({
+            ...event,
+            supervisorId: supervisor.id,
+            supervisorName: supervisor.name
+          }));
+        } catch (error) {
+          console.error(`[EventsAPI-Fallback] Erro ao buscar eventos para supervisor ${supervisor.id}:`, error);
+          return [];
+        }
+      });
+      
+      try {
+        const results = await Promise.all(allPromises);
+        const allEvents = results.flat();
+        
+        // Filtrar por data se necessário
+        let filteredEvents = allEvents;
+        if (startDate || endDate) {
+          filteredEvents = allEvents.filter(event => {
+            const eventDate = new Date(event.dataInicio);
+            let matches = true;
+            
+            if (startDate) {
+              const start = new Date(startDate);
+              matches = matches && eventDate >= start;
+            }
+            
+            if (endDate) {
+              const end = new Date(endDate);
+              matches = matches && eventDate <= end;
+            }
+            
+            return matches;
+          });
+        }
+        
+        console.debug(`[EventsAPI-Fallback] ${filteredEvents.length} eventos da equipe carregados (fallback)`);
+        return filteredEvents;
+      } catch (promiseError) {
+        console.error("[EventsAPI-Fallback] Erro ao processar resultados de eventos:", promiseError);
+        return [];
+      }
+    } catch (error) {
+      console.error("Falha ao buscar eventos da equipe:", error);
+      return [];
+    }
+  },
+
   getEvent: async (eventId: string): Promise<Event> => {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Usuário não autenticado");
@@ -486,7 +618,7 @@ export const eventApi = {
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
-      method: "PATCH",
+      method: "PUT",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -494,7 +626,21 @@ export const eventApi = {
       body: JSON.stringify({ tratativa }),
     };
     
-    return await fetchWithErrorHandling(`${API_URL}/events/${eventId}/feedback`, options);
+    try {
+      console.log(`Chamando endpoint: ${API_URL}/events/${eventId}/feedback - Método: PUT`);
+      const response = await fetch(`${API_URL}/events/${eventId}/feedback`, options);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `Erro HTTP: ${response.status}` }));
+        console.error('Erro na resposta:', response.status, errorData);
+        throw new Error(errorData.message || `Erro ao atualizar feedback: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao atualizar feedback:', error);
+      throw error;
+    }
   },
 
   deleteEvent: async (eventId: string): Promise<void> => {

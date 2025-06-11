@@ -11,12 +11,16 @@ import {
   CheckCircle2,
   MapPin,
   ChevronRight,
-  Loader2
+  Loader2,
+  RefreshCw
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { eventApi, Event, User } from "@/services/api";
-import { format, isToday, isPast, isFuture, addDays, isThisWeek, isThisMonth } from "date-fns";
+import { eventApi, Event, userApi, User } from "@/services/api";
+import { format, isToday, isPast, isFuture, addDays, isThisWeek, isThisMonth, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import AgendaStats from "./AgendaStats";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SupervisorAgenda {
   id: string;
@@ -31,11 +35,57 @@ interface SupervisorAgenda {
 
 const DashboardGerencial: React.FC = () => {
   const navigate = useNavigate();
-  const { user, subordinates, isManager, isCoordinator } = useAuth();
+  const { user, isManager, isCoordinator, isAdmin } = useAuth();
   
-  const [loading, setLoading] = useState(true);
-  const [eventos, setEventos] = useState<Event[]>([]);
-  const [supervisores, setSupervisores] = useState<SupervisorAgenda[]>([]);
+  // Buscar supervisores para as estatísticas
+  const { data: supervisors = [], isLoading: isLoadingSupervisors } = useQuery({
+    queryKey: ['supervisors-dashboard', user?.id],
+    queryFn: async () => {
+      if (isManager || isCoordinator || isAdmin) {
+        try {
+          if (isAdmin) {
+            return await userApi.getUsersByRole("supervisor");
+          } else {
+            const allSubordinates = await userApi.getSubordinates(user?.id || '');
+            return allSubordinates.filter(user => user.role === "supervisor");
+          }
+        } catch (error) {
+          console.error("Erro ao buscar supervisores:", error);
+          return [];
+        }
+      }
+      return [];
+    },
+    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
+  });
+
+  // Buscar eventos para o cálculo das estatísticas
+  const { data: events = [], isLoading: isLoadingEvents, isError: isErrorEvents } = useQuery({
+    queryKey: ['events-dashboard', user?.id],
+    queryFn: async () => {
+      try {
+        // Buscar eventos de um período amplo (últimos 30 dias + próximos 30 dias)
+        const startDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
+        const endDate = format(addDays(new Date(), 30), 'yyyy-MM-dd');
+        
+        console.log(`Buscando eventos da equipe de ${startDate} até ${endDate}`);
+        
+        // Buscar eventos de toda a equipe
+        const events = await eventApi.getTeamEvents(startDate, endDate);
+        
+        console.log(`Recebidos ${events.length} eventos da equipe`);
+        return events;
+      } catch (error) {
+        console.error("Erro ao buscar eventos para o dashboard:", error);
+        return [];
+      }
+    },
+    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
+    retry: 1, // Limitar a uma nova tentativa se falhar
+  });
+
+  // Estado para armazenar os dados processados
+  const [supervisoresAgenda, setSupervisoresAgenda] = useState<SupervisorAgenda[]>([]);
   const [estatisticas, setEstatisticas] = useState({
     totalAgendamentos: 0,
     agendamentosHoje: 0,
@@ -43,148 +93,128 @@ const DashboardGerencial: React.FC = () => {
     supervisoresSemAgendamento: 0,
     supervisoresComAgendamentoHoje: 0
   });
-  
+
+  // Processar os dados quando estiverem disponíveis
   useEffect(() => {
-    const carregarEventos = async () => {
-      try {
-        setLoading(true);
+    if (supervisors.length > 0) {
+      processarDados(supervisors, events);
+    }
+  }, [supervisors, events]);
+
+  // Função para processar os dados dos supervisores e eventos
+  const processarDados = (supervisores: User[], eventos: Event[]) => {
+    try {
+      console.log(`Processando dados: ${supervisores.length} supervisores, ${eventos.length} eventos`);
+      
+      // Criar um mapa de supervisores para facilitar a busca
+      const supervisorMap = new Map<string, User>();
+      supervisores.forEach(supervisor => {
+        supervisorMap.set(supervisor.id, supervisor);
+      });
+
+      // Agrupar eventos por supervisor
+      const eventosPorSupervisor = new Map<string, Event[]>();
+      
+      // Inicializar o mapa com arrays vazios para todos os supervisores
+      supervisores.forEach(supervisor => {
+        eventosPorSupervisor.set(supervisor.id, []);
+      });
+      
+      // Adicionar eventos aos supervisores correspondentes
+      eventos.forEach(evento => {
+        if (evento.supervisorId && supervisorMap.has(evento.supervisorId)) {
+          const eventosDoSupervisor = eventosPorSupervisor.get(evento.supervisorId) || [];
+          eventosPorSupervisor.set(evento.supervisorId, [...eventosDoSupervisor, evento]);
+        }
+      });
+      
+      // Processar dados para cada supervisor
+      const supervisoresComAgenda: SupervisorAgenda[] = [];
+      
+      supervisores.forEach(supervisor => {
+        const eventosDoSupervisor = eventosPorSupervisor.get(supervisor.id) || [];
         
-        // Em um sistema real, você buscaria os eventos de toda a equipe
-        // Para fins de simulação, vamos criar dados fictícios baseados nos subordinados
+        // Contar eventos por período
+        const eventosHoje = eventosDoSupervisor.filter(e => isToday(new Date(e.dataInicio)));
+        const eventosSemana = eventosDoSupervisor.filter(e => isThisWeek(new Date(e.dataInicio)));
+        const eventosMes = eventosDoSupervisor.filter(e => isThisMonth(new Date(e.dataInicio)));
         
-        // Simulação: buscar eventos da equipe para os próximos 30 dias
-        const hoje = new Date();
-        const emTrintaDias = addDays(hoje, 30);
-        const dataInicio = format(hoje, 'yyyy-MM-dd');
-        const dataFim = format(emTrintaDias, 'yyyy-MM-dd');
+        // Encontrar a próxima visita (apenas eventos futuros)
+        const eventosFuturos = eventosDoSupervisor
+          .filter(e => isFuture(new Date(e.dataInicio)))
+          .sort((a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime());
         
-        // Em produção: const eventosEquipe = await eventApi.getTeamEvents(dataInicio, dataFim);
-        // Simulando eventos para cada subordinado
-        const eventosSimulados: Event[] = [];
-        const supervisoresAgenda: SupervisorAgenda[] = [];
+        const proximaVisita = eventosFuturos.length > 0 ? eventosFuturos[0] : null;
         
-        // Usar os subordinados reais se disponíveis, ou simular alguns
-        const membrosEquipe = subordinates.length > 0 ? subordinates : [
-          { id: "1", name: "Carlos Silva", role: "supervisor" },
-          { id: "2", name: "Ana Oliveira", role: "supervisor" },
-          { id: "3", name: "Roberto Martins", role: "supervisor" },
-          { id: "4", name: "Juliana Costa", role: "supervisor" },
-          { id: "5", name: "Pedro Santos", role: "supervisor" }
-        ];
-        
-        // Criar eventos simulados para cada supervisor
-        membrosEquipe.forEach(supervisor => {
-          // Alguns supervisores terão eventos, outros não
-          const temEventos = Math.random() > 0.2; // 80% de chance de ter eventos
-          
-          let eventosDoSupervisor: Event[] = [];
-          
-          if (temEventos) {
-            // Criar entre 0 e 6 eventos para cada supervisor
-            const numEventos = Math.floor(Math.random() * 7);
-            
-            for (let i = 0; i < numEventos; i++) {
-              // Distribuir eventos ao longo dos próximos 14 dias
-              const diasAFrente = Math.floor(Math.random() * 14);
-              const horaInicio = 8 + Math.floor(Math.random() * 8); // Entre 8h e 16h
-              
-              const dataInicio = new Date();
-              dataInicio.setDate(dataInicio.getDate() + diasAFrente);
-              dataInicio.setHours(horaInicio, 0, 0, 0);
-              
-              const dataFim = new Date(dataInicio);
-              dataFim.setHours(dataInicio.getHours() + 1 + Math.floor(Math.random() * 2));
-              
-              const evento: Event = {
-                id: `evento-${supervisor.id}-${i}`,
-                titulo: `Visita ${i + 1} - ${["Agência", "Correspondente", "Cliente PJ", "Posto"][Math.floor(Math.random() * 4)]}`,
-                descricao: `Visita comercial agendada por ${supervisor.name}`,
-                dataInicio: dataInicio.toISOString(),
-                dataFim: dataFim.toISOString(),
-                location: `${["Centro", "Zona Sul", "Zona Norte", "Zona Leste", "Zona Oeste"][Math.floor(Math.random() * 5)]}`,
-                supervisorId: supervisor.id,
-                supervisorName: supervisor.name,
-                tratativa: isPast(dataFim) ? (Math.random() > 0.5 ? "Visita concluída com sucesso" : "") : "",
-                tipo: "visita"
-              };
-              
-              eventosDoSupervisor.push(evento);
-              eventosSimulados.push(evento);
-            }
-          }
-          
-          // Contar eventos por período
-          const eventosHoje = eventosDoSupervisor.filter(e => isToday(new Date(e.dataInicio)));
-          const eventosSemana = eventosDoSupervisor.filter(e => isThisWeek(new Date(e.dataInicio)));
-          const eventosMes = eventosDoSupervisor.filter(e => isThisMonth(new Date(e.dataInicio)));
-          
-          // Encontrar a próxima visita
-          const eventosFuturos = eventosDoSupervisor
-            .filter(e => isFuture(new Date(e.dataInicio)))
-            .sort((a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime());
-          
-          const proximaVisita = eventosFuturos.length > 0 ? eventosFuturos[0] : null;
-          
-          // Adicionar à lista de supervisores com suas agendas
-          supervisoresAgenda.push({
-            id: supervisor.id,
-            nome: supervisor.name,
-            cargo: supervisor.role || "supervisor",
-            totalAgendamentos: eventosDoSupervisor.length,
-            agendamentosHoje: eventosHoje.length,
-            agendamentosSemana: eventosSemana.length,
-            agendamentosMes: eventosMes.length,
-            proximaVisita
-          });
+        // Adicionar à lista de supervisores com suas agendas
+        supervisoresComAgenda.push({
+          id: supervisor.id,
+          nome: supervisor.name,
+          cargo: supervisor.role || "supervisor",
+          totalAgendamentos: eventosDoSupervisor.length,
+          agendamentosHoje: eventosHoje.length,
+          agendamentosSemana: eventosSemana.length,
+          agendamentosMes: eventosMes.length,
+          proximaVisita
         });
-        
-        // Ordenar supervisores: primeiro os que não têm agendamento, depois por quantidade (crescente)
-        supervisoresAgenda.sort((a, b) => {
-          if (a.totalAgendamentos === 0 && b.totalAgendamentos === 0) return 0;
-          if (a.totalAgendamentos === 0) return -1;
-          if (b.totalAgendamentos === 0) return 1;
-          return a.totalAgendamentos - b.totalAgendamentos;
-        });
-        
-        // Calcular estatísticas
-        const totalAgendamentos = eventosSimulados.length;
-        const agendamentosHoje = eventosSimulados.filter(e => isToday(new Date(e.dataInicio))).length;
-        const agendamentosSemana = eventosSimulados.filter(e => isThisWeek(new Date(e.dataInicio))).length;
-        const supervisoresSemAgendamento = supervisoresAgenda.filter(s => s.totalAgendamentos === 0).length;
-        const supervisoresComAgendamentoHoje = supervisoresAgenda.filter(s => s.agendamentosHoje > 0).length;
-        
-        setEventos(eventosSimulados);
-        setSupervisores(supervisoresAgenda);
-        setEstatisticas({
-          totalAgendamentos,
-          agendamentosHoje,
-          agendamentosSemana,
-          supervisoresSemAgendamento,
-          supervisoresComAgendamentoHoje
-        });
-      } catch (error) {
-        console.error("Erro ao carregar eventos da equipe:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    carregarEventos();
-  }, [subordinates]);
+      });
+      
+      // Ordenar supervisores: primeiro os que não têm agendamento, depois por quantidade (crescente)
+      supervisoresComAgenda.sort((a, b) => {
+        if (a.totalAgendamentos === 0 && b.totalAgendamentos === 0) return 0;
+        if (a.totalAgendamentos === 0) return -1;
+        if (b.totalAgendamentos === 0) return 1;
+        return a.totalAgendamentos - b.totalAgendamentos;
+      });
+      
+      // Calcular estatísticas
+      const totalAgendamentos = eventos.length;
+      const agendamentosHoje = eventos.filter(e => isToday(new Date(e.dataInicio))).length;
+      const agendamentosSemana = eventos.filter(e => isThisWeek(new Date(e.dataInicio))).length;
+      const supervisoresSemAgendamento = supervisoresComAgenda.filter(s => s.totalAgendamentos === 0).length;
+      const supervisoresComAgendamentoHoje = supervisoresComAgenda.filter(s => s.agendamentosHoje > 0).length;
+      
+      console.log(`Estatísticas calculadas: Total=${totalAgendamentos}, Hoje=${agendamentosHoje}, Semana=${agendamentosSemana}`);
+      
+      setSupervisoresAgenda(supervisoresComAgenda);
+      setEstatisticas({
+        totalAgendamentos,
+        agendamentosHoje,
+        agendamentosSemana,
+        supervisoresSemAgendamento,
+        supervisoresComAgendamentoHoje
+      });
+    } catch (error) {
+      console.error("Erro ao processar dados:", error);
+      // Em caso de erro, definir valores padrão
+      setSupervisoresAgenda([]);
+      setEstatisticas({
+        totalAgendamentos: 0,
+        agendamentosHoje: 0,
+        agendamentosSemana: 0,
+        supervisoresSemAgendamento: 0,
+        supervisoresComAgendamentoHoje: 0
+      });
+    }
+  };
   
   const navegarPara = (caminho: string) => {
     navigate(caminho);
   };
   
-  const formatarData = (dataISO: string) => {
+  const formatarData = (dataISO: string | Date) => {
+    if (!dataISO) return "Data indisponível";
     return format(new Date(dataISO), "dd/MM/yyyy", {locale: ptBR});
   };
   
-  const formatarHora = (dataISO: string) => {
+  const formatarHora = (dataISO: string | Date) => {
+    if (!dataISO) return "--:--";
     return format(new Date(dataISO), "HH:mm", {locale: ptBR});
   };
   
-  const formatarPeriodo = (dataInicioISO: string, dataFimISO: string) => {
+  const formatarPeriodo = (dataInicioISO: string | Date, dataFimISO: string | Date) => {
+    if (!dataInicioISO || !dataFimISO) return "Período indisponível";
+    
     const inicio = new Date(dataInicioISO);
     const fim = new Date(dataFimISO);
     
@@ -195,7 +225,9 @@ const DashboardGerencial: React.FC = () => {
     return `${dataFormatada} ${horaInicio}-${horaFim}`;
   };
   
-  if (loading) {
+  const isLoading = isLoadingSupervisors || isLoadingEvents;
+  
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center py-12">
         <div className="flex flex-col items-center gap-2">
@@ -208,222 +240,139 @@ const DashboardGerencial: React.FC = () => {
   
   return (
     <div className="space-y-6">
-      {/* Resumo geral das agendas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white border-blue-200 shadow hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Total de Agendamentos</p>
-                <h3 className="text-2xl font-bold text-gray-800">{estatisticas.totalAgendamentos}</h3>
-                <p className="text-xs text-gray-500 mt-1">Nos próximos 30 dias</p>
-              </div>
-              <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-white border-blue-200 shadow hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Agendamentos Hoje</p>
-                <h3 className="text-2xl font-bold text-gray-800">{estatisticas.agendamentosHoje}</h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {estatisticas.supervisoresComAgendamentoHoje} supervisores com agenda hoje
-                </p>
-              </div>
-              <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-white border-blue-200 shadow hover:shadow-md transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Semana Atual</p>
-                <h3 className="text-2xl font-bold text-gray-800">{estatisticas.agendamentosSemana}</h3>
-                <p className="text-xs text-gray-500 mt-1">Agendamentos esta semana</p>
-              </div>
-              <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-indigo-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className={`bg-white border-2 ${estatisticas.supervisoresSemAgendamento > 0 ? 'border-red-200' : 'border-green-200'} shadow hover:shadow-md transition-shadow`}>
-          <CardContent className="p-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Supervisores sem Agenda</p>
-                <h3 className={`text-2xl font-bold ${estatisticas.supervisoresSemAgendamento > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {estatisticas.supervisoresSemAgendamento}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {estatisticas.supervisoresSemAgendamento > 0 
-                    ? "Precisam agendar visitas" 
-                    : "Todos têm agendamentos"}
-                </p>
-              </div>
-              <div className={`h-10 w-10 ${estatisticas.supervisoresSemAgendamento > 0 ? 'bg-red-100' : 'bg-green-100'} rounded-full flex items-center justify-center`}>
-                {estatisticas.supervisoresSemAgendamento > 0 
-                  ? <AlertCircle className="h-5 w-5 text-red-600" /> 
-                  : <CheckCircle2 className="h-5 w-5 text-green-600" />}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Novo componente de estatísticas da agenda */}
+      <AgendaStats />
       
-      {/* Agenda da Equipe */}
-      <Card className="border-2 border-blue-200 bg-white shadow hover:shadow-md transition-shadow">
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="text-lg text-blue-800">Agenda da Equipe</CardTitle>
-              <CardDescription>Status de agendamento de visitas por supervisor</CardDescription>
+      {/* Resumo de Supervisores */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Supervisores</h2>
+        
+        {isErrorEvents ? (
+          <div className="p-6 border-2 border-red-100 bg-red-50 rounded-lg">
+            <div className="flex items-center text-red-600 mb-2">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <h3 className="font-medium">Erro ao carregar dados de supervisores</h3>
             </div>
+            <p className="text-sm text-gray-600">
+              Não foi possível carregar os dados de agendamentos dos supervisores. Verifique sua conexão com a internet ou tente novamente mais tarde.
+            </p>
             <Button 
-              variant="ghost" 
-              className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-              onClick={() => navegarPara('/agenda')}
+              className="mt-4" 
+              variant="outline"
+              onClick={() => window.location.reload()}
             >
-              Ver Agenda Completa <ChevronRight className="ml-1 h-4 w-4" />
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Tentar novamente
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {supervisores.map(supervisor => (
-              <div 
-                key={supervisor.id} 
-                className={`p-4 rounded-lg border-l-4 ${
-                  supervisor.totalAgendamentos === 0 
-                    ? 'border-l-red-500 bg-red-50' 
-                    : supervisor.agendamentosHoje > 0
-                      ? 'border-l-green-500 bg-green-50'
-                      : 'border-l-blue-500 bg-blue-50'
-                } hover:shadow-sm transition-shadow`}
-              >
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
-                  <div>
-                    <div className="font-medium">{supervisor.nome}</div>
-                    <p className="text-sm text-gray-600">{supervisor.cargo}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <div className="px-3 py-1 bg-white shadow-sm rounded-md text-sm">
-                      <span className="font-medium">{supervisor.totalAgendamentos}</span> total
-                    </div>
-                    <div className="px-3 py-1 bg-white shadow-sm rounded-md text-sm">
-                      <span className="font-medium">{supervisor.agendamentosHoje}</span> hoje
-                    </div>
-                    <div className="px-3 py-1 bg-white shadow-sm rounded-md text-sm">
-                      <span className="font-medium">{supervisor.agendamentosSemana}</span> esta semana
-                    </div>
-                  </div>
-                </div>
-                
-                {supervisor.totalAgendamentos === 0 ? (
-                  <div className="mt-3 flex items-center text-red-600 text-sm">
-                    <AlertCircle className="h-4 w-4 mr-1" />
-                    Sem agendamentos nos próximos 30 dias
-                  </div>
-                ) : supervisor.proximaVisita ? (
-                  <div className="mt-3">
-                    <p className="text-sm text-gray-600 font-medium">Próxima visita:</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {formatarPeriodo(supervisor.proximaVisita.dataInicio, supervisor.proximaVisita.dataFim)}
-                      </span>
-                      <span className="text-sm flex items-center">
-                        <MapPin className="h-3.5 w-3.5 mr-1 text-gray-500" />
-                        {supervisor.proximaVisita.location || "Local não definido"}
-                      </span>
-                      <span className="text-sm font-medium">{supervisor.proximaVisita.titulo}</span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          
-          {supervisores.length === 0 && (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Nenhum supervisor encontrado na equipe</p>
+        ) : supervisoresAgenda.length === 0 ? (
+          <div className="p-6 border-2 border-amber-100 bg-amber-50 rounded-lg">
+            <div className="flex items-center text-amber-600 mb-2">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <h3 className="font-medium">Nenhum supervisor encontrado</h3>
             </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      {/* Próximos Agendamentos */}
-      <Card className="border-2 border-indigo-200 bg-white shadow hover:shadow-md transition-shadow">
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="text-lg text-indigo-800">Próximas Visitas</CardTitle>
-              <CardDescription>Visitas agendadas para os próximos dias</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {eventos.filter(e => isFuture(new Date(e.dataInicio))).length > 0 ? (
-            <div className="space-y-3">
-              {eventos
-                .filter(e => isFuture(new Date(e.dataInicio)))
-                .sort((a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime())
-                .slice(0, 5) // Mostrar apenas os próximos 5 eventos
-                .map(evento => (
-                  <div 
-                    key={evento.id} 
-                    className="p-3 rounded-md border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 transition-colors cursor-pointer"
-                    onClick={() => navegarPara(`/agenda?evento=${evento.id}`)}
-                  >
-                    <div className="flex justify-between">
-                      <div className="font-medium">{evento.titulo}</div>
-                      <div className="text-sm text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                        {formatarData(evento.dataInicio)}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
-                      <div className="flex items-center">
-                        <CalendarDays className="h-3.5 w-3.5 mr-1" />
-                        {formatarHora(evento.dataInicio)} - {formatarHora(evento.dataFim)}
-                      </div>
-                      <div className="flex items-center">
-                        <MapPin className="h-3.5 w-3.5 mr-1" />
-                        {evento.location || "Local não definido"}
-                      </div>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Responsável: {evento.supervisorName}
-                    </div>
-                  </div>
-                ))
-              }
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-indigo-300 mx-auto mb-3" />
-              <p className="text-gray-500">Não há visitas agendadas para os próximos dias</p>
+            <p className="text-sm text-gray-600">
+              Não foram encontrados supervisores em sua equipe ou não há dados de agendamentos disponíveis.
+            </p>
+            <div className="mt-4 flex gap-2">
               <Button 
-                variant="outline" 
-                className="mt-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                variant="outline"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Atualizar dados
+              </Button>
+              <Button 
+                variant="default"
                 onClick={() => navegarPara('/agenda')}
               >
-                <Calendar className="mr-2 h-4 w-4" />
-                Adicionar Evento
+                <Calendar className="h-4 w-4 mr-2" />
+                Ir para agenda
               </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {supervisoresAgenda.map(supervisor => (
+              <Card 
+                key={supervisor.id} 
+                className={`bg-white hover:shadow-md transition-shadow ${
+                  supervisor.totalAgendamentos === 0 ? 'border-red-200' : 'border-gray-200'
+                }`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                      supervisor.totalAgendamentos === 0 
+                        ? 'bg-red-100 text-red-600' 
+                        : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{supervisor.nome}</h3>
+                      <p className="text-xs text-gray-500 capitalize">{supervisor.cargo}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <div className="text-center p-2 bg-gray-50 rounded-md">
+                        <p className="text-xs text-gray-500">Total</p>
+                        <p className="font-bold text-gray-800">{supervisor.totalAgendamentos}</p>
+                      </div>
+                      <div className="text-center p-2 bg-green-50 rounded-md">
+                        <p className="text-xs text-gray-500">Hoje</p>
+                        <p className="font-bold text-green-700">{supervisor.agendamentosHoje}</p>
+                      </div>
+                      <div className="text-center p-2 bg-blue-50 rounded-md">
+                        <p className="text-xs text-gray-500">Semana</p>
+                        <p className="font-bold text-blue-700">{supervisor.agendamentosSemana}</p>
+                      </div>
+                    </div>
+                    
+                    {supervisor.proximaVisita ? (
+                      <div className="border rounded-md p-3 bg-gray-50">
+                        <p className="text-xs font-medium text-gray-500 mb-1">Próxima Visita:</p>
+                        <p className="text-sm font-medium truncate">{supervisor.proximaVisita.titulo}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-500">
+                            <CalendarDays className="h-3 w-3 inline-block mr-1" />
+                            {formatarPeriodo(
+                              supervisor.proximaVisita.dataInicio,
+                              supervisor.proximaVisita.dataFim
+                            )}
+                          </span>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => navegarPara(`/agenda?evento=${supervisor.proximaVisita!.id}`)}
+                          >
+                            Ver
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border border-dashed rounded-md p-3 bg-gray-50 text-center">
+                        <p className="text-sm text-gray-500">Sem visitas agendadas</p>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="mt-1 h-7 px-2 text-xs text-blue-600"
+                          onClick={() => navegarPara(`/agenda?supervisor=${supervisor.id}`)}
+                        >
+                          Agendar Visita
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

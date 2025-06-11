@@ -1,75 +1,141 @@
-# Gestão Comercial
+# Bradesco Express Gestão PRO
 
-## Sobre o Projeto
+Sistema de gestão comercial para supervisores, coordenadores e gerentes do Bradesco Express.
 
-O Gestão Comercial é uma aplicação completa para gestão de atividades comerciais, focada em oportunidades de negócios como abertura de contas, crédito e seguros. O sistema permite o gerenciamento eficiente de correspondentes bancários, com controle hierárquico e monitoramento de indicadores.
+## 📋 Descrição
 
-## Tecnologias Utilizadas
+O Bradesco Express Gestão PRO é uma aplicação web desenvolvida para otimizar a gestão da força comercial do Bradesco Express. O sistema permite o gerenciamento de agendamentos, controle de visitas, acompanhamento de ações diárias e visualização de estatísticas em tempo real.
 
-- **Frontend**: React, TypeScript, Tailwind CSS
-- **Backend**: Node.js, Express
-- **Banco de Dados**: SQL Server
-- **Autenticação**: JWT (JSON Web Token)
+## 🚀 Funcionalidades
 
-## Principais Funcionalidades
+- **Dashboard Personalizado**: Visualização de métricas e informações relevantes baseadas no perfil do usuário
+- **Gestão de Agenda**: Criação e acompanhamento de visitas e compromissos comerciais
+- **Ações Diárias**: Controle de tarefas diárias com priorização e acompanhamento
+- **Visão Gerencial**: Estatísticas e indicadores da equipe para gerentes e coordenadores
+- **Gestão de Supervisores**: Monitoramento de agendamentos e atividades dos supervisores
+- **Campanhas Comerciais**: Acompanhamento de campanhas ativas
 
-- **Dashboard interativo** com métricas e ações pendentes
-- **Gestão de Ações Diárias** para acompanhamento de correspondentes
-- **Estratégias Comerciais** para diferentes produtos (contas, crédito, seguros)
-- **Agenda Comercial** para organização de visitas e compromissos
-- **Controle Hierárquico** para gestores, coordenadores e supervisores
-- **Relatórios Gerenciais** para tomada de decisões
+## 💻 Tecnologias Utilizadas
 
-## Estrutura do Projeto
+- **Frontend**: React.js, TypeScript, TailwindCSS, Shadcn/UI
+- **Gerenciamento de Estado**: React Context API, TanStack Query
+- **Roteamento**: React Router
+- **Formatação de Data**: date-fns
+- **Ícones**: Lucide React
 
-📁 src/
-  📁 backend/         # API REST e conexão com banco de dados
-  📁 components/      # Componentes reutilizáveis de UI
-  📁 context/         # Contextos React e gerenciamento de estado
-  📁 hooks/           # Custom hooks
-  📁 pages/           # Páginas da aplicação
-  📁 services/        # Serviços para comunicação com API
-
-## Como Executar o Projeto
+## 🔧 Instalação e Configuração
 
 ### Pré-requisitos
-- Node.js 16+ e npm instalados
-- SQL Server configurado 
 
-### Passos para Instalação
+- Node.js (v16 ou superior)
+- npm ou yarn
 
-```bash
-# Clonar o repositório
-git clone https://github.com/seu-usuario/gestao-comercial.git
+### Instalação
 
-# Navegar para o diretório do projeto
-cd gestao-comercial
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/seu-usuario/bradesco-express-gestao-pro.git
+   cd bradesco-express-gestao-pro
+   ```
 
-# Instalar dependências
-npm install
+2. Instale as dependências:
+   ```bash
+   npm install
+   # ou
+   yarn install
+   ```
 
-# Iniciar o servidor de desenvolvimento
-npm run dev
+3. Crie o arquivo `.env` na raiz do projeto:
+   ```
+   VITE_API_URL=http://localhost:3001/api
+   ```
+
+4. Inicie o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   # ou
+   yarn dev
+   ```
+
+5. Acesse a aplicação em: `http://localhost:5173`
+
+## 📁 Estrutura do Projeto
+
+```
+src/
+├── components/         # Componentes reutilizáveis
+│   ├── ui/             # Componentes de UI básicos
+│   └── ...             # Componentes específicos da aplicação
+├── context/            # Contextos do React
+├── hooks/              # Hooks personalizados
+├── lib/                # Utilitários e funções de ajuda
+├── pages/              # Páginas da aplicação
+├── services/           # Serviços de API e integração
+├── types/              # Definições de tipos
+└── App.tsx             # Componente principal
 ```
 
-### Configuração do Banco de Dados
+## 📊 Dados e Estatísticas
 
-Para configurar a conexão com o SQL Server usando autenticação do Windows:
+### Fonte dos Dados
 
-1. Abra o arquivo `src/backend/config/db.js`
-2. Ajuste o servidor SQL conforme necessário
-3. A aplicação tentará usar autenticação Windows automaticamente
+A aplicação obtém dados de agendamentos e supervisores através dos seguintes serviços:
 
-## Estrutura de Dados
+- `eventApi.getTeamEvents()`: Busca eventos da equipe em um período específico
+- `userApi.getSubordinates()`: Busca os supervisores subordinados ao gerente/coordenador
+- `userApi.getUsersByRole()`: Busca usuários por papel (admin)
 
-O sistema trabalha com diversas entidades principais:
+### Estatísticas Calculadas
 
-- **Usuários**: Gerentes, coordenadores e supervisores organizados hierarquicamente
-- **Oportunidades**: Registros de contas a serem abertas ou migradas
-- **Ações Diárias**: Tarefas e acompanhamentos para a equipe comercial
-- **Eventos**: Agenda de visitas e compromissos
+O sistema calcula e exibe as seguintes estatísticas:
 
-## Equipe de Desenvolvimento
+- **Total de Agendamentos**: Todos os agendamentos registrados no período
+- **Agendamentos Hoje**: Agendamentos marcados para o dia atual
+- **Agendamentos Semana**: Agendamentos marcados para a semana atual
+- **Supervisores sem Agenda**: Supervisores que não possuem agendamentos futuros
+- **Próximas Visitas**: Próximos compromissos agendados ordenados por data
 
-Este projeto está sendo desenvolvido por:
-- Igor Alencar
+## 🔒 Autenticação e Segurança
+
+O sistema utiliza autenticação baseada em token JWT. Cada solicitação à API inclui o token no cabeçalho de autorização.
+
+## 👥 Perfis de Usuário
+
+- **Supervisor**: Acesso às suas agendas e ações diárias
+- **Coordenador**: Visualiza dados dos supervisores sob sua gestão
+- **Gerente**: Visualização completa da equipe e estatísticas gerais
+- **Administrador**: Acesso completo ao sistema
+
+## 🛠️ Manutenção e Depuração
+
+### Logs
+
+O sistema registra logs detalhados no console para ajudar na depuração:
+
+- Chamadas à API com status
+- Erros de comunicação
+- Processamento de dados
+
+### Tratamento de Erros
+
+A aplicação inclui tratamento abrangente de erros para:
+
+- Falhas de comunicação com a API
+- Dados ausentes ou inválidos
+- Problemas de autenticação
+
+## 📱 Responsividade
+
+O sistema é totalmente responsivo e funciona em:
+
+- Desktops
+- Tablets
+- Smartphones
+
+## 📄 Licença
+
+Este projeto é proprietário e seu uso é restrito aos funcionários e parceiros autorizados do Bradesco.
+
+## 📞 Suporte
+
+Para suporte técnico e dúvidas, entre em contato com a equipe de desenvolvimento pelo e-mail: [email@bradesco.com.br](mailto:email@bradesco.com.br)

@@ -380,27 +380,36 @@ const EventsTable = ({
           
           <div className="w-full sm:w-auto">
             <Popover open={dateFilterOpen} onOpenChange={setDateFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant="outline"
-                  className={cn(
-                    "w-full sm:w-[200px] justify-start text-left",
-                    dateRange && "text-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  <span className="truncate">{formatDateString()}</span>
-                  {dateRange && (
-                    <X 
-                      className="ml-auto h-4 w-4 opacity-50 hover:opacity-100" 
+              <div className="relative">
+                {dateRange && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
+                    <button
+                      type="button"
+                      className="h-6 w-6 flex items-center justify-center hover:text-red-500 cursor-pointer transition-colors"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setDateRange(undefined);
+                        setDateFilterOpen(false);
                       }}
-                    />
-                  )}
-                </Button>
-              </PopoverTrigger>
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    className={cn(
+                      "w-full sm:w-[280px] justify-start text-left group",
+                      dateRange && "text-foreground pr-8"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <span className="truncate max-w-[240px] inline-block">{formatDateString()}</span>
+                  </Button>
+                </PopoverTrigger>
+              </div>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="range"
@@ -414,7 +423,7 @@ const EventsTable = ({
                 <div className="p-3 border-t border-border flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     {dateRange?.from && !dateRange?.to && "Selecione a data final"}
-                    {dateRange?.from && dateRange?.to && `${format(dateRange.from, "dd/MM/yyyy")} - ${format(dateRange.to, "dd/MM/yyyy")}`}
+                    {dateRange?.from && dateRange?.to && `${format(dateRange.from, "dd/MM/yy")} - ${format(dateRange.to, "dd/MM/yy")}`}
                   </div>
                   <Button 
                     size="sm"

@@ -649,11 +649,17 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
   }
 });
 
-// Update event feedback/tratativa
+// Update event feedback/tratativa - rota PATCH
 router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
+  console.log('PATCH /events/:eventId/feedback - ROTA ACESSADA');
+  console.log('Parâmetros:', req.params);
+  console.log('Body:', req.body);
+  
   const { eventId } = req.params;
   const { id: userId } = req.user;
   const { tratativa } = req.body;
+  
+  console.log(`Atualizando feedback via PATCH para o evento ${eventId}, userId: ${userId}`);
   
   try {
     await poolConnect;
@@ -671,7 +677,10 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE e.id = @eventId
       `);
     
+    console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
+    
     if (permissionCheck.recordset.length === 0) {
+      console.log('Evento não encontrado!');
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
@@ -679,8 +688,11 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
     
     // Only owner or superior can update an event's feedback
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
+      console.log('Sem permissão para atualizar!');
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
+    
+    console.log('Permissão concedida, atualizando feedback');
     
     // Update just the feedback
     await pool.request()
@@ -695,12 +707,90 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE id = @eventId
       `);
     
+    console.log('Feedback atualizado com sucesso!');
     res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
     
   } catch (error) {
     console.error('Error updating event feedback:', error);
     res.status(500).json({ message: 'Erro ao atualizar tratativa' });
   }
+});
+
+// Update event feedback/tratativa - rota PUT para lidar com o método do cliente
+router.put('/:eventId/feedback', authenticateToken, async (req, res) => {
+  console.log('PUT /events/:eventId/feedback - ROTA ACESSADA');
+  console.log('Parâmetros:', req.params);
+  console.log('Body:', req.body);
+  
+  const { eventId } = req.params;
+  const { id: userId } = req.user;
+  const { tratativa } = req.body;
+  
+  console.log(`Atualizando feedback via PUT para o evento ${eventId}, userId: ${userId}`);
+  
+  try {
+    await poolConnect;
+    
+    // Check if user has permission to update this event
+    const permissionCheck = await pool.request()
+      .input('eventId', sql.UniqueIdentifier, eventId)
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query(`
+        SELECT 
+          CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
+          CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
+        FROM TESTE..EVENTOS e
+        LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
+        WHERE e.id = @eventId
+      `);
+    
+    console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
+    
+    if (permissionCheck.recordset.length === 0) {
+      console.log('Evento não encontrado!');
+      return res.status(404).json({ message: 'Evento não encontrado' });
+    }
+    
+    const eventPermission = permissionCheck.recordset[0];
+    
+    // Only owner or superior can update an event's feedback
+    if (!eventPermission.is_owner && !eventPermission.is_superior) {
+      console.log('Sem permissão para atualizar!');
+      return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
+    }
+    
+    console.log('Permissão concedida, atualizando feedback');
+    
+    // Update just the feedback
+    await pool.request()
+      .input('eventId', sql.UniqueIdentifier, eventId)
+      .input('feedback', sql.NVarChar, tratativa || '')
+      .input('updated_at', sql.DateTime, new Date())
+      .query(`
+        UPDATE TESTE..EVENTOS
+        SET 
+          feedback = @feedback,
+          updated_at = @updated_at
+        WHERE id = @eventId
+      `);
+    
+    console.log('Feedback atualizado com sucesso!');
+    res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
+    
+  } catch (error) {
+    console.error('Error updating event feedback:', error);
+    res.status(500).json({ message: 'Erro ao atualizar tratativa' });
+  }
+});
+
+// Rota de teste para o endpoint de feedback
+router.get('/:eventId/feedback/test', async (req, res) => {
+  const { eventId } = req.params;
+  res.json({ 
+    message: 'Rota de teste de feedback funcional', 
+    eventId,
+    timestamp: new Date()
+  });
 });
 
 // Delete an event

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
@@ -55,10 +55,15 @@ const AgendaPage = () => {
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
   const [currentEventId, setCurrentEventId] = useState<string | null>(null);
   const [parecerText, setParecerText] = useState("");
-  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [isProspeccaoMode, setIsProspeccaoMode] = useState(false);
+  const [numCnpjs, setNumCnpjs] = useState<number>(1);
+  const [cnpjValues, setCnpjValues] = useState<string[]>([]);
+  const [currentEventType, setCurrentEventType] = useState<string | null>(null);
+  const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
@@ -91,17 +96,35 @@ const AgendaPage = () => {
 
   const { data: supervisors = [] } = useQuery({
     queryKey: ['supervisors', user?.id],
-    queryFn: () => {
+    queryFn: async () => {
       if (isAdmin) {
         console.log("Usuário é admin, não buscando lista de supervisores");
         return Promise.resolve([]);
       } 
       else if ((isManager || isCoordinator) && user?.id) {
-        return userApi.getSupervisors(user.id);
+        try {
+          // Usar getSubordinates em vez de getSupervisors para evitar erros 500
+          console.log(`Buscando subordinados para usuário ${user.id} (${user.role})`);
+          const allSubordinates = await userApi.getSubordinates(user.id);
+          // Filtrar apenas supervisores
+          const supervisors = allSubordinates.filter(subordinate => subordinate.role === "supervisor");
+          console.log(`Encontrados ${supervisors.length} supervisores de ${allSubordinates.length} subordinados`);
+          return supervisors;
+        } catch (error) {
+          console.error("Erro ao buscar supervisores:", error);
+          toast({
+            title: "Aviso",
+            description: "Não foi possível carregar a lista completa de supervisores",
+            variant: "destructive",
+          });
+          return [];
+        }
       }
       return Promise.resolve([]);
     },
     enabled: !!(user?.id && (isManager || isCoordinator)),
+    retry: 2,
+    retryDelay: 3000,
   });
 
   // New query to fetch team members (subordinates) for creating events on their behalf
@@ -112,10 +135,11 @@ const AgendaPage = () => {
         try {
           // Para gerentes e coordenadores, buscar supervisores subordinados
           if (isManager || isCoordinator) {
-            // Usar getSubordinates em vez de getSupervisors para garantir que pegamos todos os subordinados
+            // Buscar todos os subordinados
+            console.log(`Buscando membros da equipe para usuário ${user.id} (${user.role})`);
             const allSubordinates = await userApi.getSubordinates(user.id);
             // Filtrar apenas supervisores
-            const supervisors = allSubordinates.filter(user => user.role === "supervisor");
+            const supervisors = allSubordinates.filter(subordinate => subordinate.role === "supervisor");
             console.log(`Encontrados ${supervisors.length} supervisores para criar eventos (de ${allSubordinates.length} subordinados)`);
             return supervisors;
           }
@@ -128,8 +152,8 @@ const AgendaPage = () => {
         } catch (error) {
           console.error("Erro ao buscar membros da equipe:", error);
           toast({
-            title: "Erro",
-            description: "Não foi possível carregar a lista de membros da equipe",
+            title: "Aviso",
+            description: "Não foi possível carregar a lista completa de membros da equipe",
             variant: "destructive",
           });
         }
@@ -137,34 +161,55 @@ const AgendaPage = () => {
       return [];
     },
     enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
-    retry: 3 // Adiciona algumas tentativas adicionais em caso de falha
+    retry: 3,
+    retryDelay: 3000,
   });
 
   const { data: eventos = [], isLoading, error } = useQuery({
     queryKey: ['events', selectedSupervisor],
-    queryFn: () => eventApi.getEvents(
-      undefined, 
-      selectedSupervisor || undefined
-    ),
+    queryFn: async () => {
+      try {
+        return await eventApi.getEvents(
+          undefined, 
+          selectedSupervisor || undefined
+        );
+      } catch (error) {
+        console.error("Erro ao buscar eventos:", error);
+        // Não exibe toast aqui para evitar múltiplas notificações
+        // O tratamento de erro visual é feito no useEffect abaixo
+        return [];
+      }
+    },
     enabled: !!user?.id,
     retry: isAdmin ? 1 : 3,
     retryDelay: 5000,
     refetchOnWindowFocus: !isAdmin,
-    refetchInterval: isAdmin ? false : undefined,
+    refetchInterval: isAdmin ? false : 60000, // Atualiza a cada minuto para não-admin
   });
 
-  // Exibe mensagem de erro apenas uma vez para usuários admin
+  // Exibe mensagem de erro apenas uma vez para usuários
   useEffect(() => {
-    if (error && isAdmin && !errorNotificationShown) {
-      console.error("Erro ao carregar eventos para usuário admin:", error);
-      toast({
-        title: "Atenção",
-        description: "A visualização de eventos para administradores pode estar indisponível temporariamente.",
-        variant: "destructive",
-      });
+    if (error && !errorNotificationShown) {
+      console.error("Erro ao carregar eventos:", error);
+      
+      // Mensagem específica para administradores
+      if (isAdmin) {
+        toast({
+          title: "Atenção",
+          description: "A visualização de eventos para administradores pode estar indisponível temporariamente.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erro ao carregar eventos",
+          description: "Ocorreu um problema ao buscar a agenda. Tente novamente mais tarde.",
+          variant: "destructive",
+        });
+      }
+      
       setErrorNotificationShown(true);
     }
-  }, [error, isAdmin, toast, errorNotificationShown]);
+  }, [error, isAdmin, errorNotificationShown]);
 
   const createEventMutation = useMutation({
     mutationFn: eventApi.createEvent,
@@ -332,6 +377,16 @@ const AgendaPage = () => {
       return;
     }
     
+    // Validar campos de Município/UF
+    if (!novoEvento.municipio || !novoEvento.uf) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Os campos de Município e UF são obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Determine whose behalf we're creating the event for
     let eventSupervisorId = user?.id;  // Default para o próprio usuário
     
@@ -425,16 +480,215 @@ const AgendaPage = () => {
     if (evento) {
       setParecerText(evento.tratativa || "");
       setCurrentEventId(id);
+      setCurrentEventType(evento.location || null);
+      
+      // Verifica se é um evento de prospecção
+      const isProspecao = evento.location === "Prospecção";
+      setIsProspeccaoMode(isProspecao);
+      
+      // Se for evento de prospecção, tenta carregar os CNPJs do banco
+      if (isProspecao) {
+        // Primeiro, tenta buscar da API
+        try {
+          fetch(`http://localhost:3001/api/prospect-visitas/${id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          })
+          .then(response => {
+            if (response.ok) {
+              return response.json();
+            }
+            // Se não encontrar na API, tenta extrair do texto (método antigo)
+            throw new Error('Não encontrado na API');
+          })
+          .then(data => {
+            if (data.success && data.data && data.data.cnpjs) {
+              // Encontrou na API
+              const cnpjs = data.data.cnpjs;
+              setCnpjValues(cnpjs);
+              setNumCnpjs(cnpjs.length || 1);
+              
+              // Se houver observação, usa como parecer
+              if (data.data.observacao) {
+                setParecerText(data.data.observacao);
+              }
+            } else {
+              throw new Error('Dados inválidos');
+            }
+          })
+          .catch(error => {
+            console.log("Tentando extrair do texto:", error);
+            
+            // Método alternativo: extrair do texto da tratativa
+            if (evento.tratativa) {
+              // Tenta extrair CNPJs do formato: "Empresas visitadas: CNPJ1, CNPJ2, ..."
+              const cnpjMatch = evento.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
+              if (cnpjMatch && cnpjMatch[1]) {
+                // Extrai e limpa os CNPJs
+                const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
+                setCnpjValues(cnpjList);
+                setNumCnpjs(cnpjList.length || 1);
+                
+                // Remove a parte dos CNPJs do texto do parecer
+                const cleanedText = evento.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
+                setParecerText(cleanedText);
+              } else {
+                // Reinicia se não encontrar CNPJs no formato esperado
+                setCnpjValues([]);
+                setNumCnpjs(1);
+              }
+            } else {
+              // Sem tratativa existente
+              setCnpjValues([]);
+              setNumCnpjs(1);
+            }
+          });
+        } catch (error) {
+          console.error("Erro ao carregar CNPJs:", error);
+          setCnpjValues([]);
+          setNumCnpjs(1);
+        }
+      } else {
+        // Reinicia para eventos não relacionados a prospecção
+        setCnpjValues([]);
+        setNumCnpjs(1);
+      }
+      
       setIsParecerDialogOpen(true);
     }
   };
 
+  // Formatar CNPJ para exibição (XX.XXX.XXX/XXXX-XX)
+  const formatCnpj = (value: string) => {
+    // Remove caracteres não numéricos
+    const numericValue = value.replace(/\D/g, '');
+    
+    // Aplica a máscara
+    if (numericValue.length <= 14) {
+      return numericValue
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2')
+        .substring(0, 18); // Limita ao tamanho máximo de um CNPJ formatado
+    }
+    
+    return numericValue.substring(0, 14); // Limita a 14 dígitos se exceder
+  };
+  
+  // Limpar CNPJ (manter apenas números)
+  const cleanCnpj = (value: string) => {
+    return value.replace(/\D/g, '');
+  };
+  
+  // Validar CNPJ
+  const isValidCnpj = (cnpj: string) => {
+    const cleaned = cleanCnpj(cnpj);
+    return cleaned.length === 14;
+  };
+  
+  const handleCnpjChange = (index: number, value: string) => {
+    const formatted = formatCnpj(value);
+    const newCnpjValues = [...cnpjValues];
+    newCnpjValues[index] = formatted;
+    setCnpjValues(newCnpjValues);
+  };
+  
+  // Salvamento de parecer + CNPJs de prospecção na API
+  const savePropectVisitaMutation = useMutation({
+    mutationFn: async ({ eventoId, supervisorId, observacao, cnpjs }: { 
+      eventoId: string, 
+      supervisorId?: string, 
+      observacao: string, 
+      cnpjs: string[] 
+    }) => {
+      console.log(`Chamando endpoint: http://localhost:3001/api/prospect-visitas - Método: POST`);
+      const response = await fetch('http://localhost:3001/api/prospect-visitas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          eventoId,
+          supervisorId,
+          observacao,
+          cnpjs
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Erro ao salvar prospecção');
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      toast({
+        title: "Prospecção registrada",
+        description: "Os CNPJs visitados foram registrados com sucesso!",
+      });
+      setIsParecerDialogOpen(false);
+      setParecerText("");
+      setCnpjValues([]);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao registrar visitas de prospecção",
+        variant: "destructive",
+      });
+    }
+  });
+  
   const handleSalvarParecer = () => {
     if (!currentEventId) return;
-    updateFeedbackMutation.mutate({ 
-      eventId: currentEventId, 
-      tratativa: parecerText 
-    });
+    
+    // Se for prospecção, salva no sistema de CNPJs
+    if (isProspeccaoMode && currentEventType === "Prospecção") {
+      // Filtra CNPJs vazios
+      const validCnpjs = cnpjValues.filter(cnpj => cleanCnpj(cnpj).length > 0);
+      
+      if (validCnpjs.length > 0) {
+        // Busca o evento atual para obter o supervisorId
+        const currentEvent = eventos.find(ev => ev.id === currentEventId);
+        const supervisorId = currentEvent?.supervisorId;
+        
+        // Chama a API para salvar os CNPJs e a observação
+        savePropectVisitaMutation.mutate({
+          eventoId: currentEventId,
+          supervisorId,
+          observacao: parecerText,
+          cnpjs: validCnpjs
+        });
+        
+        // Formata texto com os CNPJs para exibição na UI (mantemos o comportamento antigo também)
+        const cnpjListText = validCnpjs.join(', ');
+        const tratativaFinal = `Empresas visitadas: ${cnpjListText}\n\n${parecerText}`;
+        
+        // Salva também no campo de tratativa do evento (para manter compatibilidade)
+        updateFeedbackMutation.mutate({ 
+          eventId: currentEventId, 
+          tratativa: tratativaFinal 
+        });
+      } else {
+        // Mesmo sem CNPJs, ainda salva o parecer no evento
+        updateFeedbackMutation.mutate({ 
+          eventId: currentEventId, 
+          tratativa: parecerText 
+        });
+      }
+    } else {
+      // Para eventos não relacionados a prospecção, salva normalmente
+      updateFeedbackMutation.mutate({ 
+        eventId: currentEventId, 
+        tratativa: parecerText 
+      });
+    }
   };
 
   const handleEditarEvento = (id: string) => {
@@ -651,58 +905,104 @@ const AgendaPage = () => {
         
         <div className="flex space-x-2">
           {(isManager || isCoordinator) && (
-            <Drawer open={isFilterDrawerOpen} onOpenChange={setIsFilterDrawerOpen}>
-              <DrawerTrigger asChild>
+            <Dialog open={isFilterDialogOpen} onOpenChange={setIsFilterDialogOpen}>
+              <DialogTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
                   <span>Filtrar por Usuário</span>
                 </Button>
-              </DrawerTrigger>
-              <DrawerContent>
-                <DrawerHeader>
-                  <DrawerTitle>Filtrar por Usuário</DrawerTitle>
-                  <DrawerDescription>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Filtrar por Usuário</DialogTitle>
+                  <DialogDescription>
                     Selecione um usuário para visualizar sua agenda
-                  </DrawerDescription>
-                </DrawerHeader>
-                <div className="p-4">
-                  <div className="grid gap-4">
-                    {supervisors.map((supervisor) => (
-                      <div 
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <div className="relative mb-4">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Search className="h-4 w-4" />
+                    </div>
+                    <Input 
+                      placeholder="Buscar usuário..." 
+                      value={filterSearchTerm}
+                      onChange={(e) => setFilterSearchTerm(e.target.value.toLowerCase())}
+                      className="pl-9"
+                    />
+                    {filterSearchTerm && (
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => setFilterSearchTerm("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    <div 
+                      className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                        !selectedSupervisor ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        setSelectedSupervisor(null);
+                        setIsFilterDialogOpen(false);
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                          <Users className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <p className="font-medium">Todos os usuários</p>
+                      </div>
+                    </div>
+                    
+                    {supervisors
+                      .filter(supervisor => 
+                        filterSearchTerm === "" || 
+                        supervisor.name.toLowerCase().includes(filterSearchTerm)
+                      )
+                      .map((supervisor) => (
+                                              <div 
                         key={supervisor.id} 
                         className={`p-3 border rounded-md cursor-pointer transition-colors ${
                           selectedSupervisor === supervisor.id ? 'bg-bradesco-blue text-white' : 'hover:bg-gray-100'
                         }`}
-                        onClick={() => setSelectedSupervisor(supervisor.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <Users className="h-5 w-5 text-gray-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium">{supervisor.name}</p>
-                            <p className="text-sm opacity-70">{supervisor.role.charAt(0).toUpperCase() + supervisor.role.slice(1)}</p>
+                        onClick={() => {
+                          setSelectedSupervisor(supervisor.id);
+                          setIsFilterDialogOpen(false);
+                        }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <Users className="h-4 w-4 text-gray-600" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{supervisor.name}</p>
+                              <p className="text-xs opacity-70">{supervisor.role.charAt(0).toUpperCase() + supervisor.role.slice(1)}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                    
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setSelectedSupervisor(null)}
-                      className="mt-2"
-                    >
-                      Ver todos os usuários
-                    </Button>
+                      ))}
+                      
+                      {filterSearchTerm && !supervisors.some(supervisor => 
+                        supervisor.name.toLowerCase().includes(filterSearchTerm)
+                      ) && (
+                        <div className="text-center py-4 text-gray-500">
+                          Nenhum usuário encontrado com esse nome.
+                        </div>
+                      )}
                   </div>
                 </div>
-                <DrawerFooter>
-                  <DrawerClose asChild>
-                    <Button>Fechar</Button>
-                  </DrawerClose>
-                </DrawerFooter>
-              </DrawerContent>
-            </Drawer>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button>
+                      Fechar
+                    </Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
           
           {(isManager || isCoordinator || isAdmin) ? (
@@ -804,6 +1104,7 @@ const AgendaPage = () => {
               </DialogHeader>
               
               <div className="grid gap-4 py-4">
+
                 <div className="grid grid-cols-4 items-center gap-4">
                   <label className="text-sm">Título</label>
                   <Input
@@ -1060,7 +1361,7 @@ const AgendaPage = () => {
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-bradesco-blue" />
             <span className="font-medium">
-              Visualizando agenda de: {
+              Visualizando agenda de {
                 supervisors.find(s => s.id === selectedSupervisor)?.name || "Usuário"
               }
             </span>
@@ -1371,23 +1672,185 @@ const AgendaPage = () => {
       </Tabs>
 
       <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Adicionar Parecer/Tratativa</DialogTitle>
+            <DialogTitle>
+              {isProspeccaoMode 
+                ? "Adicionar Parecer de Prospecção" 
+                : "Adicionar Parecer/Tratativa"}
+            </DialogTitle>
           </DialogHeader>
+          
+          {isProspeccaoMode && (
+            <div className="space-y-4 pt-4 pb-2">
+              <div className="space-y-2">
+                <Label htmlFor="numCnpjs" className="text-sm font-medium block">
+                  Quantas empresas foram visitadas?
+                </Label>
+                <div className="flex items-center">
+                  <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
+                    <button
+                      type="button"
+                      className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-r focus:outline-none transition-colors"
+                      onClick={() => {
+                        if (numCnpjs > 1) {
+                          const newNum = numCnpjs - 1;
+                          setNumCnpjs(newNum);
+                          // Remove o último CNPJ
+                          setCnpjValues(prev => prev.slice(0, newNum));
+                        }
+                      }}
+                      disabled={numCnpjs <= 1}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </button>
+                    
+                    <input
+                      id="numCnpjs"
+                      type="number"
+                      inputMode="numeric"
+                      min="1"
+                      max="20"
+                      value={numCnpjs}
+                      onFocus={e => e.target.select()}
+                      onChange={(e) => {
+                        const rawValue = e.target.value;
+                        let num = parseInt(rawValue);
+                        
+                        // Garantir que é um número entre 1 e 20
+                        if (isNaN(num) || num < 1) num = 1;
+                        if (num > 20) num = 20;
+                        
+                        setNumCnpjs(num);
+                        
+                        // Ajusta o array de CNPJs
+                        const newCnpjValues = [...cnpjValues];
+                        if (num > newCnpjValues.length) {
+                          // Adiciona novos campos vazios
+                          while (newCnpjValues.length < num) {
+                            newCnpjValues.push('');
+                          }
+                        } else if (num < newCnpjValues.length) {
+                          // Remove campos excedentes
+                          newCnpjValues.length = num;
+                        }
+                        setCnpjValues(newCnpjValues);
+                      }}
+                      className="w-14 border-0 text-center focus:ring-0 focus:outline-none"
+                    />
+                    
+                    <button
+                      type="button"
+                      className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-l focus:outline-none transition-colors"
+                      onClick={() => {
+                        if (numCnpjs < 20) {
+                          const newNum = numCnpjs + 1;
+                          setNumCnpjs(newNum);
+                          // Adiciona um CNPJ vazio
+                          setCnpjValues(prev => [...prev, '']);
+                        }
+                      }}
+                      disabled={numCnpjs >= 20}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <span className="ml-3 text-gray-600">
+                    {numCnpjs} {numCnpjs === 1 ? 'empresa' : 'empresas'}
+                  </span>
+                </div>
+              </div>
+              
+                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-2">
+                 <h3 className="text-sm font-medium mb-3 text-blue-800 flex items-center">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 text-blue-600">
+                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                     <circle cx="9" cy="7" r="4"></circle>
+                     <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                   </svg>
+                   Informe os CNPJs das empresas visitadas:
+                 </h3>
+                
+                <div className="space-y-3">
+                  {Array.from({ length: numCnpjs }).map((_, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="w-7 h-7 flex items-center justify-center bg-bradesco-blue rounded-full text-white text-xs font-medium shadow-sm">
+                        {index + 1}
+                      </div>
+                      <Input
+                        placeholder="XX.XXX.XXX/XXXX-XX"
+                        value={cnpjValues[index] || ''}
+                        onChange={(e) => handleCnpjChange(index, e.target.value)}
+                        className={`flex-1 ${
+                          cnpjValues[index] && !isValidCnpj(cnpjValues[index]) 
+                            ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                            : ''
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                
+                                 {cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) && (
+                  <div className="flex items-center text-sm text-red-500 mt-3 bg-red-50 p-2 rounded border border-red-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    Um ou mais CNPJs estão incompletos ou inválidos.
+                  </div>
+                )}
+                
+                {cnpjValues.filter(cnpj => cnpj).length === 0 && (
+                  <div className="flex items-center text-sm text-amber-600 mt-3 bg-amber-50 p-2 rounded border border-amber-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    Informe pelo menos um CNPJ para continuar.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="py-4">
+            <Label htmlFor="parecer" className="text-sm font-medium mb-2 block">
+              {isProspeccaoMode 
+                ? "Informações adicionais sobre a prospecção (opcional):" 
+                : "Parecer / Tratativa:"}
+            </Label>
             <Textarea
+              id="parecer"
               className="min-h-[120px]"
-              placeholder="Digite seu parecer ou tratativa sobre este evento..."
+              placeholder={
+                isProspeccaoMode 
+                  ? "Detalhes adicionais sobre as visitas realizadas..."
+                  : "Digite seu parecer ou tratativa sobre este evento..."
+              }
               value={parecerText}
               onChange={(e) => setParecerText(e.target.value)}
             />
           </div>
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsParecerDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSalvarParecer} className="bg-bradesco-blue">
+            <Button 
+              onClick={handleSalvarParecer} 
+              className="bg-bradesco-blue"
+              disabled={isProspeccaoMode && (cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) || cnpjValues.filter(cnpj => cnpj).length === 0)}
+            >
               Salvar Parecer
             </Button>
           </DialogFooter>

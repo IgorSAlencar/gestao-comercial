@@ -7,12 +7,14 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 // Importar módulos
-const { poolConnect } = require('./config/db');
+const { poolConnect, pool, sql } = require('./config/db');
+const { authenticateToken } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const eventRoutes = require('./routes/events');
 const oportunidadesRoutes = require('./routes/oportunidades');
 const acoesDiariasRoutes = require('./routes/acoes-diarias');
+const prospectVisitasRoutes = require('./routes/prospectVisitas');
 
 const app = express();
 const PORT = 3001;
@@ -74,12 +76,94 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Rota direta para feedback de eventos
+app.put('/api/events/:eventId/feedback', authenticateToken, async (req, res) => {
+  console.log('PUT /api/events/:eventId/feedback - Rota direta acessada');
+  const { eventId } = req.params;
+  const { id: userId } = req.user;
+  const { tratativa } = req.body;
+  
+  try {
+    await poolConnect;
+    
+    // Check if user has permission to update this event
+    const permissionCheck = await pool.request()
+      .input('eventId', sql.UniqueIdentifier, eventId)
+      .input('userId', sql.UniqueIdentifier, userId)
+      .query(`
+        SELECT 
+          CASE WHEN e.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
+          CASE WHEN h.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
+        FROM TESTE..EVENTOS e
+        LEFT JOIN TESTE..hierarchy h ON h.subordinate_id = e.supervisor_id AND h.superior_id = @userId
+        WHERE e.id = @eventId
+      `);
+    
+    if (permissionCheck.recordset.length === 0) {
+      console.log('Evento não encontrado!');
+      return res.status(404).json({ message: 'Evento não encontrado' });
+    }
+    
+    const eventPermission = permissionCheck.recordset[0];
+    
+    // Only owner or superior can update an event's feedback
+    if (!eventPermission.is_owner && !eventPermission.is_superior) {
+      console.log('Sem permissão para atualizar!');
+      return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
+    }
+    
+    console.log('Permissão concedida, atualizando feedback via rota direta');
+    
+    // Update just the feedback
+    await pool.request()
+      .input('eventId', sql.UniqueIdentifier, eventId)
+      .input('feedback', sql.NVarChar, tratativa || '')
+      .input('updated_at', sql.DateTime, new Date())
+      .query(`
+        UPDATE TESTE..EVENTOS
+        SET 
+          feedback = @feedback,
+          updated_at = @updated_at
+        WHERE id = @eventId
+      `);
+    
+    console.log('Feedback atualizado com sucesso!');
+    res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
+    
+  } catch (error) {
+    console.error('Error updating event feedback:', error);
+    res.status(500).json({ message: 'Erro ao atualizar tratativa' });
+  }
+});
+
+// Rota de teste para debug
+app.get('/api/test-route', (req, res) => {
+  res.json({
+    message: 'Rota de teste funcionando!',
+    timestamp: new Date()
+  });
+});
+
+// Rota de teste específica para o feedback
+app.patch('/api/events-feedback/:eventId', (req, res) => {
+  const { eventId } = req.params;
+  const { tratativa } = req.body;
+  
+  res.json({
+    message: 'Rota de teste de feedback',
+    eventId,
+    tratativa,
+    timestamp: new Date()
+  });
+});
+
 // Rotas
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api', oportunidadesRoutes);
 app.use('/api/acoes-diarias', acoesDiariasRoutes);
+app.use('/api/prospect-visitas', prospectVisitasRoutes);
 
 // Start server
 app.listen(PORT, () => {
