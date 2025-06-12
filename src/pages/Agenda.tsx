@@ -45,8 +45,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventApi, userApi, Event } from "@/services/api";
 import EventsTable from "@/components/EventsTable";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
+import { useSearchParams } from 'react-router-dom';
 
 const AgendaPage = () => {
+  const [searchParams] = useSearchParams();
   const [date, setDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -93,6 +95,29 @@ const AgendaPage = () => {
 
   // Estado para controlar quando exibir notificações de erro
   const [errorNotificationShown, setErrorNotificationShown] = useState(false);
+
+  // Verificar parâmetros da URL ao carregar a página
+  useEffect(() => {
+    // Verificar supervisor na URL
+    const supervisorParam = searchParams.get('supervisor');
+    if (supervisorParam) {
+      setSelectedSupervisor(supervisorParam);
+      
+      // Verificar se há um filtro de nome para preencher o campo de busca
+      const filterParam = searchParams.get('filter');
+      if (filterParam) {
+        setFilterSearchTerm(decodeURIComponent(filterParam));
+        // Não abrir mais o diálogo de filtro automaticamente
+        // setIsFilterDialogOpen(true);
+      }
+    }
+    
+    // Verificar evento específico na URL
+    const eventoParam = searchParams.get('evento');
+    if (eventoParam) {
+      // Lógica para exibir o evento específico (implementar depois se necessário)
+    }
+  }, [searchParams, setSelectedSupervisor, setFilterSearchTerm, setIsFilterDialogOpen]);
 
   const { data: supervisors = [] } = useQuery({
     queryKey: ['supervisors', user?.id],

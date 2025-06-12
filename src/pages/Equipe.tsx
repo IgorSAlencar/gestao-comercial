@@ -189,6 +189,245 @@ const TeamMemberCard: React.FC<TeamMemberCardProps> = ({
   );
 };
 
+// Novo componente para exibir supervisores em formato de tabela/grid
+interface SupervisorGridProps {
+  supervisores: User[];
+  eventos: Record<string, Event[]>;
+  onViewAgenda: (id: string) => void;
+  onViewRelatorio: (id: string) => void;
+}
+
+const SupervisorGrid: React.FC<SupervisorGridProps> = ({ 
+  supervisores, 
+  eventos, 
+  onViewAgenda, 
+  onViewRelatorio 
+}) => {
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  if (supervisores.length === 0) {
+    return (
+      <div className="text-center py-3 text-gray-500">
+        Nenhum supervisor encontrado nesta equipe.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end mb-2">
+        <div className="bg-gray-100 p-1 rounded-md inline-flex">
+          <Button 
+            variant={viewMode === 'grid' ? 'default' : 'ghost'} 
+            size="sm" 
+            onClick={() => setViewMode('grid')}
+            className="h-8"
+          >
+            <Users className="h-4 w-4" />
+            <span className="ml-1">Grid</span>
+          </Button>
+          <Button 
+            variant={viewMode === 'table' ? 'default' : 'ghost'} 
+            size="sm" 
+            onClick={() => setViewMode('table')}
+            className="h-8"
+          >
+            <FileText className="h-4 w-4" />
+            <span className="ml-1">Tabela</span>
+          </Button>
+        </div>
+      </div>
+
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {supervisores.map(supervisor => {
+            const supervisorEventos = eventos[supervisor.id] || [];
+            const hoje = new Date();
+            hoje.setHours(0, 0, 0, 0);
+            
+            // Cálculos rápidos para o card
+            const eventosHoje = supervisorEventos.filter(e => {
+              const dataEvento = new Date(e.dataInicio);
+              dataEvento.setHours(0, 0, 0, 0);
+              return dataEvento.getTime() === hoje.getTime();
+            }).length;
+            
+            const eventosPendentes = supervisorEventos.filter(e => {
+              const dataFim = new Date(e.dataFim);
+              return isPast(dataFim) && (!e.tratativa || e.tratativa.trim() === '');
+            }).length;
+
+            return (
+              <div key={supervisor.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+                <div className="p-4">
+                  <div className="flex items-center mb-3">
+                    <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center mr-3">
+                      <UserIcon className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">{supervisor.name}</h3>
+                      <p className="text-xs text-gray-500">{supervisor.email}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="bg-blue-50 p-2 rounded text-center">
+                      <p className="text-xs text-gray-500">Hoje</p>
+                      <p className="font-bold">{eventosHoje}</p>
+                    </div>
+                    <div className="bg-red-50 p-2 rounded text-center">
+                      <p className="text-xs text-gray-500">Pendentes</p>
+                      <p className="font-bold">{eventosPendentes}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between gap-2 mt-3">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => onViewAgenda(supervisor.id)}
+                      className="flex-1"
+                    >
+                      <CalendarDays className="h-3 w-3 mr-1" />
+                      Agenda
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => onViewRelatorio(supervisor.id)}
+                      className="flex-1"
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Relatório
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Supervisor
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Hoje
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Futuros
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pendentes
+                </th>
+                <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {supervisores.map(supervisor => {
+                const supervisorEventos = eventos[supervisor.id] || [];
+                const stats = (() => {
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  
+                  const eventosHoje = supervisorEventos.filter(e => {
+                    const dataEvento = new Date(e.dataInicio);
+                    dataEvento.setHours(0, 0, 0, 0);
+                    return dataEvento.getTime() === hoje.getTime();
+                  });
+                  
+                  const eventosFuturos = supervisorEventos.filter(e => {
+                    const dataEvento = new Date(e.dataInicio);
+                    return dataEvento > hoje;
+                  });
+                  
+                  const eventosSemTratativa = supervisorEventos.filter(e => {
+                    const dataFim = new Date(e.dataFim);
+                    return isPast(dataFim) && (!e.tratativa || e.tratativa.trim() === '');
+                  });
+                  
+                  return {
+                    hoje: eventosHoje.length,
+                    futuros: eventosFuturos.length,
+                    total: supervisorEventos.length,
+                    pendentes: eventosSemTratativa.length
+                  };
+                })();
+
+                return (
+                  <tr key={supervisor.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center mr-3">
+                          <UserIcon className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium text-sm">{supervisor.name}</div>
+                          <div className="text-xs text-gray-500">{supervisor.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center">
+                      <Badge variant={stats.hoje > 0 ? "default" : "outline"} className={stats.hoje > 0 ? "bg-blue-100 text-blue-800 hover:bg-blue-100" : ""}>
+                        {stats.hoje}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center">
+                      <Badge variant={stats.futuros > 0 ? "default" : "outline"} className={stats.futuros > 0 ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}>
+                        {stats.futuros}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center">
+                      <Badge variant={stats.total > 0 ? "default" : "outline"} className={stats.total > 0 ? "bg-amber-100 text-amber-800 hover:bg-amber-100" : ""}>
+                        {stats.total}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center">
+                      <Badge variant={stats.pendentes > 0 ? "default" : "outline"} className={stats.pendentes > 0 ? "bg-red-100 text-red-800 hover:bg-red-100" : ""}>
+                        {stats.pendentes}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap text-center">
+                      <div className="flex justify-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => onViewAgenda(supervisor.id)}
+                          className="h-8 w-8 p-0"
+                          title="Ver Agenda"
+                        >
+                          <CalendarDays className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => onViewRelatorio(supervisor.id)}
+                          className="h-8 w-8 p-0"
+                          title="Ver Relatório"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Equipe: React.FC = () => {
   const { 
     user, 
@@ -398,6 +637,28 @@ const Equipe: React.FC = () => {
     
     return eventosMap;
   }, [allEventos]);
+
+  // Função para navegar para a agenda
+  const navigateToAgenda = (supervisorId: string) => {
+    // Obter o nome do supervisor para passar como parâmetro de filtro
+    const supervisor = allUsers.find(u => u.id === supervisorId) || 
+                      subordinates.find(u => u.id === supervisorId) || 
+                      secondLevelUsers.find(u => u.id === supervisorId) ||
+                      Object.values(subordinatesMap).flat().find(u => u.id === supervisorId);
+    
+    if (supervisor) {
+      // Navegar para a agenda com o supervisor selecionado e preenchendo o termo de busca
+      navigate(`/agenda?supervisor=${supervisorId}&filter=${encodeURIComponent(supervisor.name.toLowerCase())}`);
+    } else {
+      // Caso não encontre o supervisor (improvável), navega apenas com o ID
+      navigate(`/agenda?supervisor=${supervisorId}`);
+    }
+  };
+
+  // Função para navegar para o relatório
+  const navigateToRelatorio = (supervisorId: string) => {
+    navigate(`/relatorios?supervisor=${supervisorId}`);
+  };
 
   // Verificar permissão para acessar esta página
   if (!user || (user.role !== "gerente" && user.role !== "coordenador" && user.role !== "admin")) {
@@ -630,96 +891,26 @@ const Equipe: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <div className="space-y-3">
-                            {(subordinatesMap[coordenador.id] || []).length > 0 ? (
-                              <div className="flex justify-between items-center mb-3">
-                                <div className="text-sm text-gray-600">
-                                  {subordinatesMap[coordenador.id].length} supervisor(es) encontrado(s)
-                                </div>
-                                
-                                {/* Botão para ver supervisores diretamente (para admin) */}
-                                {isAdmin && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={async () => {
-                                      setActiveUser(coordenador);
-                                      await loadSecondLevel(coordenador.id);
-                                      setSearchParams({ userId: coordenador.id });
-                                    }}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <UserCheck className="h-3 w-3" />
-                                    <span>Ver Detalhes</span>
-                                  </Button>
-                                )}
-                              </div>
-                            ) : null}
-                            
-                            {(subordinatesMap[coordenador.id] || []).length > 0 ? (
-                              subordinatesMap[coordenador.id].map(supervisor => (
-                                <div key={supervisor.id} className="border rounded-md p-3">
-                                  <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                      <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-                                        <UserIcon className="h-4 w-4 text-amber-600" />
-                                      </div>
-                                      <div>
-                                        <p className="font-medium">{supervisor.name}</p>
-                                        <p className="text-xs text-gray-500 capitalize">{supervisor.role}</p>
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <Button 
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => navigate(`/agenda?supervisor=${supervisor.id}`)}
-                                        className="h-7"
-                                      >
-                                        <CalendarDays className="h-3 w-3 mr-1" />
-                                        Agenda
-                                      </Button>
-                                      <Button 
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => navigate(`/relatorios?supervisor=${supervisor.id}`)}
-                                        className="h-7"
-                                      >
-                                        <FileText className="h-3 w-3 mr-1" />
-                                        Relatório
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  
-                                  <SupervisorStats 
-                                    id={supervisor.id} 
-                                    eventos={eventosPorUsuario[supervisor.id] || []} 
+                          <SupervisorGrid 
+                            supervisores={subordinatesMap[coordenador.id] || []}
+                            eventos={eventosPorUsuario}
+                            onViewAgenda={navigateToAgenda}
+                            onViewRelatorio={navigateToRelatorio}
                                   />
-                                </div>
-                              ))
-                            ) : (
-                              <div className="text-center py-3 text-gray-500">
-                                Nenhum supervisor encontrado nesta equipe.
-                              </div>
-                            )}
-                          </div>
                         )
                       )}
                     </TeamMemberCard>
                   ))
                 )}
                 
-                {/* Se for coordenador, mostrar supervisores diretamente */}
+                {/* Se for coordenador, mostrar supervisores diretamente com o novo formato */}
                 {activeUser?.role === "coordenador" && (
-                  secondLevelUsers.map(supervisor => (
-                    <TeamMemberCard
-                      key={supervisor.id}
-                      user={supervisor}
-                      roleColor={getRoleColor(supervisor.role)}
-                      eventos={eventosPorUsuario[supervisor.id] || []}
-                      hasSubordinates={false}
+                  <SupervisorGrid 
+                    supervisores={secondLevelUsers}
+                    eventos={eventosPorUsuario}
+                    onViewAgenda={navigateToAgenda}
+                    onViewRelatorio={navigateToRelatorio}
                     />
-                  ))
                 )}
               </div>
             </div>
