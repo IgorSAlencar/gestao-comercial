@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2 } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2, Loader2, MapPin } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -47,8 +47,15 @@ import EventsTable from "@/components/EventsTable";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { useSearchParams } from 'react-router-dom';
 
-const AgendaPage = () => {
+interface AgendaPageProps {}
+
+const AgendaPage: React.FC<AgendaPageProps> = () => {
+  const { toast } = useToast();
+  const { user, isManager, isCoordinator, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  
+  // Estados do componente
   const [date, setDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -67,6 +74,12 @@ const AgendaPage = () => {
   const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  
+  // Estados para Encerramento de Unidade
+  const [dataCarroSom, setDataCarroSom] = useState<Date | null>(null);
+  const [semCarroSom, setSemCarroSom] = useState(false);
+  const [motivoSemCarroSom, setMotivoSemCarroSom] = useState("");
+  const [visitasEncerramento, setVisitasEncerramento] = useState<Array<{cnpj: string; aceite: boolean}>>([]);
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
@@ -90,10 +103,6 @@ const AgendaPage = () => {
 
   const [editingEvent, setEditingEvent] = useState<string | null>(null);
   
-  const { toast } = useToast();
-  const { user, isManager, isCoordinator, isAdmin } = useAuth();
-  const queryClient = useQueryClient();
-
   // Estado para controlar quando exibir notificações de erro
   const [errorNotificationShown, setErrorNotificationShown] = useState(false);
 
@@ -501,18 +510,34 @@ const AgendaPage = () => {
     }
   };
 
+  // Função para resetar o estado do formulário de encerramento
+  const resetEncerramentoState = () => {
+    setDataCarroSom(null);
+    setSemCarroSom(false);
+    setMotivoSemCarroSom("");
+    setVisitasEncerramento([]);
+  };
+
   const handleAbrirParecerDialog = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
       setCurrentEventId(id);
       setCurrentEventType(evento.location || null);
       
-      // Verifica se é um evento de prospecção
+      // Verifica se é um evento de prospecção ou encerramento
       const isProspecao = evento.location === "Prospecção";
+      const isEncerramento = evento.location === "Encerramento de Unidade";
       setIsProspeccaoMode(isProspecao);
       
-      // Se for evento de prospecção, busca os dados da nova tabela
+      // Reset dos estados específicos
       if (isProspecao) {
+        resetProspeccaoState();
+      } else if (isEncerramento) {
+        resetEncerramentoState();
+      }
+      
+      // Se for evento de prospecção, busca os dados da nova tabela
+      if (isProspecao || isEncerramento) {
         fetch(`http://localhost:3001/api/tratativas-prospecao/${id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -521,50 +546,57 @@ const AgendaPage = () => {
         .then(response => response.json())
         .then(data => {
           if (data.success && data.data && data.data.length > 0) {
-            // Encontrou dados na nova tabela
             const tratativas = data.data;
             
-            // Configura os CNPJs e seus status
-            const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
-            const status = tratativas.map(t => t.TRATADO === 1);
-            
-            setCnpjValues(cnpjs);
-            setCnpjProspectStatus(status);
-            setNumCnpjs(cnpjs.length);
-            
-            // Usa a descrição mais recente como parecer
-            if (tratativas[0]?.DESCRICAO) {
-              setParecerText(tratativas[0].DESCRICAO);
+            if (isProspecao) {
+              // Configura os CNPJs e seus status para prospecção
+              const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
+              const status = tratativas.map(t => t.TRATADO === 1);
+              
+              setCnpjValues(cnpjs);
+              setCnpjProspectStatus(status);
+              setNumCnpjs(cnpjs.length);
+            } else if (isEncerramento) {
+              // Configura os dados para encerramento
+              const visitas = tratativas.map(t => ({
+                cnpj: formatCnpj(t.CNPJ),
+                aceite: t.TRATADO === 1
+              }));
+              setVisitasEncerramento(visitas);
+
+              // Extrai informações do carro de som da descrição
+              const descricao = tratativas[0]?.DESCRICAO || '';
+              const dataCarroSomMatch = descricao.match(/Carro de Som: (\d{2}\/\d{2}\/\d{4})/);
+              const semCarroSomMatch = descricao.includes('Não haverá carro de som');
+              const motivoMatch = descricao.match(/Motivo: (.*?)(?=\n\n|$)/s);
+
+              if (dataCarroSomMatch) {
+                const [dia, mes, ano] = dataCarroSomMatch[1].split('/');
+                setDataCarroSom(new Date(Number(ano), Number(mes) - 1, Number(dia)));
+                setSemCarroSom(false);
+              } else if (semCarroSomMatch) {
+                setSemCarroSom(true);
+                setDataCarroSom(null);
+                if (motivoMatch) {
+                  setMotivoSemCarroSom(motivoMatch[1].trim());
+                }
+              }
+
+              // Extrai observações adicionais
+              const observacoesMatch = descricao.match(/Observações Adicionais:\n(.*?)$/s);
+              if (observacoesMatch) {
+                setParecerText(observacoesMatch[1].trim());
+              }
             }
           } else {
-            // Se não encontrou dados na nova tabela, tenta o método antigo
-            if (evento.tratativa) {
-              const cnpjMatch = evento.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
-              if (cnpjMatch && cnpjMatch[1]) {
-                const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
-                setCnpjValues(cnpjList);
-                setCnpjProspectStatus(cnpjList.map(() => false));
-                setNumCnpjs(cnpjList.length);
-                
-                const cleanedText = evento.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
-                setParecerText(cleanedText);
-              } else {
-                resetProspeccaoState();
-                setParecerText(evento.tratativa || "");
-              }
-            } else {
-              resetProspeccaoState();
-              setParecerText("");
-            }
+            setParecerText(evento.tratativa || "");
           }
         })
         .catch(error => {
-          console.error("Erro ao carregar dados de prospecção:", error);
-          resetProspeccaoState();
+          console.error("Erro ao carregar dados:", error);
           setParecerText(evento.tratativa || "");
         });
       } else {
-        resetProspeccaoState();
         setParecerText(evento.tratativa || "");
       }
       
@@ -678,58 +710,101 @@ const AgendaPage = () => {
     }
   });
   
-  const handleSalvarParecer = () => {
+  const handleSalvarParecer = async () => {
     if (!currentEventId) return;
-    
-    // Se for prospecção, salva no sistema de CNPJs
-    if (isProspeccaoMode && currentEventType === "Prospecção") {
-      // Filtra CNPJs vazios
-      const validCnpjs = cnpjValues.filter(cnpj => cleanCnpj(cnpj).length > 0);
+
+    let tratativaText = "";
+
+    if (currentEventType === "Encerramento de Unidade") {
+      // Formata a data do carro de som
+      const dataCarroSomFormatada = dataCarroSom 
+        ? format(dataCarroSom, 'dd/MM/yyyy')
+        : 'Não haverá carro de som';
+
+      // Prepara o texto da tratativa
+      tratativaText = `Carro de Som: ${dataCarroSomFormatada}\n`;
       
-      if (validCnpjs.length > 0) {
-        // Busca o evento atual para obter o supervisorId
-        const currentEvent = eventos.find(ev => ev.id === currentEventId);
-        const supervisorId = currentEvent?.supervisorId;
-        
-        // Filtra os status correspondentes aos CNPJs válidos
-        const validStatus = cnpjProspectStatus.filter((_, index) => 
-          cleanCnpj(cnpjValues[index]).length > 0
-        );
-        
-        // Chama a API para salvar os CNPJs e a observação na nova tabela
-        savePropectVisitaMutation.mutate({
-          eventoId: currentEventId,
-          supervisorId,
-          observacao: parecerText,
-          cnpjs: validCnpjs,
-          prospectStatus: validStatus
-        });
-        
-        // Formata texto com os CNPJs para exibição na UI
-        const cnpjListText = validCnpjs.map((cnpj, index) => 
-          `${cnpj} (${validStatus[index] ? 'Prospectado' : 'Não Prospectado'})`
-        ).join(', ');
-        const tratativaFinal = `Empresas visitadas: ${cnpjListText}\n\n${parecerText}`;
-        
-        // Salva também no campo de tratativa do evento para manter compatibilidade visual
-        updateFeedbackMutation.mutate({ 
-          eventId: currentEventId, 
-          tratativa: tratativaFinal 
-        });
-      } else {
-        // Mesmo sem CNPJs, ainda salva o parecer no evento
-        updateFeedbackMutation.mutate({ 
-          eventId: currentEventId, 
-          tratativa: parecerText 
+      if (semCarroSom && motivoSemCarroSom) {
+        tratativaText += `Motivo: ${motivoSemCarroSom}\n\n`;
+      }
+
+      if (visitasEncerramento.length > 0) {
+        tratativaText += "CNPJs Visitados:\n";
+        visitasEncerramento.forEach(visita => {
+          tratativaText += `${visita.cnpj} - ${visita.aceite ? 'Com Aceite' : 'Sem Aceite'}\n`;
         });
       }
+
+      if (parecerText) {
+        tratativaText += `\nObservações Adicionais:\n${parecerText}`;
+      }
+
+      // Salva os CNPJs na tabela de prospecção
+      try {
+        const promises = visitasEncerramento.map(visita => 
+          fetch('http://localhost:3001/api/tratativas-prospecao', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              eventoId: currentEventId,
+              cnpj: visita.cnpj.replace(/\D/g, ''),
+              tratado: visita.aceite ? 1 : 0,
+              descricao: tratativaText
+            })
+          })
+        );
+
+        await Promise.all(promises);
+      } catch (error) {
+        console.error('Erro ao salvar CNPJs:', error);
+      }
+    } else if (isProspeccaoMode) {
+      // Código existente para prospecção
+      const cnpjsValidos = cnpjValues.filter(cnpj => cnpj && isValidCnpj(cnpj));
+      if (cnpjsValidos.length === 0) {
+        toast({
+          title: "Erro",
+          description: "Adicione pelo menos um CNPJ válido",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      tratativaText = `Empresas visitadas:\n${cnpjsValidos.join(', ')}\n\n${parecerText}`;
+
+      try {
+        const promises = cnpjsValidos.map((cnpj, index) => 
+          fetch('http://localhost:3001/api/tratativas-prospecao', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              eventoId: currentEventId,
+              cnpj: cnpj.replace(/\D/g, ''),
+              tratado: cnpjProspectStatus[index] ? 1 : 0,
+              descricao: tratativaText
+            })
+          })
+        );
+
+        await Promise.all(promises);
+      } catch (error) {
+        console.error('Erro ao salvar CNPJs:', error);
+      }
     } else {
-      // Para eventos não relacionados a prospecção, salva normalmente
-      updateFeedbackMutation.mutate({ 
-        eventId: currentEventId, 
-        tratativa: parecerText 
-      });
+      // Código existente para outros tipos de evento
+      tratativaText = parecerText;
     }
+
+    updateFeedbackMutation.mutate({
+      eventId: currentEventId,
+      tratativa: tratativaText
+    });
   };
 
   const handleEditarEvento = (id: string) => {
@@ -1235,6 +1310,9 @@ const AgendaPage = () => {
                       <SelectItem value="Visitas de Negociação" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
                         Visitas de Negociação
                       </SelectItem>
+                      <SelectItem value="Encerramento de Unidade" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                        Encerramento de Unidade
+                      </SelectItem>
                       <SelectItem value="Outros" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
                         Outros
                       </SelectItem>
@@ -1263,6 +1341,17 @@ const AgendaPage = () => {
                             </SelectItem>
                             <SelectItem value="Prospecção em Praça Presença" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
                               Prospecção em Praça Presença
+                            </SelectItem>
+                          </>
+                        )}
+
+                        {novoEvento.location === "Encerramento de Unidade" && (
+                          <>
+                            <SelectItem value="Praça Prioritaria" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                              Praça Prioritária
+                            </SelectItem>
+                            <SelectItem value="Praça Normal" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
+                              Praça Normal
                             </SelectItem>
                           </>
                         )}
@@ -1781,16 +1870,134 @@ const AgendaPage = () => {
       </Tabs>
 
       <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>
-              {isProspeccaoMode 
-                ? "Adicionar Parecer de Prospecção" 
-                : "Adicionar Parecer/Tratativa"}
-            </DialogTitle>
+            <DialogTitle>Adicionar Parecer</DialogTitle>
+            <DialogDescription>
+              Adicione um parecer ou tratativa para este evento.
+            </DialogDescription>
           </DialogHeader>
           
-          {isProspeccaoMode && (
+          {currentEventType === "Encerramento de Unidade" ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Carro de Som</Label>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <Label>Data Prevista</Label>
+                    <Input
+                      type="date"
+                      value={dataCarroSom ? format(dataCarroSom, 'yyyy-MM-dd') : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setDataCarroSom(new Date(e.target.value));
+                          setSemCarroSom(false);
+                        } else {
+                          setDataCarroSom(null);
+                        }
+                      }}
+                      disabled={semCarroSom}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="sem_carro_som"
+                      checked={semCarroSom}
+                      onChange={(e) => {
+                        setSemCarroSom(e.target.checked);
+                        if (e.target.checked) {
+                          setDataCarroSom(null);
+                        }
+                      }}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor="sem_carro_som">Não haverá carro de som</Label>
+                  </div>
+                </div>
+              </div>
+
+              {semCarroSom && (
+                <div className="space-y-2">
+                  <Label htmlFor="motivo_sem_carro">Motivo</Label>
+                  <Textarea
+                    id="motivo_sem_carro"
+                    value={motivoSemCarroSom}
+                    onChange={(e) => setMotivoSemCarroSom(e.target.value)}
+                    placeholder="Descreva o motivo pelo qual não haverá carro de som"
+                    className="min-h-[80px]"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>CNPJs Visitados</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setVisitasEncerramento([...visitasEncerramento, { cnpj: '', aceite: false }])}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Adicionar CNPJ
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {visitasEncerramento.map((visita, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="flex-1">
+                        <Input
+                          value={visita.cnpj}
+                          onChange={(e) => {
+                            const newVisitas = [...visitasEncerramento];
+                            newVisitas[index].cnpj = e.target.value;
+                            setVisitasEncerramento(newVisitas);
+                          }}
+                          placeholder="Digite o CNPJ"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={visita.aceite}
+                          onChange={(e) => {
+                            const newVisitas = [...visitasEncerramento];
+                            newVisitas[index].aceite = e.target.checked;
+                            setVisitasEncerramento(newVisitas);
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <Label>Aceite</Label>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newVisitas = visitasEncerramento.filter((_, i) => i !== index);
+                          setVisitasEncerramento(newVisitas);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="observacoes">Observações Adicionais</Label>
+                <Textarea
+                  id="observacoes"
+                  value={parecerText}
+                  onChange={(e) => setParecerText(e.target.value)}
+                  placeholder="Adicione observações adicionais sobre o encerramento"
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+          ) : isProspeccaoMode ? (
             <div className="space-y-4 pt-4 pb-2">
               <div className="space-y-2">
                 <Label htmlFor="numCnpjs" className="text-sm font-medium block">
@@ -1968,15 +2175,21 @@ const AgendaPage = () => {
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsParecerDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSalvarParecer} 
-              className="bg-bradesco-blue"
-              disabled={isProspeccaoMode && (cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) || cnpjValues.filter(cnpj => cnpj).length === 0)}
+            <DialogClose asChild>
+              <Button variant="outline">Cancelar</Button>
+            </DialogClose>
+            <Button
+              onClick={handleSalvarParecer}
+              disabled={updateFeedbackMutation.isPending}
             >
-              Salvar Parecer
+              {updateFeedbackMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Parecer'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

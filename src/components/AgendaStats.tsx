@@ -14,7 +14,8 @@ import {
   BarChart2,
   Plus,
   Search,
-  PieChart
+  PieChart,
+  X
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/AuthContext";
@@ -24,6 +25,7 @@ import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
+import SupervisorGridDialog from "./SupervisorGridDialog";
 
 interface AgendaSummary {
   totalAgendamentos: number;
@@ -65,6 +67,8 @@ const AgendaStats: React.FC = () => {
   });
 
   const navigate = useNavigate();
+  const [showSupervisoresSemAgenda, setShowSupervisoresSemAgenda] = useState(false);
+  const [showSupervisorGrid, setShowSupervisorGrid] = useState(false);
 
   // Buscar supervisores para a estatística
   const { data: supervisors = [], isLoading: isLoadingSupervisors } = useQuery({
@@ -182,19 +186,57 @@ const AgendaStats: React.FC = () => {
         let countVisitasOperacionais = 0;
         let countVisitasNegociacao = 0;
         let countOutros = 0;
+
+        // Calcular estatísticas por supervisor
+        const estatisticasPorSupervisor: Record<string, {
+          totalEventos: number;
+          eventosHoje: number;
+          eventosSemana: number;
+          eventosConcluidos: number;
+          eventosPendentes: number;
+          categorias: {
+            prospeccao: number;
+            visitasOperacionais: number;
+            visitasNegociacao: number;
+            outros: number;
+          };
+        }> = {};
+
+        // Inicializar estatísticas para cada supervisor
+        supervisors.forEach(supervisor => {
+          estatisticasPorSupervisor[supervisor.id] = {
+            totalEventos: 0,
+            eventosHoje: 0,
+            eventosSemana: 0,
+            eventosConcluidos: 0,
+            eventosPendentes: 0,
+            categorias: {
+              prospeccao: 0,
+              visitasOperacionais: 0,
+              visitasNegociacao: 0,
+              outros: 0
+            }
+          };
+        });
         
         // Processar estatísticas por supervisor
         Object.entries(eventosPorSupervisor).forEach(([supervisorId, supervisorEventos]) => {
+          const stats = estatisticasPorSupervisor[supervisorId];
+          
           // Contar eventos por categoria
           supervisorEventos.forEach(evento => {
             // Contar por tipo de evento/categoria
             if (evento.location === "Prospecção") {
+              stats.categorias.prospeccao++;
               countProspeccao++;
             } else if (evento.location === "Visitas Operacionais") {
+              stats.categorias.visitasOperacionais++;
               countVisitasOperacionais++;
             } else if (evento.location === "Visitas de Negociação") {
+              stats.categorias.visitasNegociacao++;
               countVisitasNegociacao++;
             } else if (evento.location === "Outros") {
+              stats.categorias.outros++;
               countOutros++;
             }
           });
@@ -206,6 +248,7 @@ const AgendaStats: React.FC = () => {
             return dataEvento.getTime() === hoje.getTime();
           });
           
+          stats.eventosHoje = eventosHoje.length;
           if (eventosHoje.length > 0) {
             totalEventosHoje += eventosHoje.length;
             supervisoresComEventoHoje.add(supervisorId);
@@ -218,6 +261,7 @@ const AgendaStats: React.FC = () => {
             return dataInicio >= inicioSemana && dataInicio <= fimSemana;
           });
           
+          stats.eventosSemana = eventosSemana.length;
           totalEventosSemana += eventosSemana.length;
           
           // Eventos concluídos
@@ -226,6 +270,7 @@ const AgendaStats: React.FC = () => {
             return isPast(dataFim) && e.tratativa && e.tratativa.trim() !== '';
           });
           
+          stats.eventosConcluidos = eventosConcluidos.length;
           totalConcluidos += eventosConcluidos.length;
           
           // Eventos pendentes
@@ -234,7 +279,11 @@ const AgendaStats: React.FC = () => {
             return isPast(dataFim) && (!e.tratativa || e.tratativa.trim() === '');
           });
           
+          stats.eventosPendentes = eventosPendentes.length;
           totalPendentes += eventosPendentes.length;
+          
+          // Total de eventos do supervisor
+          stats.totalEventos = supervisorEventos.length;
           
           // Adicionar os eventos desta semana para exibição no card de próximos agendamentos
           if (eventosSemana.length > 0) {
@@ -288,6 +337,37 @@ const AgendaStats: React.FC = () => {
   // Verificar se está carregando
   const isLoading = isLoadingSupervisors || isLoadingEvents;
 
+  // Organizar eventos por supervisor
+  const eventosPorSupervisor = React.useMemo(() => {
+    const eventosMap: Record<string, Event[]> = {};
+    
+    events.forEach(evento => {
+      if (evento.supervisorId) {
+        if (!eventosMap[evento.supervisorId]) {
+          eventosMap[evento.supervisorId] = [];
+        }
+        eventosMap[evento.supervisorId].push(evento);
+      }
+    });
+    
+    return eventosMap;
+  }, [events]);
+
+  // Função para navegar para a agenda de um supervisor
+  const handleViewAgenda = (supervisorId: string) => {
+    const supervisor = supervisors.find(s => s.id === supervisorId);
+    if (supervisor) {
+      navigate(`/agenda?supervisor=${supervisorId}&filter=${encodeURIComponent(supervisor.name.toLowerCase())}`);
+    } else {
+      navigate(`/agenda?supervisor=${supervisorId}`);
+    }
+  };
+
+  // Função para navegar para o relatório de um supervisor
+  const handleViewRelatorio = (supervisorId: string) => {
+    navigate(`/relatorios?supervisor=${supervisorId}`);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Estatísticas de Agenda</h2>
@@ -295,18 +375,7 @@ const AgendaStats: React.FC = () => {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <Card key={i} className="border-2 border-gray-100">
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-8 w-16" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                </div>
-              </CardContent>
-            </Card>
+            <Skeleton key={i} className="h-32" />
           ))}
         </div>
       ) : isErrorEvents ? (
@@ -368,8 +437,19 @@ const AgendaStats: React.FC = () => {
                   </p>
                 </div>
                 <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-blue-600" />
+                  <Users className="h-5 w-5 text-blue-600" />
                 </div>
+              </div>
+              <div className="mt-4">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => setShowSupervisorGrid(true)}
+                >
+                  <Users className="h-3 w-3 mr-1" />
+                  Ver Supervisores
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -415,7 +495,10 @@ const AgendaStats: React.FC = () => {
             </CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow hover:shadow-md transition-shadow">
+          <Card 
+            className="bg-gradient-to-br from-red-50 to-white border-red-200 shadow hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setShowSupervisoresSemAgenda(!showSupervisoresSemAgenda)}
+          >
             <CardContent className="p-6">
               <div className="flex justify-between items-start">
                 <div>
@@ -437,9 +520,144 @@ const AgendaStats: React.FC = () => {
         </div>
       )}
       
-      {/* Categorias e Agenda da Semana em duas colunas */}
+      {/* Caixa de Supervisores sem Agenda */}
+      {!isLoading && showSupervisoresSemAgenda && summary.supervisoresSemAgenda > 0 && (
+        <Card className="border-2 border-red-100 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center justify-between">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
+                Supervisores sem Agenda na Semana
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setShowSupervisoresSemAgenda(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              Os seguintes supervisores não possuem agendamentos nesta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - 
+              {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {supervisors
+                .filter(supervisor => {
+                  // Verificar se o supervisor tem algum evento nesta semana
+                  const hoje = new Date();
+                  const inicioSemana = startOfWeek(hoje, {weekStartsOn: 1});
+                  const fimSemana = endOfWeek(hoje, {weekStartsOn: 1});
+                  
+                  return !events.some(event => 
+                    event.supervisorId === supervisor.id && 
+                    new Date(event.dataInicio) >= inicioSemana && 
+                    new Date(event.dataInicio) <= fimSemana
+                  );
+                })
+                .map(supervisor => {
+                  // Calcular estatísticas específicas para este supervisor
+                  const supervisorEvents = events.filter(event => event.supervisorId === supervisor.id);
+                  const eventosHoje = supervisorEvents.filter(event => {
+                    const dataEvento = new Date(event.dataInicio);
+                    dataEvento.setHours(0, 0, 0, 0);
+                    return dataEvento.getTime() === new Date().setHours(0, 0, 0, 0);
+                  });
+                  
+                  const eventosConcluidos = supervisorEvents.filter(event => {
+                    const dataFim = new Date(event.dataFim);
+                    return isPast(dataFim) && event.tratativa && event.tratativa.trim() !== '';
+                  });
+                  
+                  const eventosPendentes = supervisorEvents.filter(event => {
+                    const dataFim = new Date(event.dataFim);
+                    return isPast(dataFim) && (!event.tratativa || event.tratativa.trim() === '');
+                  });
+                  
+                  return (
+                    <div key={supervisor.id} className="p-3 bg-white rounded-md border border-red-200">
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                            <Users className="h-4 w-4 text-red-600" />
+                          </div>
+                          <div>
+                            <span className="font-medium">{supervisor.name}</span>
+                            <p className="text-xs text-gray-500">Nenhum evento agendado para esta semana</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={() => navigate(`/agenda?supervisor=${supervisor.id}`)}
+                            className="flex items-center gap-1"
+                          >
+                            <Calendar className="h-3 w-3" />
+                            Ver Agenda
+                          </Button>
+                          <Button 
+                            size="sm"
+                            onClick={() => {
+                              navigate(`/agenda?supervisor=${supervisor.id}&new=true`);
+                            }}
+                            className="bg-bradesco-blue"
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Agendar
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Estatísticas do supervisor */}
+                      <div className="grid grid-cols-4 gap-2 mt-3 text-sm">
+                        <div className="bg-gray-50 p-2 rounded-md">
+                          <p className="text-gray-500 text-xs">Total</p>
+                          <p className="font-medium">{supervisorEvents.length}</p>
+                        </div>
+                        <div className="bg-gray-50 p-2 rounded-md">
+                          <p className="text-gray-500 text-xs">Hoje</p>
+                          <p className="font-medium">{eventosHoje.length}</p>
+                        </div>
+                        <div className="bg-green-50 p-2 rounded-md">
+                          <p className="text-green-600 text-xs">Concluídos</p>
+                          <p className="font-medium text-green-700">{eventosConcluidos.length}</p>
+                        </div>
+                        <div className="bg-red-50 p-2 rounded-md">
+                          <p className="text-red-600 text-xs">Pendentes</p>
+                          <p className="font-medium text-red-700">{eventosPendentes.length}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              
+              {supervisors.filter(supervisor => {
+                const hoje = new Date();
+                const inicioSemana = startOfWeek(hoje, {weekStartsOn: 1});
+                const fimSemana = endOfWeek(hoje, {weekStartsOn: 1});
+                
+                return !events.some(event => 
+                  event.supervisorId === supervisor.id && 
+                  new Date(event.dataInicio) >= inicioSemana && 
+                  new Date(event.dataInicio) <= fimSemana
+                );
+              }).length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
+                  <p>Todos os supervisores possuem agenda para esta semana. Parabéns!</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Categorias de Eventos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card de Categorias */}
         <Card className="border-2 border-gray-100">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
@@ -464,7 +682,7 @@ const AgendaStats: React.FC = () => {
               <div className="space-y-3">
                 <div 
                   className="flex justify-between items-center p-2 bg-blue-50 hover:bg-blue-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => window.location.href = '/agenda?filter=prospeccao'}
+                  onClick={() => navigate('/agenda?filter=prospeccao')}
                 >
                   <div className="flex items-center">
                     <div className="h-7 w-7 bg-blue-500 rounded-full flex items-center justify-center mr-2">
@@ -477,7 +695,7 @@ const AgendaStats: React.FC = () => {
                 
                 <div 
                   className="flex justify-between items-center p-2 bg-green-50 hover:bg-green-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => window.location.href = '/agenda?filter=operacional'}
+                  onClick={() => navigate('/agenda?filter=operacional')}
                 >
                   <div className="flex items-center">
                     <div className="h-7 w-7 bg-green-500 rounded-full flex items-center justify-center mr-2">
@@ -490,7 +708,7 @@ const AgendaStats: React.FC = () => {
                 
                 <div 
                   className="flex justify-between items-center p-2 bg-amber-50 hover:bg-amber-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => window.location.href = '/agenda?filter=negociacao'}
+                  onClick={() => navigate('/agenda?filter=negociacao')}
                 >
                   <div className="flex items-center">
                     <div className="h-7 w-7 bg-amber-500 rounded-full flex items-center justify-center mr-2">
@@ -503,7 +721,7 @@ const AgendaStats: React.FC = () => {
                 
                 <div 
                   className="flex justify-between items-center p-2 bg-gray-50 hover:bg-gray-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => window.location.href = '/agenda?filter=outros'}
+                  onClick={() => navigate('/agenda?filter=outros')}
                 >
                   <div className="flex items-center">
                     <div className="h-7 w-7 bg-gray-500 rounded-full flex items-center justify-center mr-2">
@@ -527,7 +745,7 @@ const AgendaStats: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full border-dashed"
-                onClick={() => window.location.href = '/agenda'}
+                onClick={() => navigate('/agenda')}
               >
                 Ver todos os eventos
                 <ChevronRight className="ml-2 h-4 w-4" />
@@ -585,7 +803,7 @@ const AgendaStats: React.FC = () => {
                     </div>
                     <div className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
                       <Clock className="h-3 w-3 inline-block mr-1" />
-                      {formatDateTime(evento.dataInicio)}
+                      {format(new Date(evento.dataInicio), "dd/MM/yyyy", {locale: ptBR})}
                     </div>
                   </div>
                 ))}
@@ -600,7 +818,7 @@ const AgendaStats: React.FC = () => {
               <Button 
                 variant="outline" 
                 className="w-full border-dashed"
-                onClick={() => window.location.href = '/agenda'}
+                onClick={() => navigate('/agenda')}
               >
                 Ver todos os agendamentos
                 <ChevronRight className="ml-2 h-4 w-4" />
@@ -609,93 +827,16 @@ const AgendaStats: React.FC = () => {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Supervisor sem Agenda */}
-      {!isLoading && summary.supervisoresSemAgenda > 0 && (
-        <Card className="border-2 border-red-100 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center">
-              <AlertCircle className="h-5 w-5 text-red-600 mr-2" />
-              Supervisores sem Agenda na Semana
-            </CardTitle>
-            <CardDescription>
-              Os seguintes supervisores não possuem agendamentos nesta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - 
-              {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {supervisors
-                .filter(supervisor => {
-                  // Verificar se o supervisor tem algum evento nesta semana
-                  const hoje = new Date();
-                  const inicioSemana = startOfWeek(hoje, {weekStartsOn: 1});
-                  const fimSemana = endOfWeek(hoje, {weekStartsOn: 1});
-                  
-                  return !events.some(event => 
-                    event.supervisorId === supervisor.id && 
-                    new Date(event.dataInicio) >= inicioSemana && 
-                    new Date(event.dataInicio) <= fimSemana
-                  );
-                })
-                .map(supervisor => (
-                  <div key={supervisor.id} className="p-3 bg-white rounded-md border border-red-200 flex justify-between items-center">
-                    <div className="flex items-center">
-                      <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                        <Users className="h-4 w-4 text-red-600" />
-                      </div>
-                      <div>
-                        <span className="font-medium">{supervisor.name}</span>
-                        <p className="text-xs text-gray-500">Nenhum evento agendado para esta semana</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        size="sm"
-                        variant="outline"
-                        onClick={() => window.location.href = `/agenda?supervisor=${supervisor.id}`}
-                        className="flex items-center gap-1"
-                      >
-                        <Calendar className="h-3 w-3" />
-                        Ver Agenda
-                      </Button>
-                      <Button 
-                        size="sm"
-                        onClick={() => {
-                          // Redirecionar para criar um novo evento para este supervisor
-                          window.location.href = `/agenda?supervisor=${supervisor.id}&new=true`;
-                        }}
-                        className="bg-bradesco-blue"
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Agendar
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              }
-              
-              {supervisors.filter(supervisor => {
-                // Verificar se o supervisor tem algum evento nesta semana
-                const hoje = new Date();
-                const inicioSemana = startOfWeek(hoje, {weekStartsOn: 1});
-                const fimSemana = endOfWeek(hoje, {weekStartsOn: 1});
-                
-                return !events.some(event => 
-                  event.supervisorId === supervisor.id && 
-                  new Date(event.dataInicio) >= inicioSemana && 
-                  new Date(event.dataInicio) <= fimSemana
-                );
-              }).length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  <CheckCircle className="h-6 w-6 text-green-500 mx-auto mb-2" />
-                  <p>Todos os supervisores possuem agenda para esta semana. Parabéns!</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
+      {/* Modal de Supervisores */}
+      <SupervisorGridDialog 
+        open={showSupervisorGrid}
+        onOpenChange={setShowSupervisorGrid}
+        supervisores={supervisors}
+        eventos={eventosPorSupervisor}
+        onViewAgenda={handleViewAgenda}
+        onViewRelatorio={handleViewRelatorio}
+      />
     </div>
   );
 };

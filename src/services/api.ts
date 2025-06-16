@@ -66,6 +66,38 @@ export interface AcaoDiariaContas {
   nomeUsuario?: string; // Para exibir o nome do usuário responsável na view de equipe
 }
 
+export interface HotListItem {
+  id: string;
+  supervisor_id: string;
+  supervisor_name: string;
+  CNPJ: string;
+  NOME_LOJA: string;
+  LOCALIZACAO: string;
+  AGENCIA: string;
+  MERCADO: string;
+  PRACA_PRESENCA: 'SIM' | 'NAO';
+  situacao: 'pendente' | 'realizar' | 'tratada' | 'bloqueada';
+  DIRETORIA_REGIONAL: string;
+  GERENCIA_REGIONAL: string;
+  PA: string;
+  GERENTE_PJ: string;
+}
+
+export interface Tratativa {
+  id: string;
+  hotlist_id: string;
+  user_id: string;
+  user_name: string;
+  descricao: string;
+  situacao: 'realizada' | 'pendente';
+  data_tratativa: string;
+}
+
+export interface HotListSummary {
+  totalLeads: number;
+  leadsPendentes: number;
+}
+
 interface ApiError {
   message: string;
 }
@@ -421,110 +453,90 @@ export const eventApi = {
     };
     
     try {
-      // Verificar se o endpoint principal funciona
-      try {
-        console.debug(`[EventsAPI] Tentando endpoint team: ${url}`);
-        const response = await fetch(url, options);
-        if (response.ok) {
-          const data = await response.json();
-          console.debug(`[EventsAPI] ${data.length} eventos da equipe carregados com sucesso da API`);
-          return data;
-        } else {
-          console.warn(`[EventsAPI] Endpoint de equipe retornou erro ${response.status}, usando fallback`);
-          throw new Error(`API retornou status ${response.status}`);
-        }
-      } catch (endpointError) {
-        console.warn("[EventsAPI] Erro ao tentar usar endpoint de equipe, usando fallback:", endpointError);
-        // Continua para o método fallback
-      }
-      
-      // FALLBACK: Se o endpoint não existir ou falhar, usamos a API de subordinados + eventos individuais
-      console.debug("[EventsAPI] Iniciando método fallback para buscar eventos da equipe");
-      
+      // Buscar usuário atual
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (!user.id) {
-        console.error("[EventsAPI] Usuário não encontrado no localStorage para fallback");
+        console.error("[EventsAPI] Usuário não encontrado no localStorage");
         return [];
       }
-      
-      // Buscar subordinados do usuário
+
+      // Buscar supervisores da equipe
       let supervisors: User[] = [];
       try {
-        const userApi = await import("@/services/api").then(m => m.userApi);
-        const allSubordinates = await userApi.getSubordinates(user.id);
-        supervisors = allSubordinates.filter(u => u.role === "supervisor");
-        console.debug(`[EventsAPI-Fallback] Encontrados ${supervisors.length} supervisores para buscar eventos`);
+        if (user.role === "admin") {
+          supervisors = await userApi.getUsersByRole("supervisor");
+        } else {
+          const allSubordinates = await userApi.getSubordinates(user.id);
+          supervisors = allSubordinates.filter(u => u.role === "supervisor");
+        }
+        console.debug(`[EventsAPI] Encontrados ${supervisors.length} supervisores para buscar eventos`);
       } catch (subordinatesError) {
-        console.error("[EventsAPI-Fallback] Erro ao buscar subordinados:", subordinatesError);
+        console.error("[EventsAPI] Erro ao buscar supervisores:", subordinatesError);
         return [];
       }
-      
+
       if (supervisors.length === 0) {
-        console.warn("[EventsAPI-Fallback] Nenhum supervisor encontrado, retornando lista vazia");
+        console.warn("[EventsAPI] Nenhum supervisor encontrado, retornando lista vazia");
         return [];
       }
-      
-      // Buscar eventos para cada supervisor
-      console.debug(`[EventsAPI-Fallback] Buscando eventos para ${supervisors.length} supervisores`);
-      
+
+      // Buscar eventos para cada supervisor em paralelo
       const allPromises = supervisors.map(async (supervisor) => {
         try {
-          // Construir URL com parâmetros de data se fornecidos
           let supervisorUrl = `${API_URL}/events?supervisorId=${supervisor.id}`;
           if (startDate) supervisorUrl += `&startDate=${startDate}`;
           if (endDate) supervisorUrl += `&endDate=${endDate}`;
-          
+
           const response = await fetch(supervisorUrl, options);
           if (!response.ok) {
-            console.warn(`[EventsAPI-Fallback] Erro ao buscar eventos para supervisor ${supervisor.id}: ${response.status}`);
+            console.warn(`[EventsAPI] Erro ao buscar eventos para supervisor ${supervisor.id}: ${response.status}`);
             return [];
           }
-          
+
           const events = await response.json();
+          // Garantir que cada evento tenha as informações do supervisor
           return events.map((event: Event) => ({
             ...event,
             supervisorId: supervisor.id,
             supervisorName: supervisor.name
           }));
         } catch (error) {
-          console.error(`[EventsAPI-Fallback] Erro ao buscar eventos para supervisor ${supervisor.id}:`, error);
+          console.error(`[EventsAPI] Erro ao buscar eventos para supervisor ${supervisor.id}:`, error);
           return [];
         }
       });
-      
-      try {
-        const results = await Promise.all(allPromises);
-        const allEvents = results.flat();
-        
-        // Filtrar por data se necessário
-        let filteredEvents = allEvents;
-        if (startDate || endDate) {
-          filteredEvents = allEvents.filter(event => {
-            const eventDate = new Date(event.dataInicio);
-            let matches = true;
-            
-            if (startDate) {
-              const start = new Date(startDate);
-              matches = matches && eventDate >= start;
-            }
-            
-            if (endDate) {
-              const end = new Date(endDate);
-              matches = matches && eventDate <= end;
-            }
-            
-            return matches;
-          });
-        }
-        
-        console.debug(`[EventsAPI-Fallback] ${filteredEvents.length} eventos da equipe carregados (fallback)`);
-        return filteredEvents;
-      } catch (promiseError) {
-        console.error("[EventsAPI-Fallback] Erro ao processar resultados de eventos:", promiseError);
-        return [];
+
+      // Aguardar todas as requisições e combinar os resultados
+      const results = await Promise.all(allPromises);
+      const allEvents = results.flat();
+
+      // Filtrar eventos por data se necessário
+      let filteredEvents = allEvents;
+      if (startDate || endDate) {
+        filteredEvents = allEvents.filter(event => {
+          const eventDate = new Date(event.dataInicio);
+          let matches = true;
+
+          if (startDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            matches = matches && eventDate >= start;
+          }
+
+          if (endDate) {
+            const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+            matches = matches && eventDate <= end;
+          }
+
+          return matches;
+        });
       }
+
+      console.debug(`[EventsAPI] ${filteredEvents.length} eventos da equipe carregados`);
+      return filteredEvents;
     } catch (error) {
-      console.error("Falha ao buscar eventos da equipe:", error);
+      console.error("[EventsAPI] Falha ao buscar eventos da equipe:", error);
       return [];
     }
   },
@@ -792,6 +804,80 @@ export const acaoDiariaApi = {
       }
       return { success: false, message: "Erro desconhecido" };
     }
+  },
+};
+
+// HotList APIs
+export const hotListApi = {
+  getHotList: async (userId: string): Promise<HotListItem[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/hotlist/${userId}`, options);
+  },
+
+  getHotListSummary: async (userId: string): Promise<HotListSummary> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/hotlist/${userId}/summary`, options);
+  },
+
+  updateHotListItem: async (itemId: string, data: Partial<HotListItem>): Promise<HotListItem> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "PATCH",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/hotlist/${itemId}`, options);
+  },
+
+  registrarTratativa: async (data: { hotlist_id: string; descricao: string; situacao: 'realizada' | 'pendente' }): Promise<Tratativa> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/hotlist/tratativa`, options);
+  },
+
+  getTratativas: async (itemId: string): Promise<Tratativa[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/hotlist/${itemId}/tratativas`, options);
   },
 };
 

@@ -12,11 +12,12 @@ import {
   MapPin,
   ChevronRight,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  Plus
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { eventApi, Event, userApi, User } from "@/services/api";
-import { format, isToday, isPast, isFuture, addDays, isThisWeek, isThisMonth, subDays } from "date-fns";
+import { format, isToday, isPast, isFuture, addDays, isWithinInterval, startOfWeek, endOfWeek, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import AgendaStats from "./AgendaStats";
 import { useQuery } from "@tanstack/react-query";
@@ -68,12 +69,9 @@ const DashboardGerencial: React.FC = () => {
         const startDate = format(subDays(new Date(), 30), 'yyyy-MM-dd');
         const endDate = format(addDays(new Date(), 30), 'yyyy-MM-dd');
         
-        console.log(`Buscando eventos da equipe de ${startDate} até ${endDate}`);
-        
         // Buscar eventos de toda a equipe
         const events = await eventApi.getTeamEvents(startDate, endDate);
         
-        console.log(`Recebidos ${events.length} eventos da equipe`);
         return events;
       } catch (error) {
         console.error("Erro ao buscar eventos para o dashboard:", error);
@@ -104,13 +102,27 @@ const DashboardGerencial: React.FC = () => {
   // Função para processar os dados dos supervisores e eventos
   const processarDados = (supervisores: User[], eventos: Event[]) => {
     try {
-      console.log(`Processando dados: ${supervisores.length} supervisores, ${eventos.length} eventos`);
-      
+      // Log inicial para debug
+      console.log('Dados recebidos:', {
+        totalSupervisores: supervisores.length,
+        supervisores: supervisores.map(s => ({ id: s.id, nome: s.name })),
+        totalEventos: eventos.length,
+        eventos: eventos.map(e => ({ 
+          id: e.id, 
+          titulo: e.titulo, 
+          supervisorId: e.supervisorId,
+          dataInicio: e.dataInicio
+        }))
+      });
+
       // Criar um mapa de supervisores para facilitar a busca
       const supervisorMap = new Map<string, User>();
       supervisores.forEach(supervisor => {
         supervisorMap.set(supervisor.id, supervisor);
       });
+
+      // Criar um Set para rastrear eventos já processados
+      const eventosProcessados = new Set<string>();
 
       // Agrupar eventos por supervisor
       const eventosPorSupervisor = new Map<string, Event[]>();
@@ -122,79 +134,100 @@ const DashboardGerencial: React.FC = () => {
       
       // Adicionar eventos aos supervisores correspondentes
       eventos.forEach(evento => {
-        if (evento.supervisorId && supervisorMap.has(evento.supervisorId)) {
-          const eventosDoSupervisor = eventosPorSupervisor.get(evento.supervisorId) || [];
-          eventosPorSupervisor.set(evento.supervisorId, [...eventosDoSupervisor, evento]);
+        // Verificar se o evento já foi processado
+        if (eventosProcessados.has(evento.id)) {
+          console.warn(`Evento ${evento.id} já foi processado anteriormente. Ignorando duplicata.`);
+          return;
+        }
+
+        const supervisorId = evento.supervisorId;
+        const supervisorNoMapa = supervisorMap.has(supervisorId);
+
+        console.log('Processando evento:', {
+          id: evento.id,
+          titulo: evento.titulo,
+          supervisorId: supervisorId,
+          supervisorNoMapa
+        });
+
+        if (supervisorNoMapa) {
+          const eventosDoSupervisor = eventosPorSupervisor.get(supervisorId) || [];
+          eventosDoSupervisor.push(evento);
+          eventosPorSupervisor.set(supervisorId, eventosDoSupervisor);
+          eventosProcessados.add(evento.id);
         }
       });
-      
-      // Processar dados para cada supervisor
-      const supervisoresComAgenda: SupervisorAgenda[] = [];
-      
+
+      // Log dos eventos agrupados
+      console.log('Eventos agrupados por supervisor:');
       supervisores.forEach(supervisor => {
-        const eventosDoSupervisor = eventosPorSupervisor.get(supervisor.id) || [];
+        const eventos = eventosPorSupervisor.get(supervisor.id) || [];
+        console.log(`- ${supervisor.name} (${supervisor.id}): ${eventos.length} eventos`);
+      });
+
+      // Processar estatísticas para cada supervisor
+      const supervisoresComAgenda = supervisores.map(supervisor => {
+        const eventos = eventosPorSupervisor.get(supervisor.id) || [];
         
-        // Contar eventos por período
-        const eventosHoje = eventosDoSupervisor.filter(e => isToday(new Date(e.dataInicio)));
-        const eventosSemana = eventosDoSupervisor.filter(e => isThisWeek(new Date(e.dataInicio)));
-        const eventosMes = eventosDoSupervisor.filter(e => isThisMonth(new Date(e.dataInicio)));
-        
-        // Encontrar a próxima visita (apenas eventos futuros)
-        const eventosFuturos = eventosDoSupervisor
-          .filter(e => isFuture(new Date(e.dataInicio)))
-          .sort((a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime());
-        
-        const proximaVisita = eventosFuturos.length > 0 ? eventosFuturos[0] : null;
-        
-        // Adicionar à lista de supervisores com suas agendas
-        supervisoresComAgenda.push({
-          id: supervisor.id,
-          nome: supervisor.name,
-          cargo: supervisor.role || "supervisor",
-          totalAgendamentos: eventosDoSupervisor.length,
-          agendamentosHoje: eventosHoje.length,
-          agendamentosSemana: eventosSemana.length,
-          agendamentosMes: eventosMes.length,
-          proximaVisita
+        console.log(`Processando supervisor ${supervisor.name}:`, {
+          totalEventos: eventos.length,
+          eventos
         });
+
+        const hoje = new Date();
+        const inicioSemana = startOfWeek(hoje, { weekStartsOn: 1 });
+        const fimSemana = endOfWeek(hoje, { weekStartsOn: 1 });
+
+        const eventosHoje = eventos.filter(evento => 
+          isToday(new Date(evento.dataInicio))
+        ).length;
+
+        const eventosSemana = eventos.filter(evento => {
+          const dataEvento = new Date(evento.dataInicio);
+          return isWithinInterval(dataEvento, { start: inicioSemana, end: fimSemana });
+        }).length;
+
+        const proximosEventos = eventos.filter(evento => 
+          isFuture(new Date(evento.dataInicio))
+        ).length;
+
+        const dadosProcessados = {
+          eventosHoje,
+          eventosSemana,
+          proximosEventos
+        };
+
+        console.log(`Dados processados do supervisor ${supervisor.name}:`, dadosProcessados);
+
+        return {
+          supervisor: supervisor.name,
+          total: eventos.length,
+          hoje: eventosHoje,
+          semana: eventosSemana
+        };
       });
-      
-      // Ordenar supervisores: primeiro os que não têm agendamento, depois por quantidade (crescente)
-      supervisoresComAgenda.sort((a, b) => {
-        if (a.totalAgendamentos === 0 && b.totalAgendamentos === 0) return 0;
-        if (a.totalAgendamentos === 0) return -1;
-        if (b.totalAgendamentos === 0) return 1;
-        return a.totalAgendamentos - b.totalAgendamentos;
-      });
-      
-      // Calcular estatísticas
-      const totalAgendamentos = eventos.length;
-      const agendamentosHoje = eventos.filter(e => isToday(new Date(e.dataInicio))).length;
-      const agendamentosSemana = eventos.filter(e => isThisWeek(new Date(e.dataInicio))).length;
-      const supervisoresSemAgendamento = supervisoresComAgenda.filter(s => s.totalAgendamentos === 0).length;
-      const supervisoresComAgendamentoHoje = supervisoresComAgenda.filter(s => s.agendamentosHoje > 0).length;
-      
-      console.log(`Estatísticas calculadas: Total=${totalAgendamentos}, Hoje=${agendamentosHoje}, Semana=${agendamentosSemana}`);
-      
-      setSupervisoresAgenda(supervisoresComAgenda);
-      setEstatisticas({
+
+      // Calcular estatísticas gerais
+      const totalAgendamentos = Array.from(eventosProcessados).length;
+      const agendamentosHoje = supervisoresComAgenda.reduce((total, sup) => total + sup.hoje, 0);
+      const agendamentosSemana = supervisoresComAgenda.reduce((total, sup) => total + sup.semana, 0);
+      const supervisoresSemAgendamento = supervisoresComAgenda.filter(sup => sup.total === 0).length;
+      const supervisoresComAgendamentoHoje = supervisoresComAgenda.filter(sup => sup.hoje > 0).length;
+
+      const estatisticas = {
         totalAgendamentos,
         agendamentosHoje,
         agendamentosSemana,
         supervisoresSemAgendamento,
-        supervisoresComAgendamentoHoje
-      });
+        supervisoresComAgendamentoHoje,
+        supervisoresComAgenda
+      };
+
+      console.log('Estatísticas finais:', estatisticas);
+      setEstatisticas(estatisticas);
+
     } catch (error) {
-      console.error("Erro ao processar dados:", error);
-      // Em caso de erro, definir valores padrão
-      setSupervisoresAgenda([]);
-      setEstatisticas({
-        totalAgendamentos: 0,
-        agendamentosHoje: 0,
-        agendamentosSemana: 0,
-        supervisoresSemAgendamento: 0,
-        supervisoresComAgendamentoHoje: 0
-      });
+      console.error('Erro ao processar dados:', error);
     }
   };
   
@@ -242,137 +275,7 @@ const DashboardGerencial: React.FC = () => {
     <div className="space-y-6">
       {/* Novo componente de estatísticas da agenda */}
       <AgendaStats />
-      
-      {/* Resumo de Supervisores */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Supervisores</h2>
-        
-        {isErrorEvents ? (
-          <div className="p-6 border-2 border-red-100 bg-red-50 rounded-lg">
-            <div className="flex items-center text-red-600 mb-2">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <h3 className="font-medium">Erro ao carregar dados de supervisores</h3>
-            </div>
-            <p className="text-sm text-gray-600">
-              Não foi possível carregar os dados de agendamentos dos supervisores. Verifique sua conexão com a internet ou tente novamente mais tarde.
-            </p>
-            <Button 
-              className="mt-4" 
-              variant="outline"
-              onClick={() => window.location.reload()}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Tentar novamente
-            </Button>
-          </div>
-        ) : supervisoresAgenda.length === 0 ? (
-          <div className="p-6 border-2 border-amber-100 bg-amber-50 rounded-lg">
-            <div className="flex items-center text-amber-600 mb-2">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <h3 className="font-medium">Nenhum supervisor encontrado</h3>
-            </div>
-            <p className="text-sm text-gray-600">
-              Não foram encontrados supervisores em sua equipe ou não há dados de agendamentos disponíveis.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <Button 
-                variant="outline"
-                onClick={() => window.location.reload()}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Atualizar dados
-              </Button>
-              <Button 
-                variant="default"
-                onClick={() => navegarPara('/agenda')}
-              >
-                <Calendar className="h-4 w-4 mr-2" />
-                Ir para agenda
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {supervisoresAgenda.map(supervisor => (
-              <Card 
-                key={supervisor.id} 
-                className={`bg-white hover:shadow-md transition-shadow ${
-                  supervisor.totalAgendamentos === 0 ? 'border-red-200' : 'border-gray-200'
-                }`}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                      supervisor.totalAgendamentos === 0 
-                        ? 'bg-red-100 text-red-600' 
-                        : 'bg-blue-100 text-blue-600'
-                    }`}>
-                      <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">{supervisor.nome}</h3>
-                      <p className="text-xs text-gray-500 capitalize">{supervisor.cargo}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <div className="text-center p-2 bg-gray-50 rounded-md">
-                        <p className="text-xs text-gray-500">Total</p>
-                        <p className="font-bold text-gray-800">{supervisor.totalAgendamentos}</p>
-                      </div>
-                      <div className="text-center p-2 bg-green-50 rounded-md">
-                        <p className="text-xs text-gray-500">Hoje</p>
-                        <p className="font-bold text-green-700">{supervisor.agendamentosHoje}</p>
-                      </div>
-                      <div className="text-center p-2 bg-blue-50 rounded-md">
-                        <p className="text-xs text-gray-500">Semana</p>
-                        <p className="font-bold text-blue-700">{supervisor.agendamentosSemana}</p>
-                      </div>
-                    </div>
-                    
-                    {supervisor.proximaVisita ? (
-                      <div className="border rounded-md p-3 bg-gray-50">
-                        <p className="text-xs font-medium text-gray-500 mb-1">Próxima Visita:</p>
-                        <p className="text-sm font-medium truncate">{supervisor.proximaVisita.titulo}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-500">
-                            <CalendarDays className="h-3 w-3 inline-block mr-1" />
-                            {formatarPeriodo(
-                              supervisor.proximaVisita.dataInicio,
-                              supervisor.proximaVisita.dataFim
-                            )}
-                          </span>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => navegarPara(`/agenda?evento=${supervisor.proximaVisita!.id}`)}
-                          >
-                            Ver
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="border border-dashed rounded-md p-3 bg-gray-50 text-center">
-                        <p className="text-sm text-gray-500">Sem visitas agendadas</p>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="mt-1 h-7 px-2 text-xs text-blue-600"
-                          onClick={() => navegarPara(`/agenda?supervisor=${supervisor.id}`)}
-                        >
-                          Agendar Visita
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+     
     </div>
   );
 };

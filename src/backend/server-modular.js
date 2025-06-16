@@ -15,6 +15,8 @@ const eventRoutes = require('./routes/events');
 const oportunidadesRoutes = require('./routes/oportunidades');
 const acoesDiariasRoutes = require('./routes/acoes-diarias');
 const prospectVisitasRoutes = require('./routes/prospectVisitas');
+const hotlistRoutes = require('./routes/hotlist');
+const trativasProspecaoRoutes = require('./routes/trativasProspecao');
 
 const app = express();
 const PORT = 3001;
@@ -164,6 +166,8 @@ app.use('/api/events', eventRoutes);
 app.use('/api', oportunidadesRoutes);
 app.use('/api/acoes-diarias', acoesDiariasRoutes);
 app.use('/api/prospect-visitas', prospectVisitasRoutes);
+app.use('/api/hotlist', hotlistRoutes);
+app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
 
 // Start server
 app.listen(PORT, () => {

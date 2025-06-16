@@ -1,198 +1,98 @@
-# Backend do Sistema Bradesco Express Gestão Pro
+# Backend do Sistema de Gestão
 
-Este diretório contém o servidor backend para o sistema Bradesco Express Gestão Pro, responsável por fornecer APIs para autenticação, gerenciamento de usuários, eventos e dados de oportunidades comerciais.
+Este é o backend do sistema de gestão, construído com Node.js, Express e SQL Server. O sistema é modular e inclui várias funcionalidades como autenticação, gestão de eventos, hotlist e mais.
 
-## Estrutura
+## Documentação Detalhada
 
-- `server.js` - Servidor Express principal que define as rotas e middlewares
-- `setup_oportunidades_contas.sql` - Script SQL para criação e população da tabela de oportunidades de contas
-- `setup_acao_diaria_contas.sql` - Script SQL para criação e população da tabela de ações diárias
+- [Autenticação e Hierarquia](./README_AUTH.md)
+- [Módulo HOTLIST](./README_HOTLIST.md)
+- [Módulo Modular](./README_MODULAR.md)
 
-## Tecnologias Utilizadas
+## Estrutura do Projeto
 
-- **Node.js** - Ambiente de execução JavaScript
-- **Express** - Framework web para Node.js
-- **SQL Server** - Banco de dados relacional para armazenamento de dados
-- **JWT** - Autenticação baseada em tokens
-
-## Configuração do Banco de Dados
-
-O sistema utiliza SQL Server como banco de dados. A configuração da conexão está definida no arquivo `server.js`:
-
-```javascript
-// SQL Server configuration
-const dbConfig = {
-  server: 'DESKTOP-G4V6794', // Seu servidor
-  database: 'TESTE',         // Seu banco de dados
-  user: 'sa',                // Seu usuário 
-  password: 'expresso',      // Sua senha
-  options: {
-    encrypt: false,          // Para conexões locais, defina como false
-    trustServerCertificate: true, // Para desenvolvimento local
-    enableArithAbort: true
-  }
-};
+```
+src/backend/
+├── config/           # Configurações (banco de dados, etc)
+├── middleware/       # Middlewares (autenticação, etc)
+├── routes/          # Rotas da API
+│   ├── auth.js      # Rotas de autenticação
+│   ├── users.js     # Rotas de usuários
+│   ├── events.js    # Rotas de eventos
+│   ├── hotlist.js   # Rotas de hotlist
+│   └── ...
+├── services/        # Serviços e lógica de negócio
+├── migrations/      # Scripts de migração do banco
+└── server-modular.js # Arquivo principal do servidor
 ```
 
-### Importante: Adapte a configuração acima para seu ambiente!
+## Configuração do Ambiente
 
-## Configuração Inicial
-
-Para configurar o ambiente pela primeira vez, siga os passos abaixo:
-
-1. **Instale o Node.js e npm**:
-   - Baixe e instale de [nodejs.org](https://nodejs.org/)
-
-2. **Instale as dependências**:
-   ```bash
-   npm install express cors body-parser jsonwebtoken mssql
-   ```
-
-3. **Configure o SQL Server**:
-   - Certifique-se de que o SQL Server está instalado e rodando
-   - Crie um banco de dados chamado `TESTE` (ou altere no arquivo de configuração)
-   - Atualize as credenciais no arquivo `server.js` conforme necessário
-
-4. **Execute os scripts SQL**:
-   - Execute os scripts SQL no seu SQL Server:
-     ```bash
-     # Usando sqlcmd (ajuste as credenciais conforme necessário)
-     sqlcmd -S DESKTOP-G4V6794 -U sa -P expresso -d TESTE -i setup_oportunidades_contas.sql
-     sqlcmd -S DESKTOP-G4V6794 -U sa -P expresso -d TESTE -i setup_acao_diaria_contas.sql
-     ```
-     ou use SQL Server Management Studio para executar os scripts.
-
-## Iniciando o Servidor
-
-Para iniciar o servidor, execute:
-
+1. Instale as dependências:
 ```bash
-node src/backend/server.js
+npm install
 ```
 
-O servidor será iniciado na porta 3001 por padrão. Você pode alterar a porta no arquivo `server.js`.
-
-## Estrutura do Banco de Dados
-
-### Tabelas Principais
-
-1. **users** - Armazena informações de usuários do sistema
-2. **hierarchy** - Define relacionamentos hierárquicos entre usuários
-3. **EVENTOS** - Armazena eventos e atividades registradas no sistema
-4. **oportunidades_contas** - Armazena informações sobre oportunidades de negócio
-5. **ACAO_DIARIA_CONTAS** - Armazena ações diárias relacionadas a contas que precisam de atenção
-
-### Tabela oportunidades_contas
-
-A tabela `oportunidades_contas` armazena dados relacionados às oportunidades de negócio para diferentes estratégias comerciais (abertura de contas, crédito, seguros, etc.). Os campos principais incluem:
-
-- **ID** - Identificador único do registro (UNIQUEIDENTIFIER)
-- **CHAVE_LOJA** - Identificador exclusivo da loja/PDV (NVARCHAR(20))
-- **CNPJ** - CNPJ da loja (NVARCHAR(20))
-- **NOME_LOJA** - Nome fantasia da loja (NVARCHAR(100))
-- **SITUACAO** - Situação atual da loja: 'ativa', 'bloqueada', 'em processo de encerramento'
-- **MES_M3, MES_M2, MES_M1, MES_M0** - Métricas de produção dos últimos 4 meses
-- **TENDENCIA** - Tendência de desempenho: 'queda', 'atencao', 'estavel', 'comecando'
-- **TIPO_ESTRATEGIA** - Tipo de estratégia associada ao registro ('abertura-conta', 'credito', 'seguro')
-
-O script `setup_oportunidades_contas.sql` cria esta tabela se ela não existir e insere dados de exemplo.
-
-### Tabela ACAO_DIARIA_CONTAS
-
-A tabela `ACAO_DIARIA_CONTAS` armazena dados sobre ações diárias que precisam ser realizadas pelo usuário em relação às contas. Os campos principais incluem:
-
-- **ID** - Identificador único da ação (UNIQUEIDENTIFIER)
-- **CHAVE_LOJA** - Identificador exclusivo da loja relacionada (NVARCHAR(20))
-- **NOME_LOJA** - Nome da loja (NVARCHAR(100))
-- **CONTATO** - Nome da pessoa de contato na loja (NVARCHAR(100))
-- **TELEFONE** - Telefone para contato (NVARCHAR(20))
-- **USER_ID** - ID do usuário responsável pela ação (UNIQUEIDENTIFIER)
-- **QTD_CONTAS_PLATAFORMA** - Quantidade de contas na nova plataforma (INT)
-- **QTD_CONTAS_LEGADO** - Quantidade de contas no sistema legado (INT)
-- **SITUACAO** - Status da ação: 'Pendente', 'Em Andamento', 'Concluída', 'Atrasada' (NVARCHAR(30))
-- **DESCRIACAO_SITUACAO** - Descrição detalhada da situação (NVARCHAR(200))
-- **TIPO_ACAO** - Tipo de ação: 'Migração de Contas', 'Regularização', 'Ativação de PDV', 'Outro' (NVARCHAR(50))
-- **DATA_LIMITE** - Data limite para a conclusão da ação (DATETIME)
-
-O script `setup_acao_diaria_contas.sql` cria esta tabela se ela não existir e insere dados de exemplo.
-
-## APIs Disponíveis
-
-### Autenticação
-
-- `POST /api/auth/login` - Autentica um usuário e retorna um token JWT
-
-### Usuários e Hierarquia
-
-- `GET /api/users/:userId/subordinates` - Retorna subordinados de um usuário
-- `GET /api/users/:userId/superior` - Retorna o superior de um usuário
-- `GET /api/users/:userId/supervisors` - Retorna supervisores para um gerente/coordenador
-
-### Eventos
-
-- `GET /api/events` - Lista eventos
-- `GET /api/events/:eventId` - Retorna detalhes de um evento específico
-- `POST /api/events` - Cria um novo evento
-- `PUT /api/events/:eventId` - Atualiza um evento existente
-- `PATCH /api/events/:eventId/feedback` - Atualiza feedback/tratativa de um evento
-- `DELETE /api/events/:eventId` - Exclui um evento
-
-### Oportunidades de Contas
-
-- `GET /api/oportunidades-contas` - Retorna dados de oportunidades conforme o tipo de estratégia
-- `GET /api/check-table` - Endpoint de diagnóstico para verificar a existência da tabela (somente para desenvolvimento)
-
-### Ações Diárias de Contas
-
-- `GET /api/acao-diaria-contas` - Retorna ações diárias para o usuário atual
-- `GET /api/acao-diaria-contas/:id` - Retorna detalhes de uma ação diária específica
-- `PATCH /api/acao-diaria-contas/:id` - Atualiza o status de uma ação diária
-
-## Solução de Problemas
-
-### Verificando a Tabela oportunidades_contas
-
-Você pode verificar se a tabela foi criada corretamente acessando:
-
-```
-http://localhost:3001/api/check-table
+2. Configure as variáveis de ambiente:
+```env
+DB_SERVER=localhost
+DB_NAME=TESTE
+DB_USER=sa
+DB_PASSWORD=expresso
+JWT_SECRET=seu_secret_aqui
 ```
 
-Esta rota retornará informações sobre a existência da tabela e alguns registros de exemplo.
+3. Inicie o servidor:
+```bash
+node src/backend/server-modular.js
+```
 
-### Problemas Comuns
+## Módulos Principais
 
-1. **Erro de conexão com o banco**: 
-   - Verifique se o SQL Server está em execução
-   - Confirme se as credenciais estão corretas no arquivo `server.js`
-   - Verifique se o banco de dados `TESTE` existe
+### 1. Autenticação e Autorização
+- Sistema de login baseado em JWT
+- Controle de acesso baseado em papéis
+- Hierarquia de usuários
+- [Mais detalhes](./README_AUTH.md)
 
-2. **Tabela não encontrada**:
-   - Execute novamente os scripts SQL
-   - Verifique se os scripts foram executados sem erros
+### 2. Gestão de Eventos
+- CRUD completo de eventos
+- Filtros e pesquisa
+- Tratativas e feedback
+- Controle de acesso hierárquico
 
-3. **Token de autenticação inválido**:
-   - Certifique-se de fazer login corretamente antes de acessar endpoints protegidos
-   - Verifique se o token está sendo enviado corretamente no header `Authorization`
+### 3. HotList
+- Gestão de estabelecimentos
+- Controle de situações
+- Permissões hierárquicas
+- [Mais detalhes](./README_HOTLIST.md)
 
-4. **CORS bloqueando requisições**:
-   - Ajuste as configurações de CORS no backend se necessário
-   - Durante o desenvolvimento, configuramos CORS para aceitar requisições de qualquer origem
+## Banco de Dados
 
-## Segurança
+O sistema utiliza SQL Server com as seguintes tabelas principais:
+- `users` - Usuários e seus papéis
+- `hierarchy` - Relações hierárquicas
+- `EVENTOS` - Registro de eventos
+- `HOTLIST` - Lista de estabelecimentos
 
-**Importante**: O código atual usa configurações simplificadas adequadas apenas para desenvolvimento:
+## Desenvolvimento
 
-- A chave secreta JWT está hardcoded
-- O CORS está configurado para aceitar requisições de qualquer origem
-- As credenciais do banco de dados estão no código-fonte
+### Adicionando Novas Funcionalidades
 
-Para um ambiente de produção, estas configurações devem ser revistas e ajustadas para maior segurança.
+1. Crie os arquivos necessários seguindo a estrutura do projeto
+2. Implemente as rotas e serviços
+3. Atualize a documentação relevante
+4. Teste com diferentes níveis de usuário
 
-## Próximos Passos / Melhorias
+### Padrões de Código
 
-1. Mover configurações sensíveis (chaves JWT, credenciais de banco) para variáveis de ambiente
-2. Implementar validação de entrada em todas as rotas
-3. Adicionar logging detalhado para facilitar depuração
-4. Implementar testes automatizados
-5. Restringir políticas de CORS para apenas origens específicas em produção 
+- Use async/await para operações assíncronas
+- Implemente tratamento de erros consistente
+- Documente novas funcionalidades
+- Mantenha a estrutura modular
+
+## Suporte
+
+Para mais informações:
+1. Consulte a documentação específica de cada módulo
+2. Verifique os logs em caso de erros
+3. Contate a equipe de desenvolvimento 

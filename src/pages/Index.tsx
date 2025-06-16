@@ -22,22 +22,24 @@ import {
   Clock,
   FileText,
   Phone,
-  Briefcase,
   CalendarDays,
   MapPin,
   MessageSquare,
   ChevronRight,
   Loader2,
   CreditCard,
-  Shield
+  Shield,
+  Flame,
+  AlertCircle
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
 import DashboardGerencial from "@/components/DashboardGerencial";
 import AgendaStats from "@/components/AgendaStats";
-import { acaoDiariaApi, AcaoDiariaContas, eventApi, Event } from "@/services/api";
+import { acaoDiariaApi, AcaoDiariaContas, eventApi, Event, hotListApi } from "@/services/api";
 import { format, isPast, isToday, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -48,6 +50,8 @@ const Index = () => {
   const [eventosHoje, setEventosHoje] = useState<Event[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [totalLeadsUsuario, setTotalLeadsUsuario] = useState(0);
+  const [totalLeadsPendentes, setTotalLeadsPendentes] = useState(0);
   const [estatisticas, setEstatisticas] = useState({
     totalAcoes: 0,
     concluidas: 0,
@@ -59,8 +63,15 @@ const Index = () => {
   
   // Função para carregar ações pendentes e eventos
   useEffect(() => {
-    const carregarDados = async () => {
+    const fetchData = async () => {
       try {
+        if (!user) return;
+
+        // Buscar dados da HotList
+        const hotListSummary = await hotListApi.getHotListSummary(user.id);
+        setTotalLeadsUsuario(hotListSummary.totalLeads);
+        setTotalLeadsPendentes(hotListSummary.leadsPendentes);
+
         // Carregar ações diárias
         const acoes = await acaoDiariaApi.getAcoesDiarias();
         setAcoesPendentes(acoes.filter(acao => acao.situacao !== "concluido"));
@@ -104,6 +115,11 @@ const Index = () => {
         ]);
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os dados",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -136,13 +152,13 @@ const Index = () => {
       }
     };
     
-    carregarDados();
+    fetchData();
     
     // Só carrega eventos se não for gerente ou coordenador
     if (!isManager) {
       carregarEventos();
     }
-  }, [user?.id, isManager]);
+  }, [user]);
   
   // Função para verificar se as datas de início e fim são iguais
   const datasIguais = (dataInicio: Date | string, dataFim: Date | string) => {
@@ -263,46 +279,7 @@ const Index = () => {
       </div>
 
       {/* Estatísticas rápidas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
-          <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
-          <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
-            <div className="relative">
-              <div className="h-16 w-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
-                <Briefcase className="h-8 w-8 text-white" />
-              </div>
-              <div className="absolute -top-1 -right-1 h-4 w-4 bg-blue-300 rounded-full border-2 border-white"></div>
-            </div>
-          </div>
-          <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
-            <div>
-              <p className="text-sm text-blue-600 font-medium">Estruturas</p>
-              <h3 className="text-2xl font-bold text-blue-800">23 <span className="text-sm font-normal text-blue-600">total</span></h3>
-            </div>
-            <div className="flex items-center justify-between mt-auto pt-4 bg-blue-50 rounded-lg p-2 shadow-sm">
-              <div className="text-center px-2">
-                <p className="text-xs text-blue-800 font-medium">Agências</p>
-                <p className="text-lg font-bold text-blue-600">8</p>
-              </div>
-              <div className="h-10 border-r border-blue-200"></div>
-              <div className="text-center px-2">
-                <p className="text-xs text-blue-800 font-medium">PAs</p>
-                <p className="text-lg font-bold text-blue-600">12</p>
-              </div>
-              <div className="h-10 border-r border-blue-200"></div>
-              <div className="text-center px-2">
-                <p className="text-xs text-blue-800 font-medium">UNs</p>
-                <p className="text-lg font-bold text-blue-600">2</p>
-              </div>
-              <div className="h-10 border-r border-blue-200"></div>
-              <div className="text-center px-2">
-                <p className="text-xs text-blue-800 font-medium">Praça</p>
-                <p className="text-lg font-bold text-blue-600">1</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 overflow-hidden relative h-full flex flex-col">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-blue-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
@@ -364,34 +341,40 @@ const Index = () => {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 overflow-hidden relative h-full flex flex-col">
-          <div className="absolute -top-6 -right-6 h-24 w-24 bg-purple-100 rounded-full opacity-30"></div>
+
+        <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200 overflow-hidden relative h-full flex flex-col">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-orange-100 rounded-full opacity-30"></div>
           <div className="absolute top-1/2 right-4 transform -translate-y-1/2">
             <div className="relative">
-              <div className="h-16 w-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">
-                  <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16" />
-                  <path d="M1 21h22" />
-                  <path d="M6 12h12" />
-                  <path d="M12 12v9" />
-                </svg>
+              <div className="h-16 w-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center shadow-lg">
+                <Flame className="h-8 w-8 text-white animate-pulse" />
               </div>
-              <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-400 rounded-full border-2 border-white"></div>
+              <div className="absolute -top-1 -right-1 h-4 w-4 bg-red-400 rounded-full border-2 border-white animate-ping"></div>
             </div>
           </div>
           <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
             <div>
-              <p className="text-sm text-purple-600 font-medium">Campanha</p>
-              <h3 className="text-2xl font-bold text-purple-800">Maratona Seguros</h3>
-              <p className="text-xs text-purple-500 mt-1">Proteção para todos os clientes</p>
+              <p className="text-sm text-orange-600 font-medium">Lista Quente</p>
+              <h3 className="text-2xl font-bold text-orange-800">HotList</h3>
+              <div className="flex flex-col gap-2 mt-2">
+                <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {totalLeadsUsuario} leads ativos
+                </div>
+                <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                  <AlertCircle className="h-4 w-4" />
+                  {totalLeadsPendentes} leads pendentes
+                </div>
+              </div>
             </div>
             <div className="mt-auto pt-4">
               <Button 
-                onClick={() => navegarPara('/maratona-seguros')}
-                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md h-10"
+                onClick={() => navegarPara('/hotlist')}
+                className="relative w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md h-10 group overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-500/50 before:absolute before:inset-0 before:bg-gradient-to-t before:from-orange-600/50 before:via-orange-500/25 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity"
               >
-                Ver Campanha
+                <span className="relative flex items-center justify-center gap-2 z-10">
+                  Ver Leads
+                  <Flame className="h-4 w-4 transition-transform group-hover:scale-125 group-hover:animate-pulse" />
+                </span>
               </Button>
             </div>
           </CardContent>

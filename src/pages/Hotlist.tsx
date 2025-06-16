@@ -3,94 +3,15 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableStatus } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, Fire, List } from 'lucide-react';
+import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List } from 'lucide-react';
 import { useForm } from "react-hook-form";
 import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import * as XLSX from 'xlsx';
-
-interface DadosHotList {
-  CNPJ: string;
-  NOME_LOJA: string;
-  LOCALIZACAO: string;
-  AGENCIA: string;
-  MERCADO: string;
-  PRACA_PRESENCA: 'SIM' | 'NAO';
-  situacao: 'pendente' | 'realizar' | 'tratada' | 'bloqueada';
-  DIRETORIA_REGIONAL: string;
-  GERENCIA_REGIONAL: string;
-  PA: string;
-  GERENTE_PJ: string;
-}
-
-const dadosFicticios: DadosHotList[] = [
-  {
-    CNPJ: "12.345.678/0001-99",
-    NOME_LOJA: "Supermercado Central",
-    LOCALIZACAO: "São Paulo - SP",
-    AGENCIA: "0001",
-    MERCADO: "Supermercado",
-    PRACA_PRESENCA: "SIM",
-    situacao: "pendente",
-    DIRETORIA_REGIONAL: "DR São Paulo",
-    GERENCIA_REGIONAL: "GR Centro",
-    PA: "PA 001",
-    GERENTE_PJ: "João Silva"
-  },
-  {
-    CNPJ: "23.456.789/0001-88",
-    NOME_LOJA: "Mercado do Bairro",
-    LOCALIZACAO: "São Paulo - SP",
-    AGENCIA: "0002",
-    MERCADO: "Mercado",
-    PRACA_PRESENCA: "NAO",
-    situacao: "realizar",
-    DIRETORIA_REGIONAL: "DR São Paulo",
-    GERENCIA_REGIONAL: "GR Sul",
-    PA: "PA 002",
-    GERENTE_PJ: "Maria Santos"
-  },
-  {
-    CNPJ: "34.567.890/0001-77",
-    NOME_LOJA: "Supermercado Popular",
-    LOCALIZACAO: "São Paulo - SP",
-    AGENCIA: "0003",
-    MERCADO: "Supermercado",
-    PRACA_PRESENCA: "SIM",
-    situacao: "tratada",
-    DIRETORIA_REGIONAL: "DR São Paulo",
-    GERENCIA_REGIONAL: "GR Norte",
-    PA: "PA 003",
-    GERENTE_PJ: "Pedro Oliveira"
-  },
-  {
-    CNPJ: "45.678.901/0001-66",
-    NOME_LOJA: "Mercado Express",
-    LOCALIZACAO: "São Paulo - SP",
-    AGENCIA: "0004",
-    MERCADO: "Mercado",
-    PRACA_PRESENCA: "NAO",
-    situacao: "bloqueada",
-    DIRETORIA_REGIONAL: "DR São Paulo",
-    GERENCIA_REGIONAL: "GR Leste",
-    PA: "PA 004",
-    GERENTE_PJ: "Ana Costa"
-  },
-  {
-    CNPJ: "56.789.012/0001-55",
-    NOME_LOJA: "Supermercado Familiar",
-    LOCALIZACAO: "São Paulo - SP",
-    AGENCIA: "0005",
-    MERCADO: "Supermercado",
-    PRACA_PRESENCA: "SIM",
-    situacao: "pendente",
-    DIRETORIA_REGIONAL: "DR São Paulo",
-    GERENCIA_REGIONAL: "GR Oeste",
-    PA: "PA 005",
-    GERENTE_PJ: "Carlos Ferreira"
-  }
-];
+import { hotListApi, HotListItem } from '@/services/api';
+import { toast } from '@/hooks/use-toast';
+import { TratativaModal } from '@/components/hotlist/TratativaModal';
 
 interface FiltrosHotList {
   cnpj: string;
@@ -103,16 +24,19 @@ interface FiltrosHotList {
   gerenciaRegional: string;
   agencia: string;
   pa: string;
+  supervisor: string;
 }
 
 const getStatusLabel = (status: string) => {
   switch (status) {
     case 'pendente':
       return 'Pendente Tratativa';
-    case 'tratado':
+    case 'tratada':
       return 'Tratado';
-    case 'prospectado':
-      return 'Prospectado';
+    case 'realizar':
+      return 'Realizar';
+    case 'bloqueada':
+      return 'Bloqueada';
     default:
       return status;
   }
@@ -122,10 +46,12 @@ const getStatusColor = (status: string) => {
   switch (status) {
     case 'pendente':
       return 'bg-amber-100 text-amber-800 border-amber-200';
-    case 'tratado':
+    case 'tratada':
       return 'bg-blue-100 text-blue-800 border-blue-200';
-    case 'prospectado':
+    case 'realizar':
       return 'bg-green-100 text-green-800 border-green-200';
+    case 'bloqueada':
+      return 'bg-red-100 text-red-800 border-red-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
@@ -133,18 +59,17 @@ const getStatusColor = (status: string) => {
 
 const Hotlist: React.FC = () => {
   const { user } = useAuth();
-  const [dados, setDados] = useState<DadosHotList[]>(dadosFicticios);
-  const [dadosFiltrados, setDadosFiltrados] = useState<DadosHotList[]>(dadosFicticios);
-  const [ordenacao, setOrdenacao] = useState<{ coluna: keyof DadosHotList | null; direcao: 'asc' | 'desc' }>({
+  const [dados, setDados] = useState<HotListItem[]>([]);
+  const [dadosFiltrados, setDadosFiltrados] = useState<HotListItem[]>([]);
+  const [ordenacao, setOrdenacao] = useState<{ coluna: keyof HotListItem | null; direcao: 'asc' | 'desc' }>({
     coluna: null,
     direcao: 'asc'
   });
   const [lojaExpandida, setLojaExpandida] = useState<string | null>(null);
-
-  const totalLeads = dadosFicticios.length;
-  const leadsTratadas = dadosFicticios.filter(d => d.situacao === 'tratada').length;
-  const leadsPendentes = dadosFicticios.filter(d => d.situacao === 'pendente').length;
-  const leadsProspectadas = dadosFicticios.filter(d => d.situacao === 'realizar').length;
+  const [isLoading, setIsLoading] = useState(true);
+  const [supervisores, setSupervisores] = useState<{id: string, name: string}[]>([]);
+  const [tratativaModalOpen, setTratativaModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<HotListItem | null>(null);
 
   const form = useForm<FiltrosHotList>({
     defaultValues: {
@@ -158,25 +83,65 @@ const Hotlist: React.FC = () => {
       gerenciaRegional: "",
       agencia: "",
       pa: "",
+      supervisor: "",
     }
   });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        if (!user) return;
+        
+        const hotListData = await hotListApi.getHotList(user.id);
+        setDados(hotListData);
+        setDadosFiltrados(hotListData);
+
+        // Extrair lista única de supervisores
+        const uniqueSupervisors = Array.from(new Set(hotListData.map(item => item.supervisor_id)))
+          .map(supervisorId => {
+            const item = hotListData.find(d => d.supervisor_id === supervisorId);
+            return {
+              id: supervisorId,
+              name: item?.supervisor_name || 'Supervisor não encontrado'
+            };
+          });
+        setSupervisores(uniqueSupervisors);
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os dados da HotList",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const totalLeads = dadosFiltrados.length;
+  const leadsTratadas = dadosFiltrados.filter(d => d.situacao === 'tratada').length;
+  const leadsPendentes = dadosFiltrados.filter(d => d.situacao === 'pendente').length;
+  const leadsProspectadas = dadosFiltrados.filter(d => d.situacao === 'realizar').length;
 
   const watchCnpj = form.watch('cnpj');
   const watchNomeLoja = form.watch('nomeLoja');
 
   useEffect(() => {
-    const filtrados = dadosFicticios.filter(loja => {
+    const filtrados = dados.filter(loja => {
       const busca = watchCnpj.toLowerCase();
       return (
         loja.CNPJ.toLowerCase().includes(busca) ||
         loja.NOME_LOJA.toLowerCase().includes(busca)
       );
     });
-    setDados(filtrados);
-  }, [watchCnpj]);
+    setDadosFiltrados(filtrados);
+  }, [watchCnpj, dados]);
 
   const aplicarFiltros = (values: FiltrosHotList) => {
-    const filtrados = dadosFicticios.filter(loja => {
+    const filtrados = dados.filter(loja => {
       if (values.localizacao && !loja.LOCALIZACAO.toLowerCase().includes(values.localizacao.toLowerCase())) return false;
       if (values.mercado && values.mercado !== "all" && loja.MERCADO !== values.mercado) return false;
       if (values.pracaPresenca && values.pracaPresenca !== "all" && loja.PRACA_PRESENCA !== values.pracaPresenca) return false;
@@ -185,18 +150,19 @@ const Hotlist: React.FC = () => {
       if (values.gerenciaRegional && values.gerenciaRegional !== "all" && !loja.GERENCIA_REGIONAL.includes(values.gerenciaRegional)) return false;
       if (values.agencia && values.agencia !== "all" && !loja.AGENCIA.includes(values.agencia)) return false;
       if (values.pa && values.pa !== "all" && !loja.PA.includes(values.pa)) return false;
+      if (values.supervisor && values.supervisor !== "all" && loja.supervisor_id !== values.supervisor) return false;
       return true;
     });
-    setDados(filtrados);
+    setDadosFiltrados(filtrados);
   };
 
   const limparFiltros = () => {
     form.reset();
-    setDados(dadosFicticios);
+    setDadosFiltrados(dados);
   };
 
   const exportarParaExcel = () => {
-    const dadosParaExportar = dados.map(loja => ({
+    const dadosParaExportar = dadosFiltrados.map(loja => ({
       'CNPJ': loja.CNPJ,
       'Nome Loja': loja.NOME_LOJA,
       'Localização': loja.LOCALIZACAO,
@@ -215,7 +181,7 @@ const Hotlist: React.FC = () => {
     XLSX.writeFile(wb, `HotList - ${new Date().toLocaleDateString()}.xlsx`);
   };
 
-  const handleOrdenacao = (coluna: keyof DadosHotList) => {
+  const handleOrdenacao = (coluna: keyof HotListItem) => {
     setOrdenacao(prev => ({
       coluna,
       direcao: prev.coluna === coluna && prev.direcao === 'asc' ? 'desc' : 'asc'
@@ -226,7 +192,7 @@ const Hotlist: React.FC = () => {
     setLojaExpandida(lojaExpandida === cnpj ? null : cnpj);
   };
 
-  const dadosOrdenados = [...dados].sort((a, b) => {
+  const dadosOrdenados = [...dadosFiltrados].sort((a, b) => {
     if (!ordenacao.coluna) return 0;
     
     const valorA = a[ordenacao.coluna];
@@ -242,6 +208,27 @@ const Hotlist: React.FC = () => {
     aplicarFiltros(form.getValues());
   };
 
+  const handleOpenTratativa = (item: HotListItem) => {
+    setSelectedItem(item);
+    setTratativaModalOpen(true);
+  };
+
+  const handleTratativaSuccess = async () => {
+    // Recarregar os dados após registrar uma tratativa
+    if (!user) return;
+    const hotListData = await hotListApi.getHotList(user.id);
+    setDados(hotListData);
+    setDadosFiltrados(hotListData);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto">
       <div className="flex flex-col space-y-6">
@@ -250,81 +237,83 @@ const Hotlist: React.FC = () => {
           <p className="text-gray-500">Lista de Prospecção - {user?.name}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card 
-            className="border-2 border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-gradient-to-br from-blue-50 to-blue-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
             onClick={() => handleCardClick('all')}
           >
-            <CardHeader>
+            <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Total de Leads</CardTitle>
-                <Activity size={24} className="text-gray-500" />
+                <CardTitle className="text-lg font-semibold text-blue-900">Total de Leads</CardTitle>
+                <div className="p-2 bg-blue-200 rounded-lg">
+                  <Activity className="h-5 w-5 text-blue-700" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
-                <div className="bg-blue-100 p-2 rounded-full">
-                  <Activity className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-xl font-semibold text-blue-800">{totalLeads}</p>
-                </div>
+              <div className="mt-2">
+                <p className="text-3xl font-bold text-blue-900">{totalLeads}</p>
+                <p className="text-sm text-blue-700 mt-1">Leads ativos no sistema</p>
               </div>
             </CardContent>
           </Card>
+
           <Card 
-            className="border-2 border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            className="bg-gradient-to-br from-green-50 to-green-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
             onClick={() => handleCardClick('tratada')}
           >
-            <CardHeader>
+            <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Leads Tratadas e Pendentes</CardTitle>
-                <AlertTriangle size={24} className="text-gray-500" />
+                <CardTitle className="text-lg font-semibold text-green-900">Leads Tratadas</CardTitle>
+                <div className="p-2 bg-green-200 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-700" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-green-50 transition-colors">
-                  <div className="bg-green-100 p-2 rounded-full">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Tratadas</p>
-                    <p className="text-xl font-semibold text-green-800">{leadsTratadas}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-amber-50 transition-colors">
-                  <div className="bg-amber-100 p-2 rounded-full">
-                    <AlertCircle className="h-5 w-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Pendentes</p>
-                    <p className="text-xl font-semibold text-amber-800">{leadsPendentes}</p>
-                  </div>
-                </div>
+              <div className="mt-2">
+                <p className="text-3xl font-bold text-green-900">{leadsTratadas}</p>
+                <p className="text-sm text-green-700 mt-1">Leads já processados</p>
               </div>
             </CardContent>
           </Card>
+
           <Card 
-            className="border-2 border-gray-200 bg-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => handleCardClick('realizar')}
+            className="bg-gradient-to-br from-amber-50 to-amber-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+            onClick={() => handleCardClick('pendente')}
           >
-            <CardHeader>
+            <CardHeader className="pb-2">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">Leads Prospectadas</CardTitle>
-                <TrendingUp size={24} className="text-gray-500" />
+                <CardTitle className="text-lg font-semibold text-amber-900">Leads Pendentes</CardTitle>
+                <div className="p-2 bg-amber-200 rounded-lg">
+                  <AlertCircle className="h-5 w-5 text-amber-700" />
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-green-50 transition-colors">
-                <div className="bg-green-100 p-2 rounded-full">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
+              <div className="mt-2">
+                <p className="text-3xl font-bold text-amber-900">{leadsPendentes}</p>
+                <p className="text-sm text-amber-700 mt-1">Aguardando tratativa</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="bg-gradient-to-br from-purple-50 to-purple-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+            onClick={() => handleCardClick('realizar')}
+          >
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg font-semibold text-purple-900">Leads Prospectadas</CardTitle>
+                <div className="p-2 bg-purple-200 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-purple-700" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Prospectadas</p>
-                  <p className="text-xl font-semibold text-green-800">{leadsProspectadas}</p>
-                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mt-2">
+                <p className="text-3xl font-bold text-purple-900">{leadsProspectadas}</p>
+                <p className="text-sm text-purple-700 mt-1">Em prospecção</p>
               </div>
             </CardContent>
           </Card>
@@ -447,8 +436,9 @@ const Hotlist: React.FC = () => {
                             <SelectContent>
                               <SelectItem value="all">Todas</SelectItem>
                               <SelectItem value="pendente">Pendente Tratativa</SelectItem>
-                              <SelectItem value="tratado">Tratado</SelectItem>
-                              <SelectItem value="prospectado">Prospectado</SelectItem>
+                              <SelectItem value="tratada">Tratado</SelectItem>
+                              <SelectItem value="realizar">Realizar</SelectItem>
+                              <SelectItem value="bloqueada">Bloqueada</SelectItem>
                             </SelectContent>
                           </Select>
                         </FormItem>
@@ -470,7 +460,7 @@ const Hotlist: React.FC = () => {
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="all">Todas</SelectItem>
-                              {Array.from(new Set(dadosFicticios.map(loja => loja.DIRETORIA_REGIONAL))).map(dr => (
+                              {Array.from(new Set(dados.map(loja => loja.DIRETORIA_REGIONAL))).map(dr => (
                                 <SelectItem key={dr} value={dr}>{dr}</SelectItem>
                               ))}
                             </SelectContent>
@@ -494,7 +484,7 @@ const Hotlist: React.FC = () => {
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="all">Todas</SelectItem>
-                              {Array.from(new Set(dadosFicticios.map(loja => loja.GERENCIA_REGIONAL))).map(gr => (
+                              {Array.from(new Set(dados.map(loja => loja.GERENCIA_REGIONAL))).map(gr => (
                                 <SelectItem key={gr} value={gr}>{gr}</SelectItem>
                               ))}
                             </SelectContent>
@@ -518,7 +508,7 @@ const Hotlist: React.FC = () => {
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="all">Todas</SelectItem>
-                              {Array.from(new Set(dadosFicticios.map(loja => loja.AGENCIA))).map(ag => (
+                              {Array.from(new Set(dados.map(loja => loja.AGENCIA))).map(ag => (
                                 <SelectItem key={ag} value={ag}>{ag}</SelectItem>
                               ))}
                             </SelectContent>
@@ -542,8 +532,34 @@ const Hotlist: React.FC = () => {
                             </FormControl>
                             <SelectContent>
                               <SelectItem value="all">Todas</SelectItem>
-                              {Array.from(new Set(dadosFicticios.map(loja => loja.PA))).map(pa => (
+                              {Array.from(new Set(dados.map(loja => loja.PA))).map(pa => (
                                 <SelectItem key={pa} value={pa}>{pa}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="supervisor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <Select 
+                            onValueChange={field.onChange} 
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Supervisor" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="all">Todos</SelectItem>
+                              {supervisores.map(supervisor => (
+                                <SelectItem key={supervisor.id} value={supervisor.id}>
+                                  {supervisor.name}
+                                </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -626,6 +642,17 @@ const Hotlist: React.FC = () => {
                         )}
                       </div>
                     </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-100 text-center"
+                      onClick={() => handleOrdenacao('supervisor_name')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Supervisor
+                        {ordenacao.coluna === 'supervisor_name' && (
+                          <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[120px] text-center">
                       <div className="flex items-center justify-center">Ações</div>
                     </TableHead>
@@ -647,6 +674,9 @@ const Hotlist: React.FC = () => {
                             {getStatusLabel(loja.situacao)}
                           </div>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <div className="text-sm text-gray-600">{loja.supervisor_name}</div>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button 
@@ -663,6 +693,7 @@ const Hotlist: React.FC = () => {
                               size="icon" 
                               title="Adicionar tratativa"
                               className="bg-green-50 border-green-200 hover:bg-green-100"
+                              onClick={() => handleOpenTratativa(loja)}
                             >
                               <Plus size={16} className="text-green-600" />
                             </Button>
@@ -693,6 +724,7 @@ const Hotlist: React.FC = () => {
                               <div>
                                 <h4 className="font-medium mb-2">Responsáveis</h4>
                                 <ul className="space-y-1.5">
+                                  <li className="text-sm"><span className="font-medium">Supervisor:</span> {loja.supervisor_name}</li>
                                   <li className="text-sm"><span className="font-medium">Gerente PJ:</span> {loja.GERENTE_PJ}</li>
                                 </ul>
                               </div>
@@ -708,6 +740,15 @@ const Hotlist: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {selectedItem && (
+        <TratativaModal
+          isOpen={tratativaModalOpen}
+          onClose={() => setTratativaModalOpen(false)}
+          onSuccess={handleTratativaSuccess}
+          hotlistItem={selectedItem}
+        />
+      )}
     </div>
   );
 };
