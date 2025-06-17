@@ -217,6 +217,32 @@ function normalizeUUID(uuid) {
   return uuid;
 }
 
+// Função auxiliar para tentar a inserção com retry
+const executeWithRetry = async (operation, maxRetries = 3, delay = 1000) => {
+  let lastError;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      
+      // Se for o último retry ou não for um erro de conexão, não tenta novamente
+      if (attempt === maxRetries || 
+          (!error.code?.includes('TIMEOUT') && 
+           !error.code?.includes('ECONNRESET') && 
+           !error.code?.includes('ECONNREFUSED'))) {
+        throw error;
+      }
+      
+      // Espera antes do próximo retry
+      await new Promise(resolve => setTimeout(resolve, delay * attempt));
+    }
+  }
+  
+  throw lastError;
+};
+
 // Create a new event
 router.post('/', authenticateToken, async (req, res) => {
   try {
@@ -230,7 +256,78 @@ router.post('/', authenticateToken, async (req, res) => {
     
     // Validate required fields
     if (!titulo || !dataInicio || !dataFim || !tipo) {
-      return res.status(400).json({ message: 'Campos obrigatórios não preenchidos' });
+      return res.status(400).json({ 
+        message: 'Campos obrigatórios não preenchidos',
+        error_code: 'MISSING_REQUIRED_FIELDS',
+        details: {
+          titulo: !titulo,
+          dataInicio: !dataInicio,
+          dataFim: !dataFim,
+          tipo: !tipo
+        }
+      });
+    }
+
+    // Validar datas
+    const startDate = new Date(dataInicio);
+    const endDate = new Date(dataFim);
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        message: 'Data inválida',
+        error_code: 'INVALID_DATE_FORMAT',
+        details: {
+          dataInicio: isNaN(startDate.getTime()),
+          dataFim: isNaN(endDate.getTime())
+        }
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        message: 'Data final não pode ser anterior à data inicial',
+        error_code: 'INVALID_DATE_RANGE'
+      });
+    }
+
+    // Validar tamanhos máximos
+    const maxLengths = {
+      titulo: 200,
+      descricao: 1000,
+      tipo: 50,
+      location: 200,
+      subcategory: 100,
+      other_description: 500,
+      agencia_pa_number: 20,
+      municipio: 100,
+      uf: 2
+    };
+
+    const fieldLengths = {
+      titulo,
+      descricao: descricao || '',
+      tipo,
+      location: location || '',
+      subcategory: subcategory || '',
+      other_description: other_description || '',
+      agencia_pa_number: agencia_pa_number || '',
+      municipio: municipio || '',
+      uf: uf || ''
+    };
+
+    const invalidFields = Object.entries(fieldLengths)
+      .filter(([field, value]) => value.length > maxLengths[field])
+      .map(([field]) => field);
+
+    if (invalidFields.length > 0) {
+      return res.status(400).json({
+        message: 'Um ou mais campos excedem o tamanho máximo permitido',
+        error_code: 'FIELD_TOO_LONG',
+        details: {
+          invalid_fields: invalidFields,
+          max_lengths: maxLengths
+        }
+      });
     }
     
     // Normalize os UUIDs para garantir consistência
@@ -448,38 +545,40 @@ router.post('/', authenticateToken, async (req, res) => {
     const actualCreatorId = normalizedUserId;
     const actualCreatorName = userName;
     
-    // Insert the event
-    const result = await pool.request()
-      .input('title', sql.NVarChar, titulo)
-      .input('description', sql.NVarChar, descricao || '')
-      .input('start_date', sql.DateTime, new Date(dataInicio))
-      .input('end_date', sql.DateTime, new Date(dataFim))
-      .input('event_type', sql.NVarChar, tipo)
-      .input('location', sql.NVarChar, location || '')
-      .input('subcategory', sql.NVarChar, subcategory || '')
-      .input('other_description', sql.NVarChar, other_description || '')
-      .input('inform_agency', sql.Bit, informar_agencia_pa ? 1 : 0)
-      .input('agency_number', sql.NVarChar, agencia_pa_number || '')
-      .input('is_pa', sql.Bit, is_pa ? 1 : 0)
-      .input('municipality', sql.NVarChar, municipio || '')
-      .input('state', sql.NVarChar, uf || '')
-      .input('supervisor_id', sql.UniqueIdentifier, actualSupervisorId)
-      .input('creator_id', sql.UniqueIdentifier, actualCreatorId)
-      .input('creator_name', sql.NVarChar, actualCreatorName)
-      .query(`
-        INSERT INTO TESTE..EVENTOS (
-          title, description, start_date, end_date, event_type, location, subcategory, 
-          other_description, inform_agency, agency_number, is_pa, municipality, state, 
-          supervisor_id, creator_id, creator_name
-        )
-        OUTPUT INSERTED.id
-        VALUES (
-          @title, @description, @start_date, @end_date, @event_type, @location, @subcategory, 
-          @other_description, @inform_agency, @agency_number, @is_pa, @municipality, @state, 
-          @supervisor_id, @creator_id, @creator_name
-        )
-      `);
-    
+    // Executa a inserção com retry
+    const result = await executeWithRetry(async () => {
+      return await pool.request()
+        .input('title', sql.NVarChar, titulo)
+        .input('description', sql.NVarChar, descricao || '')
+        .input('start_date', sql.DateTime, startDate)
+        .input('end_date', sql.DateTime, endDate)
+        .input('event_type', sql.NVarChar, tipo)
+        .input('location', sql.NVarChar, location || '')
+        .input('subcategory', sql.NVarChar, subcategory || '')
+        .input('other_description', sql.NVarChar, other_description || '')
+        .input('inform_agency', sql.Bit, informar_agencia_pa ? 1 : 0)
+        .input('agency_number', sql.NVarChar, agencia_pa_number || '')
+        .input('is_pa', sql.Bit, is_pa ? 1 : 0)
+        .input('municipality', sql.NVarChar, municipio || '')
+        .input('state', sql.NVarChar, uf || '')
+        .input('supervisor_id', sql.UniqueIdentifier, actualSupervisorId)
+        .input('creator_id', sql.UniqueIdentifier, actualCreatorId)
+        .input('creator_name', sql.NVarChar, actualCreatorName)
+        .query(`
+          INSERT INTO TESTE..EVENTOS (
+            title, description, start_date, end_date, event_type, location, subcategory, 
+            other_description, inform_agency, agency_number, is_pa, municipality, state, 
+            supervisor_id, creator_id, creator_name
+          )
+          OUTPUT INSERTED.id
+          VALUES (
+            @title, @description, @start_date, @end_date, @event_type, @location, @subcategory, 
+            @other_description, @inform_agency, @agency_number, @is_pa, @municipality, @state, 
+            @supervisor_id, @creator_id, @creator_name
+          )
+        `);
+    });
+
     const newEventId = result.recordset[0].id;
     
     res.status(201).json({ 
@@ -488,8 +587,56 @@ router.post('/', authenticateToken, async (req, res) => {
     });
     
   } catch (error) {
-    // console.error('Error creating event:', error);
-    res.status(500).json({ message: 'Erro ao criar evento' });
+    console.error('Erro ao criar evento:', {
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+      state: error.state,
+      details: error.originalError?.info
+    });
+
+    // Tratamento específico para erros comuns do SQL Server
+    if (error.code === 'ETIMEOUT') {
+      return res.status(503).json({ 
+        message: 'Timeout na conexão com o banco de dados',
+        error_code: 'DB_TIMEOUT'
+      });
+    }
+
+    if (error.code === 'ECONNREFUSED') {
+      return res.status(503).json({ 
+        message: 'Não foi possível conectar ao banco de dados',
+        error_code: 'DB_CONNECTION_REFUSED'
+      });
+    }
+
+    // Erros específicos do SQL Server
+    if (error.number) {
+      switch (error.number) {
+        case 2627: // Unique constraint error
+          return res.status(409).json({ 
+            message: 'Evento duplicado',
+            error_code: 'DUPLICATE_EVENT'
+          });
+        case 8152: // String data truncation
+          return res.status(400).json({ 
+            message: 'Dados muito longos para um ou mais campos',
+            error_code: 'DATA_TOO_LONG'
+          });
+        case 547:  // Constraint violation
+          return res.status(400).json({ 
+            message: 'Violação de regra do banco de dados',
+            error_code: 'CONSTRAINT_VIOLATION'
+          });
+      }
+    }
+
+    // Erro genérico com mais informações
+    res.status(500).json({ 
+      message: 'Erro ao criar evento',
+      error_code: error.code || 'UNKNOWN_ERROR',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

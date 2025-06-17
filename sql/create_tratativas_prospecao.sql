@@ -12,3 +12,17 @@ CREATE TABLE TESTE..TRATATIVAS_PROSPECAO (
     DATA_CRIACAO DATETIME NOT NULL DEFAULT GETDATE(),
     DATA_ATUALIZACAO DATETIME NOT NULL DEFAULT GETDATE()
 );
+
+-- Atualização da tabela TRATADAS_HOTLIST
+ALTER TABLE TESTE..TRATADAS_HOTLIST
+ADD
+    data_visita DATETIME NOT NULL DEFAULT GETDATE(),
+    tem_perfil_comercial BIT NOT NULL DEFAULT 0,
+    motivo_sem_perfil TEXT NULL,
+    aceitou_proposta BIT NULL,
+    motivo_nao_efetivacao TEXT NULL;
+
+-- Adicionar índices para melhor performance
+CREATE INDEX IX_TRATADAS_HOTLIST_data_visita ON TESTE..TRATADAS_HOTLIST(data_visita);
+CREATE INDEX IX_TRATADAS_HOTLIST_tem_perfil_comercial ON TESTE..TRATADAS_HOTLIST(tem_perfil_comercial);
+CREATE INDEX IX_TRATADAS_HOTLIST_aceitou_proposta ON TESTE..TRATADAS_HOTLIST(aceitou_proposta);

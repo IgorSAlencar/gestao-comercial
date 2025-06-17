@@ -1,7 +1,8 @@
 // API service for handling backend requests
 import { toast } from "@/hooks/use-toast";
+import { API_CONFIG } from "@/config/api.config";
 
-const API_URL = "http://localhost:3001/api"; // Change to your actual backend URL
+const API_URL = API_CONFIG.apiUrl; // Using centralized configuration
 
 export interface User {
   id: string;
@@ -83,14 +84,14 @@ export interface HotListItem {
   GERENTE_PJ: string;
 }
 
-export interface Tratativa {
-  id: string;
+export interface TratativaRequest {
   hotlist_id: string;
-  user_id: string;
-  user_name: string;
-  descricao: string;
+  data_visita: Date;
+  tem_perfil_comercial: 'sim' | 'nao';
+  motivo_sem_perfil?: string | null;
+  aceitou_proposta?: 'sim' | 'nao' | null;
+  motivo_nao_efetivacao?: string | null;
   situacao: 'realizada' | 'pendente';
-  data_tratativa: string;
 }
 
 export interface HotListSummary {
@@ -851,20 +852,9 @@ export const hotListApi = {
     return await fetchWithErrorHandling(`${API_URL}/hotlist/${itemId}`, options);
   },
 
-  registrarTratativa: async (data: { hotlist_id: string; descricao: string; situacao: 'realizada' | 'pendente' }): Promise<Tratativa> => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("Usuário não autenticado");
-
-    const options = {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    };
-    
-    return await fetchWithErrorHandling(`${API_URL}/hotlist/tratativa`, options);
+  registrarTratativa: async (data: TratativaRequest) => {
+    const response = await api.post('/hotlist/tratativa', data);
+    return response.data;
   },
 
   getTratativas: async (itemId: string): Promise<Tratativa[]> => {

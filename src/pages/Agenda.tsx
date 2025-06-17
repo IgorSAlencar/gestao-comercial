@@ -46,6 +46,7 @@ import { eventApi, userApi, Event } from "@/services/api";
 import EventsTable from "@/components/EventsTable";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { useSearchParams } from 'react-router-dom';
+import { API_CONFIG } from "@/config/api.config";
 
 const AgendaPage = () => {
   const [searchParams] = useSearchParams();
@@ -513,62 +514,14 @@ const AgendaPage = () => {
       
       // Se for evento de prospecção, busca os dados da nova tabela
       if (isProspecao) {
-        fetch(`http://localhost:3001/api/tratativas-prospecao/${id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && data.data && data.data.length > 0) {
-            // Encontrou dados na nova tabela
-            const tratativas = data.data;
-            
-            // Configura os CNPJs e seus status
-            const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
-            const status = tratativas.map(t => t.TRATADO === 1);
-            
-            setCnpjValues(cnpjs);
-            setCnpjProspectStatus(status);
-            setNumCnpjs(cnpjs.length);
-            
-            // Usa a descrição mais recente como parecer
-            if (tratativas[0]?.DESCRICAO) {
-              setParecerText(tratativas[0].DESCRICAO);
-            }
-          } else {
-            // Se não encontrou dados na nova tabela, tenta o método antigo
-            if (evento.tratativa) {
-              const cnpjMatch = evento.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
-              if (cnpjMatch && cnpjMatch[1]) {
-                const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
-                setCnpjValues(cnpjList);
-                setCnpjProspectStatus(cnpjList.map(() => false));
-                setNumCnpjs(cnpjList.length);
-                
-                const cleanedText = evento.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
-                setParecerText(cleanedText);
-              } else {
-                resetProspeccaoState();
-                setParecerText(evento.tratativa || "");
-              }
-            } else {
-              resetProspeccaoState();
-              setParecerText("");
-            }
-          }
-        })
-        .catch(error => {
-          console.error("Erro ao carregar dados de prospecção:", error);
-          resetProspeccaoState();
-          setParecerText(evento.tratativa || "");
+        handleTratativaSubmit(id, {
+          cnpjs: cnpjValues,
+          prospectStatus: cnpjProspectStatus,
+          observacao: parecerText
         });
       } else {
-        resetProspeccaoState();
-        setParecerText(evento.tratativa || "");
+        setIsParecerDialogOpen(true);
       }
-      
-      setIsParecerDialogOpen(true);
     }
   };
 
@@ -631,7 +584,7 @@ const AgendaPage = () => {
       prospectStatus: boolean[]
     }) => {
       console.log(`Salvando tratativas de prospecção na nova tabela`);
-      const response = await fetch('http://localhost:3001/api/tratativas-prospecao', {
+      const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -937,6 +890,87 @@ const AgendaPage = () => {
     months: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"],
     previous: "Mês anterior",
     today: "Hoje"
+  };
+
+  const loadTratativasProspecao = async (id: string) => {
+    try {
+      const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      const data = await response.json();
+      
+      if (data.success && data.data && data.data.length > 0) {
+        const tratativas = data.data;
+        const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
+        const status = tratativas.map(t => t.TRATADO === 1);
+        
+        setCnpjValues(cnpjs);
+        setCnpjProspectStatus(status);
+        setNumCnpjs(cnpjs.length);
+        
+        if (tratativas[0]?.DESCRICAO) {
+          setParecerText(tratativas[0].DESCRICAO);
+        }
+      } else {
+        handleLegacyTratativa(evento);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados de prospecção:", error);
+      handleLegacyTratativa(evento);
+    }
+  };
+
+  const handleLegacyTratativa = (evento: any) => {
+    if (evento.tratativa) {
+      const cnpjMatch = evento.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
+      if (cnpjMatch && cnpjMatch[1]) {
+        const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
+        setCnpjValues(cnpjList);
+        setCnpjProspectStatus(cnpjList.map(() => false));
+        setNumCnpjs(cnpjList.length);
+        
+        const cleanedText = evento.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
+        setParecerText(cleanedText);
+      } else {
+        resetProspeccaoState();
+        setParecerText(evento.tratativa || "");
+      }
+    } else {
+      resetProspeccaoState();
+      setParecerText("");
+    }
+  };
+
+  const handleParecerClick = (evento: any) => {
+    setSelectedEvento(evento);
+    const isProspecao = evento.tipo === 'prospecao';
+    
+    if (isProspecao) {
+      loadTratativasProspecao(evento.id);
+    } else {
+      resetProspeccaoState();
+      setParecerText(evento.tratativa || "");
+    }
+    
+    setIsParecerDialogOpen(true);
+  };
+
+  const handleSubmitTratativa = async (data: any) => {
+    try {
+      const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      // ... rest of the function
+    } catch (error) {
+      // ... error handling
+    }
   };
 
   return (

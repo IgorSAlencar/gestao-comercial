@@ -1,7 +1,8 @@
 // src/services/apiService.ts
 import axios from "axios";
+import { API_CONFIG } from "@/config/api.config";
 
-const API_BASE_URL = "http://localhost:3001";
+const API_BASE_URL = API_CONFIG.baseUrl;
 
 export const getServerHealth = async () => {
   return await axios.get(`${API_BASE_URL}/api/health`);

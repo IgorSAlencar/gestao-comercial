@@ -7,6 +7,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 // Importar módulos
+const config = require('./config/config');
 const { poolConnect, pool, sql } = require('./config/db');
 const { authenticateToken } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
@@ -19,10 +20,14 @@ const hotlistRoutes = require('./routes/hotlist');
 const trativasProspecaoRoutes = require('./routes/trativasProspecao');
 
 const app = express();
-const PORT = 3001;
+const PORT = config.server.port;
 
-// Middleware
-app.use(cors());
+// Configuração do CORS mais permissiva para desenvolvimento
+app.use(cors({
+  origin: true, // Permite qualquer origem em desenvolvimento
+  credentials: true // Permite credenciais
+}));
+
 app.use(bodyParser.json());
 
 // Garantir conexão com o banco antes de iniciar o servidor
@@ -170,6 +175,8 @@ app.use('/api/hotlist', hotlistRoutes);
 app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, config.server.host, () => {
+  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.0.14' : config.server.host}:${PORT}`;
   console.log(`Server running on port ${PORT}`);
+  console.log(`Server accessible at ${serverUrl}`);
 }); 

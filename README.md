@@ -47,17 +47,24 @@ O Bradesco Express Gestão PRO é uma aplicação web desenvolvida para otimizar
 
 3. Crie o arquivo `.env` na raiz do projeto:
    ```
-   VITE_API_URL=http://localhost:3001/api
+   VITE_API_URL=http://192.168.0.14:3001/api
+   PORT=3001
+   HOST=0.0.0.0
+   API_BASE_URL=http://192.168.0.14:3001
+   NODE_ENV=development
    ```
 
-4. Inicie o servidor de desenvolvimento:
+4. Inicie o servidor backend:
+   ```bash
+   npm run server
+   ```
+
+5. Em outro terminal, inicie o frontend:
    ```bash
    npm run dev
-   # ou
-   yarn dev
    ```
 
-5. Acesse a aplicação em: `http://localhost:5173`
+6. Acesse a aplicação em: `http://192.168.0.14:5173`
 
 ## 📁 Estrutura do Projeto
 

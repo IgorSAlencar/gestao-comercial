@@ -27,6 +27,7 @@ import DetalhesSeguro from "@/components/DetalhesSeguro";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import ResumoProduto from "@/components/ResumoProduto";
 import { DadosLoja, DadosEstrategia, FiltrosLoja } from "@/types/loja";
+import { API_CONFIG } from "@/config/api.config";
 
 const dadosSimulados: Record<string, DadosEstrategia> = {
   "credito": {
@@ -515,6 +516,9 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
   }
 };
 
+// Usar a configuração centralizada
+const API_BASE_URL = API_CONFIG.baseUrl;
+
 const DetalhesEstrategia: React.FC = () => {
   const navigate = useNavigate();
   const { produto } = useParams<{ produto: string }>();
@@ -539,7 +543,6 @@ const DetalhesEstrategia: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
-  const API_BASE_URL = 'http://localhost:3001'; // Altere para o endereço e porta corretos do seu servidor
 
   const form = useForm<FiltrosLoja>({
     defaultValues: {

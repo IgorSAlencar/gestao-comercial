@@ -133,7 +133,15 @@ router.patch('/:itemId', authenticateToken, async (req, res) => {
 router.post('/tratativa', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
-    const { hotlist_id, descricao, situacao } = req.body;
+    const { 
+      hotlist_id, 
+      data_visita,
+      tem_perfil_comercial,
+      motivo_sem_perfil,
+      aceitou_proposta,
+      motivo_nao_efetivacao,
+      situacao 
+    } = req.body;
     const { id: userId } = req.user;
 
     // Verificar permissão
@@ -167,22 +175,40 @@ router.post('/tratativa', authenticateToken, async (req, res) => {
       const result = await transaction.request()
         .input('hotlist_id', sql.UniqueIdentifier, hotlist_id)
         .input('user_id', sql.UniqueIdentifier, userId)
-        .input('descricao', sql.Text, descricao)
+        .input('data_visita', sql.DateTime, new Date(data_visita))
+        .input('tem_perfil_comercial', sql.Bit, tem_perfil_comercial === 'sim' ? 1 : 0)
+        .input('motivo_sem_perfil', sql.Text, motivo_sem_perfil)
+        .input('aceitou_proposta', sql.Bit, aceitou_proposta === 'sim' ? 1 : aceitou_proposta === 'nao' ? 0 : null)
+        .input('motivo_nao_efetivacao', sql.Text, motivo_nao_efetivacao)
         .input('situacao', sql.VarChar, situacao)
         .query(`
           INSERT INTO TESTE..TRATADAS_HOTLIST (
-            hotlist_id, user_id, descricao, situacao
+            hotlist_id, 
+            user_id, 
+            data_visita,
+            tem_perfil_comercial,
+            motivo_sem_perfil,
+            aceitou_proposta,
+            motivo_nao_efetivacao,
+            situacao
           )
           OUTPUT INSERTED.*
           VALUES (
-            @hotlist_id, @user_id, @descricao, @situacao
+            @hotlist_id, 
+            @user_id, 
+            @data_visita,
+            @tem_perfil_comercial,
+            @motivo_sem_perfil,
+            @aceitou_proposta,
+            @motivo_nao_efetivacao,
+            @situacao
           )
         `);
 
       // Atualizar situação na HOTLIST
       await transaction.request()
         .input('hotlist_id', sql.UniqueIdentifier, hotlist_id)
-        .input('situacao', sql.VarChar, situacao === 'realizada' ? 'tratada' : 'pendente')
+        .input('situacao', sql.VarChar, situacao)
         .query(`
           UPDATE TESTE..HOTLIST
           SET situacao = @situacao
