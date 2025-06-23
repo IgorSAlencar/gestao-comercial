@@ -25,27 +25,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, logout, isManager, isAdmin } = useAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
-  const navItems = [
+  const menuItems = [
     {
-      title: "Home",
-      icon: <Home className="h-5 w-5" />,
-      path: "/",
+      icon: Home,
+      label: "Início",
+      href: "/",
     },
     {
-      title: "Agenda",
-      icon: <Calendar className="h-5 w-5" />,
-      path: "/agenda",
+      icon: Calendar,
+      label: "Agenda",
+      href: "/agenda",
     },
     {
-      title: "Estratégia Comercial",
-      icon: <BarChart3 className="h-5 w-5" />,
-      path: "/estrategia-comercial",
+      icon: BarChart3,
+      label: "Estratégia Comercial",
+      href: "/estrategia-comercial",
+      roles: ["gerente", "coordenador", "admin"],
     },
     {
-      title: "HotList",
-      icon: <Flame className="h-5 w-5" />,
-      path: "/hotlist",
-    }
+      icon: Flame,
+      label: "HotList",
+      href: "/hotlist",
+    },
+    {
+      icon: Network,
+      label: "Logs",
+      href: "/logs",
+      roles: ["admin", "gerente"],
+    },
   ];
   
   // Item de navegação específico para coordenadores e gerentes
@@ -106,25 +113,34 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Nav Items */}
         <div className="flex-1 overflow-auto py-4">
           <nav className="px-2 space-y-1">
-            {navItems.map((item) => (
+            {menuItems
+              .filter(item => {
+                // Se o item não tem roles definidas, mostra para todos
+                if (!item.roles) return true;
+                // Se tem roles, verifica se o usuário tem permissão
+                if (isAdmin) return item.roles.includes("admin");
+                if (isManager) return item.roles.includes("gerente");
+                return item.roles.includes(user?.role || "");
+              })
+              .map((item) => (
               <Link
-                key={item.title}
-                to={item.path}
+                key={item.label}
+                to={item.href}
                 className={cn(
                   "flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  item.path === "/" 
+                  item.href === "/" 
                     ? location.pathname === "/"
                       ? "bg-bradesco-blue text-white"
                       : "text-gray-700 hover:bg-gray-100"
-                    : location.pathname.startsWith(item.path)
+                    : location.pathname.startsWith(item.href)
                       ? "bg-bradesco-blue text-white"
                       : "text-gray-700 hover:bg-gray-100",
                   isSidebarCollapsed && "justify-center"
                 )}
-                title={isSidebarCollapsed ? item.title : undefined}
+                title={isSidebarCollapsed ? item.label : undefined}
               >
-                {item.icon}
-                {!isSidebarCollapsed && <span className="ml-3">{item.title}</span>}
+                <item.icon className="h-5 w-5" />
+                {!isSidebarCollapsed && <span className="ml-3">{item.label}</span>}
               </Link>
             ))}
             

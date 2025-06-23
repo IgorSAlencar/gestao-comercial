@@ -67,7 +67,7 @@ const getStatusColor = (status: string) => {
   }
 };
 
-const ITEMS_PER_PAGE = 15;
+const ITEMS_PER_PAGE = 20;
 
 const Hotlist: React.FC = () => {
   const { user } = useAuth();
@@ -285,18 +285,22 @@ const Hotlist: React.FC = () => {
     });
   };
 
-  // Calcular o total de páginas
-  const totalPages = Math.ceil(dadosFiltrados.length / ITEMS_PER_PAGE);
-
   // Obter os dados da página atual
   const getCurrentPageData = () => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return dadosOrdenados.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return dadosOrdenados.slice(startIndex, endIndex);
   };
+
+  // Calcular o total de páginas
+  const totalPages = Math.ceil(dadosFiltrados.length / ITEMS_PER_PAGE);
 
   // Navegar entre páginas
   const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      setLojaExpandida(null); // Fecha qualquer loja expandida ao mudar de página
+    }
   };
 
   // Verificar se o usuário é supervisor
@@ -459,6 +463,7 @@ const Hotlist: React.FC = () => {
                   dados={dados}
                   onFilter={aplicarFiltros}
                   onExport={exportarParaExcel}
+                  isSupervisor={isSupervisor}
                 />
 
                 <div className="overflow-x-auto mt-6">
@@ -520,24 +525,26 @@ const Hotlist: React.FC = () => {
                             )}
                           </div>
                         </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-gray-100 text-center"
-                          onClick={() => handleOrdenacao('supervisor_name')}
-                        >
-                          <div className="flex items-center justify-center gap-1">
-                            Supervisor
-                            {ordenacao.coluna === 'supervisor_name' && (
-                              <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                            )}
-                          </div>
-                        </TableHead>
+                        {!isSupervisor && (
+                          <TableHead 
+                            className="cursor-pointer hover:bg-gray-100 text-center"
+                            onClick={() => handleOrdenacao('supervisor_name')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Supervisor
+                              {ordenacao.coluna === 'supervisor_name' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                        )}
                         <TableHead className="w-[120px] text-center">
                           <div className="flex items-center justify-center">Ações</div>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {dadosOrdenados.map((loja, index) => (
+                      {getCurrentPageData().map((loja, index) => (
                         <React.Fragment key={index}>
                           <TableRow>
                             <TableCell>
@@ -552,9 +559,11 @@ const Hotlist: React.FC = () => {
                                 {getStatusLabel(loja.situacao)}
                               </div>
                             </TableCell>
-                            <TableCell className="text-center">
-                              <div className="text-sm text-gray-600">{loja.supervisor_name}</div>
-                            </TableCell>
+                            {!isSupervisor && (
+                              <TableCell className="text-center">
+                                <div className="text-sm text-gray-600">{loja.supervisor_name}</div>
+                              </TableCell>
+                            )}
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
                                 <Button 
@@ -580,7 +589,7 @@ const Hotlist: React.FC = () => {
                           </TableRow>
                           {lojaExpandida === loja.CNPJ && (
                             <TableRow className="bg-gray-50">
-                              <TableCell colSpan={6} className="py-3">
+                              <TableCell colSpan={!isSupervisor ? 7 : 6} className="py-3">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                   <div>
                                     <h4 className="font-medium mb-2">Informações da Loja</h4>
@@ -602,7 +611,9 @@ const Hotlist: React.FC = () => {
                                   <div>
                                     <h4 className="font-medium mb-2">Responsáveis</h4>
                                     <ul className="space-y-1.5">
-                                      <li className="text-sm"><span className="font-medium">Supervisor:</span> {loja.supervisor_name}</li>
+                                      {!isSupervisor && (
+                                        <li className="text-sm"><span className="font-medium">Supervisor:</span> {loja.supervisor_name}</li>
+                                      )}
                                       <li className="text-sm"><span className="font-medium">Gerente PJ:</span> {loja.GERENTE_PJ}</li>
                                     </ul>
                                   </div>
@@ -614,6 +625,34 @@ const Hotlist: React.FC = () => {
                       ))}
                     </TableBody>
                   </Table>
+
+                  {/* Paginação */}
+                  <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+                    <div>
+                      Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, dadosFiltrados.length)} de {dadosFiltrados.length} leads
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="px-2">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -39,34 +39,6 @@ export interface AuthResponse {
   token: string;
 }
 
-export interface AcaoDiariaContas {
-  id: string;
-  chaveLoja: string;
-  nomeLoja: string;
-  telefone: string;
-  contato: string;
-  userId: string;
-  qtdContasPlataforma: number;
-  qtdContasLegado: number;
-  qtdTotalMes?: number;
-  qtdPlataformaMes?: number;
-  qtdLegadoMes?: number;
-  agencia: string;
-  situacao: "pendente" | "em_andamento" | "concluido";
-  descricaoSituacao: string;
-  dataLimite: Date;
-  dataCriacao: Date;
-  dataAtualizacao: Date;
-  dataConclusao?: Date;
-  observacoes?: string;
-  prioridade: "baixa" | "media" | "alta";
-  tipoAcao: string;
-  endereco?: string;
-  statusTablet?: string;
-  tratativa?: string;
-  nomeUsuario?: string; // Para exibir o nome do usuário responsável na view de equipe
-}
-
 export interface HotListItem {
   id: string;
   supervisor_id: string;
@@ -214,15 +186,37 @@ const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
 };
 
 // Authentication calls
-export const authApi = {
+export interface AuthApi {
+  login: (funcional: string, password: string) => Promise<AuthResponse>;
+  validateToken: (token: string) => Promise<boolean>;
+}
+
+export const authApi: AuthApi = {
   login: async (funcional: string, password: string): Promise<AuthResponse> => {
     const options = {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ funcional, password }),
     };
     
     return await fetchWithErrorHandling(`${API_URL}/auth/login`, options);
+  },
+
+  validateToken: async (token: string): Promise<boolean> => {
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      await fetchWithErrorHandling(`${API_URL}/auth/validate`, options);
+      return true;
+    } catch (error) {
+      return false;
+    }
   },
 };
 
@@ -668,143 +662,6 @@ export const eventApi = {
     };
     
     return await fetchWithErrorHandling(`${API_URL}/events/${eventId}`, options);
-  },
-};
-
-// Ações Diárias de Contas API
-export const acaoDiariaApi = {
-  // Obter todas as ações diárias atribuídas ao usuário atual
-  getAcoesDiarias: async (userId?: string): Promise<AcaoDiariaContas[]> => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("Usuário não autenticado");
-
-    let url = `${API_URL}/acoes-diarias`;
-    
-    if (userId) {
-      url += `?userId=${userId}`;
-    }
-    
-    const options = {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    };
-    
-    try {
-      const result = await fetchWithErrorHandling(url, options);
-      //console.log("Ações diárias recebidas:", result);
-      return result.map((acao: any) => ({
-        id: acao.ID,
-        chaveLoja: acao.CHAVE_LOJA,
-        nomeLoja: acao.NOME_LOJA,
-        telefone: acao.TELEFONE,
-        contato: acao.CONTATO,
-        userId: acao.USER_ID,
-        qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
-        qtdContasLegado: acao.QTD_CONTAS_LEGADO,
-        qtdTotalMes: acao.QTD_TOTAL_MES,
-        qtdPlataformaMes: acao.QTD_PLATAFORMA_MES,
-        qtdLegadoMes: acao.QTD_LEGADO_MES,
-        agencia: acao.AGENCIA,
-        situacao: acao.SITUACAO.toLowerCase() === 'pendente' ? 'pendente' : 
-                  acao.SITUACAO.toLowerCase() === 'em andamento' ? 'em_andamento' : 
-                  'concluido',
-        descricaoSituacao: acao.DESCRICAO_SITUACAO,
-        dataLimite: new Date(acao.DATA_LIMITE),
-        dataCriacao: new Date(acao.DATA_CRIACAO),
-        dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
-        dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
-        observacoes: acao.OBSERVACOES,
-        prioridade: acao.PRIORIDADE.toLowerCase(),
-        tipoAcao: acao.TIPO_ACAO,
-        endereco: acao.ENDERECO,
-        statusTablet: acao.STATUS_TABLET,
-        tratativa: acao.TRATATIVA,
-        nomeUsuario: acao.NOME_USUARIO
-      }));
-    } catch (error) {
-      console.error("Falha ao buscar ações diárias:", error);
-      return [];
-    }
-  },
-
-  // Obter ações diárias da equipe (para coordenadores e gerentes)
-  getAcoesDiariasEquipe: async (): Promise<AcaoDiariaContas[]> => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("Usuário não autenticado");
-
-    const options = {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    };
-    
-    try {
-      const result = await fetchWithErrorHandling(`${API_URL}/acoes-diarias/equipe`, options);
-      return result.map((acao: any) => ({
-        id: acao.ID,
-        chaveLoja: acao.CHAVE_LOJA,
-        nomeLoja: acao.NOME_LOJA,
-        telefone: acao.TELEFONE,
-        contato: acao.CONTATO,
-        userId: acao.USER_ID,
-        qtdContasPlataforma: acao.QTD_CONTAS_PLATAFORMA,
-        qtdContasLegado: acao.QTD_CONTAS_LEGADO,
-        qtdTotalMes: acao.QTD_TOTAL_MES,
-        qtdPlataformaMes: acao.QTD_PLATAFORMA_MES,
-        qtdLegadoMes: acao.QTD_LEGADO_MES,
-        agencia: acao.AGENCIA,
-        situacao: acao.SITUACAO.toLowerCase() === 'pendente' ? 'pendente' : 
-                  acao.SITUACAO.toLowerCase() === 'em andamento' ? 'em_andamento' : 
-                  'concluido',
-        descricaoSituacao: acao.DESCRICAO_SITUACAO,
-        dataLimite: new Date(acao.DATA_LIMITE),
-        dataCriacao: new Date(acao.DATA_CRIACAO),
-        dataAtualizacao: new Date(acao.DATA_ATUALIZACAO),
-        dataConclusao: acao.DATA_CONCLUSAO ? new Date(acao.DATA_CONCLUSAO) : undefined,
-        observacoes: acao.OBSERVACOES,
-        prioridade: acao.PRIORIDADE.toLowerCase(),
-        tipoAcao: acao.TIPO_ACAO,
-        endereco: acao.ENDERECO,
-        statusTablet: acao.STATUS_TABLET,
-        tratativa: acao.TRATATIVA,
-        nomeUsuario: acao.NOME_USUARIO
-      }));
-    } catch (error) {
-      console.error("Falha ao buscar ações diárias da equipe:", error);
-      return [];
-    }
-  },
-
-  // Atualizar status de uma ação diária
-  atualizarAcaoDiaria: async (id: string, dados: {
-    situacao?: "pendente" | "em_andamento" | "concluido";
-    observacoes?: string;
-    dataConclusao?: Date;
-  }): Promise<{ success: boolean; message?: string }> => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("Usuário não autenticado");
-
-    const options = {
-      method: "PATCH",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(dados),
-    };
-    
-    try {
-      return await fetchWithErrorHandling(`${API_URL}/acoes-diarias/${id}`, options);
-    } catch (error) {
-      if (error instanceof Error) {
-        return { 
-          success: false, 
-          message: error.message || "Falha ao atualizar ação diária" 
-        };
-      }
-      return { success: false, message: "Erro desconhecido" };
-    }
   },
 };
 

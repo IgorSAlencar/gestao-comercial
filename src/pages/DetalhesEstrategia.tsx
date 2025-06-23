@@ -20,14 +20,17 @@ import { useForm } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import * as XLSX from 'xlsx';
 import axios from 'axios';
-import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
 import DetalhesAberturaConta from "@/components/DetalhesAberturaConta";
 import DetalhesCredito from "@/components/DetalhesCredito";
 import DetalhesSeguro from "@/components/DetalhesSeguro";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import ResumoProduto from "@/components/ResumoProduto";
-import { DadosLoja, DadosEstrategia, FiltrosLoja } from "@/types/loja";
+import { DadosLoja, DadosEstrategia, FiltrosLoja } from "@/shared/types/lead";
 import { API_CONFIG } from "@/config/api.config";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 const dadosSimulados: Record<string, DadosEstrategia> = {
   "credito": {
@@ -549,11 +552,11 @@ const DetalhesEstrategia: React.FC = () => {
       chaveLoja: "",
       cnpj: "",
       nomeLoja: "",
-      situacao: "",
+      situacao: [],
       agencia: "",
-      gerenciaRegional: "",
-      diretoriaRegional: "",
-      tendencia: "",
+      gerenciaRegional: [],
+      diretoriaRegional: [],
+      tendencia: []
     }
   });
 
@@ -747,14 +750,21 @@ const DetalhesEstrategia: React.FC = () => {
     if (!dados?.dadosAnaliticos) return;
     
     const filtrados = dados.dadosAnaliticos.filter(loja => {
-      if (values.chaveLoja && !loja.chaveLoja.includes(values.chaveLoja)) return false;
-      if (values.cnpj && !loja.cnpj.includes(values.cnpj)) return false;
-      if (values.nomeLoja && !loja.nomeLoja.toLowerCase().includes(values.nomeLoja.toLowerCase())) return false;
-      if (values.situacao && values.situacao !== "all" && loja.situacao !== values.situacao) return false;
-      if (values.agencia && !loja.agencia.includes(values.agencia)) return false;
-      if (values.gerenciaRegional && values.gerenciaRegional !== "all" && !loja.gerenciaRegional.includes(values.gerenciaRegional)) return false;
-      if (values.diretoriaRegional && values.diretoriaRegional !== "all" && !loja.diretoriaRegional.includes(values.diretoriaRegional)) return false;
-      if (values.tendencia && values.tendencia !== "all" && loja.tendencia !== values.tendencia) return false;
+      // Busca por texto em vários campos
+      const searchTerm = values.nomeLoja.toLowerCase();
+      if (searchTerm) {
+        const matchesSearch = 
+          loja.chaveLoja.toLowerCase().includes(searchTerm) ||
+          loja.cnpj.toLowerCase().includes(searchTerm) ||
+          loja.nomeLoja.toLowerCase().includes(searchTerm);
+        if (!matchesSearch) return false;
+      }
+
+      // Filtros de array
+      if (values.situacao.length > 0 && !values.situacao.includes(loja.situacao)) return false;
+      if (values.gerenciaRegional.length > 0 && !values.gerenciaRegional.includes(loja.gerenciaRegional)) return false;
+      if (values.diretoriaRegional.length > 0 && !values.diretoriaRegional.includes(loja.diretoriaRegional)) return false;
+      if (values.tendencia.length > 0 && !values.tendencia.includes(loja.tendencia)) return false;
       
       return true;
     });
@@ -763,7 +773,16 @@ const DetalhesEstrategia: React.FC = () => {
   };
 
   const limparFiltros = () => {
-    form.reset();
+    form.reset({
+      chaveLoja: "",
+      cnpj: "",
+      nomeLoja: "",
+      situacao: [],
+      agencia: "",
+      gerenciaRegional: [],
+      diretoriaRegional: [],
+      tendencia: []
+    });
     if (dados?.dadosAnaliticos) {
       setDadosFiltrados(dados.dadosAnaliticos);
     }
@@ -822,6 +841,18 @@ const DetalhesEstrategia: React.FC = () => {
 
   const handleVoltar = () => {
     navigate('/estrategia-comercial');
+  };
+
+  const handleFilter = (values: any) => {
+    // Garantir que todos os valores são arrays
+    const filtros: FiltrosLoja = {
+      ...values,
+      situacao: Array.isArray(values.situacao) ? values.situacao : [],
+      gerenciaRegional: Array.isArray(values.gerenciaRegional) ? values.gerenciaRegional : [],
+      diretoriaRegional: Array.isArray(values.diretoriaRegional) ? values.diretoriaRegional : [],
+      tendencia: Array.isArray(values.tendencia) ? values.tendencia : []
+    };
+    aplicarFiltros(filtros);
   };
 
   if (isLoading) {
@@ -895,7 +926,74 @@ const DetalhesEstrategia: React.FC = () => {
     });
   };
 
-  
+  const ComboboxFilter = ({ 
+    name, 
+    title, 
+    options,
+    valueKey = 'value',
+    labelKey = 'label'
+  }: { 
+    name: keyof FiltrosLoja; 
+    title: string; 
+    options: any[];
+    valueKey?: string;
+    labelKey?: string;
+  }) => {
+    const values = form.watch(name) as string[];
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button 
+            variant="outline" 
+            className={cn(
+              "justify-start text-left font-normal",
+              values?.length > 0 && "border-primary/50"
+            )}
+          >
+            <span className="truncate">
+              {values?.length > 0 
+                ? `${title} (${values.length})`
+                : title}
+            </span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[200px] p-0" align="start">
+          <Command>
+            <CommandInput placeholder={`Buscar ${title.toLowerCase()}...`} />
+            <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option: any) => {
+                const value = option[valueKey] || option;
+                const label = option[labelKey] || option;
+                return (
+                  <CommandItem
+                    key={value}
+                    onSelect={() => {
+                      const currentValues = form.getValues(name) as string[];
+                      const newValues = currentValues.includes(value)
+                        ? currentValues.filter(v => v !== value)
+                        : [...currentValues, value];
+                      form.setValue(name, newValues);
+                      aplicarFiltros(form.getValues());
+                    }}
+                  >
+                    <div className={cn(
+                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                      values?.includes(value) ? "bg-primary text-primary-foreground" : "opacity-50"
+                    )}>
+                      {values?.includes(value) && "✓"}
+                    </div>
+                    {label}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   return (
     <div className="container mx-auto">
@@ -970,7 +1068,7 @@ const DetalhesEstrategia: React.FC = () => {
                 <CardContent>
                   <div className="mb-6 bg-gray-50 rounded-lg p-4">
                     <Form {...form}>
-                      <form onSubmit={form.handleSubmit(aplicarFiltros)} className="space-y-4">
+                      <form onSubmit={form.handleSubmit(handleFilter)} className="space-y-4">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
                             <Search size={16} />
@@ -986,140 +1084,114 @@ const DetalhesEstrategia: React.FC = () => {
                             Exportar Excel
                           </Button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+
                           <FormField
                             control={form.control}
-                            name="chaveLoja"
+                          name="nomeLoja"
                             render={({ field }) => (
                               <FormItem>
                                 <FormControl>
-                                  <Input placeholder="Chave Loja" {...field} />
+                                <Input 
+                                  placeholder="Buscar por Chave Loja, CNPJ ou Nome da Loja" 
+                                  {...field}
+                                  onChange={(e) => {
+                                    field.onChange(e);
+                                    aplicarFiltros(form.getValues());
+                                  }}
+                                />
                                 </FormControl>
                               </FormItem>
                             )}
                           />
-                          <FormField
-                            control={form.control}
-                            name="cnpj"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input placeholder="CNPJ" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name="nomeLoja"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input placeholder="Nome da Loja" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
+
+                        <div className="flex flex-wrap gap-2">
+                          <ComboboxFilter
                             name="situacao"
-                            render={({ field }) => (
-                              <FormItem>
-                                <Select 
-                                  onValueChange={field.onChange} 
-                                  value={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Situação" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {situacoes.map(situacao => (
-                                      <SelectItem key={situacao} value={situacao}>
-                                        {situacao === "ativa" ? "Ativa" : 
-                                         situacao === "bloqueada" ? "Bloqueada" : 
-                                         "Em encerramento"}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </FormItem>
-                            )}
+                            title="Situação"
+                            options={situacoes.map(s => ({
+                              value: s,
+                              label: s === "ativa" ? "Ativa" : 
+                                     s === "bloqueada" ? "Bloqueada" : 
+                                     "Em encerramento"
+                            }))}
+                            valueKey="value"
+                            labelKey="label"
                           />
-                          <FormField
-                            control={form.control}
-                            name="agencia"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input placeholder="Agência" {...field} />
-                                </FormControl>
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
+                          <ComboboxFilter
                             name="gerenciaRegional"
-                            render={({ field }) => (
-                              <FormItem>
-                                <Select 
-                                  onValueChange={field.onChange} 
-                                  value={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Gerência Regional" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {gerenciasRegionais.map(gr => (
-                                      <SelectItem key={gr} value={gr}>{gr}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </FormItem>
-                            )}
+                            title="Gerência Regional"
+                            options={gerenciasRegionais}
                           />
-                          <FormField
-                            control={form.control}
+                          <ComboboxFilter
                             name="diretoriaRegional"
-                            render={({ field }) => (
-                              <FormItem>
-                                <Select 
-                                  onValueChange={field.onChange} 
-                                  value={field.value}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Diretoria Regional" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {diretoriasRegionais.map(dr => (
-                                      <SelectItem key={dr} value={dr}>{dr}</SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </FormItem>
-                            )}
+                            title="Diretoria Regional"
+                            options={diretoriasRegionais}
+                          />
+                          <ComboboxFilter
+                            name="tendencia"
+                            title="Tendência"
+                            options={["queda", "atencao", "estavel", "comecando"].map(t => ({
+                              value: t,
+                              label: t === "queda" ? "Queda" :
+                                     t === "atencao" ? "Atenção" :
+                                     t === "estavel" ? "Estável" :
+                                     "Começando"
+                            }))}
+                            valueKey="value"
+                            labelKey="label"
                           />
                         </div>
-                        <div className="flex justify-end gap-2">
+
+                        {Object.entries(form.getValues()).some(([_, value]) => 
+                          Array.isArray(value) ? value.length > 0 : !!value
+                        ) && (
+                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200">
                           <Button 
                             type="button" 
-                            variant="outline" 
+                              variant="ghost" 
+                              size="sm"
                             onClick={limparFiltros}
                           >
-                            Limpar
+                              Limpar filtros
                           </Button>
-                          <Button type="submit">
-                            Aplicar Filtros
-                          </Button>
+                            <div className="flex flex-wrap gap-1">
+                              {Object.entries(form.getValues()).map(([key, values]) => {
+                                if (!Array.isArray(values) || values.length === 0) return null;
+                                return values.map((value: string) => {
+                                  let label = value;
+                                  if (key === 'situacao') {
+                                    label = value === "ativa" ? "Ativa" : 
+                                           value === "bloqueada" ? "Bloqueada" : 
+                                           "Em encerramento";
+                                  } else if (key === 'tendencia') {
+                                    label = value === "queda" ? "Queda" :
+                                           value === "atencao" ? "Atenção" :
+                                           value === "estavel" ? "Estável" :
+                                           "Começando";
+                                  }
+
+                                  return (
+                                    <Badge 
+                                      key={`${key}-${value}`}
+                                      variant="secondary"
+                                      className="cursor-pointer"
+                                      onClick={() => {
+                                        const currentValues = form.getValues(key as keyof FiltrosLoja) as string[];
+                                        form.setValue(
+                                          key as keyof FiltrosLoja, 
+                                          currentValues.filter(v => v !== value)
+                                        );
+                                        aplicarFiltros(form.getValues());
+                                      }}
+                                    >
+                                      {label} ×
+                                    </Badge>
+                                  );
+                                });
+                              })}
                         </div>
+                          </div>
+                        )}
                       </form>
                     </Form>
                   </div>

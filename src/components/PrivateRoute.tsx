@@ -1,6 +1,5 @@
-
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 interface PrivateRouteProps {
@@ -8,10 +7,16 @@ interface PrivateRouteProps {
 }
 
 const PrivateRoute: React.FC<PrivateRouteProps> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin, isManager } = useAuth();
+  const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Verificação específica para a rota de logs
+  if (location.pathname === "/logs" && !isAdmin && !isManager) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

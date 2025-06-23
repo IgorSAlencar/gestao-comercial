@@ -66,17 +66,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastRefreshSubordinates = React.useRef<number>(0);
   const lastRefreshAllUsers = React.useRef<number>(0);
 
-  // Verificar se já existe um usuário e token no localStorage ao iniciar
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const storedToken = localStorage.getItem("token");
-    
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
-    }
-  }, []);
-
   // Carregar subordinados quando o usuário for autenticado
   useEffect(() => {
     if (user && (user.role === "coordenador" || user.role === "gerente")) {

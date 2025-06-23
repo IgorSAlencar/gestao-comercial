@@ -53,6 +53,7 @@ const AgendaPage = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedEvento, setSelectedEvento] = useState<Event | null>(null);
   const [isTeamMemberDialogOpen, setIsTeamMemberDialogOpen] = useState(false);
   const [selectedTeamMember, setSelectedTeamMember] = useState<{ id: string; name: string } | null>(null);
   const [isParecerDialogOpen, setIsParecerDialogOpen] = useState(false);
@@ -98,8 +99,39 @@ const AgendaPage = () => {
   // Estado para controlar quando exibir notificações de erro
   const [errorNotificationShown, setErrorNotificationShown] = useState(false);
 
+  // Query para buscar eventos
+  const { data: eventos = [], isLoading, error } = useQuery({
+    queryKey: ['events', selectedSupervisor],
+    queryFn: async () => {
+      try {
+        return await eventApi.getEvents(
+          undefined, 
+          selectedSupervisor || undefined
+        );
+      } catch (error) {
+        console.error("Erro ao buscar eventos:", error);
+        return [];
+      }
+    },
+    enabled: !!user?.id,
+    retry: isAdmin ? 1 : 3,
+    retryDelay: 5000,
+    refetchOnWindowFocus: !isAdmin,
+    refetchInterval: isAdmin ? false : 60000,
+  });
+
   // Verificar parâmetros da URL ao carregar a página
   useEffect(() => {
+    // Verificar data na URL
+    const dataParam = searchParams.get('data');
+    if (dataParam) {
+      const novaData = new Date(dataParam);
+      if (!isNaN(novaData.getTime())) {
+        setDate(novaData);
+        setSelectedDate(novaData);
+      }
+    }
+    
     // Verificar supervisor na URL
     const supervisorParam = searchParams.get('supervisor');
     if (supervisorParam) {
@@ -109,49 +141,75 @@ const AgendaPage = () => {
       const filterParam = searchParams.get('filter');
       if (filterParam) {
         setFilterSearchTerm(decodeURIComponent(filterParam));
-        // Não abrir mais o diálogo de filtro automaticamente
-        // setIsFilterDialogOpen(true);
       }
     }
     
     // Verificar evento específico na URL
     const eventoParam = searchParams.get('evento');
-    if (eventoParam) {
-      // Lógica para exibir o evento específico (implementar depois se necessário)
+    if (eventoParam && eventos) {
+      // Buscar o evento específico e destacá-lo
+      const eventoEncontrado = eventos.find(e => e.id === eventoParam);
+      if (eventoEncontrado) {
+        // Se encontrou o evento, seleciona a data dele
+        const dataEvento = new Date(eventoEncontrado.dataInicio);
+        setDate(dataEvento);
+        setSelectedDate(dataEvento);
+        // Seleciona o evento para possível destaque na UI
+        setSelectedEvento(eventoEncontrado);
+      }
     }
-  }, [searchParams, setSelectedSupervisor, setFilterSearchTerm, setIsFilterDialogOpen]);
+  }, [searchParams, eventos]);
 
+  // Query para buscar gerentes e coordenadores (apenas para admin)
+  const { data: managers = [] } = useQuery({
+    queryKey: ['managers'],
+    queryFn: async () => {
+      if (!isAdmin) return [];
+      try {
+        const gerentes = await userApi.getUsersByRole("gerente");
+        const coordenadores = await userApi.getUsersByRole("coordenador");
+        return [...gerentes, ...coordenadores].sort((a, b) => a.name.localeCompare(b.name));
+      } catch (error) {
+        console.error("Erro ao buscar gerentes/coordenadores:", error);
+        return [];
+      }
+    },
+    enabled: !!isAdmin
+  });
+
+  // Estado para filtro de gerente/coordenador
+  const [selectedManager, setSelectedManager] = useState<string | null>(null);
+
+  // Query modificada para buscar supervisores
   const { data: supervisors = [] } = useQuery({
-    queryKey: ['supervisors', user?.id],
+    queryKey: ['supervisors', user?.id, selectedManager],
     queryFn: async () => {
       if (isAdmin) {
-        console.log("Usuário é admin, não buscando lista de supervisores");
-        return Promise.resolve([]);
-      } 
-      else if ((isManager || isCoordinator) && user?.id) {
         try {
-          // Usar getSubordinates em vez de getSupervisors para evitar erros 500
-          console.log(`Buscando subordinados para usuário ${user.id} (${user.role})`);
-          const allSubordinates = await userApi.getSubordinates(user.id);
-          // Filtrar apenas supervisores
-          const supervisors = allSubordinates.filter(subordinate => subordinate.role === "supervisor");
-          console.log(`Encontrados ${supervisors.length} supervisores de ${allSubordinates.length} subordinados`);
-          return supervisors;
+          if (selectedManager) {
+            // Se um gerente/coordenador está selecionado, buscar apenas seus subordinados supervisores
+            const subordinates = await userApi.getSubordinates(selectedManager);
+            return subordinates.filter(sub => sub.role === "supervisor");
+          } else {
+            // Se nenhum gerente está selecionado, buscar todos os supervisores
+            return await userApi.getUsersByRole("supervisor");
+          }
         } catch (error) {
           console.error("Erro ao buscar supervisores:", error);
-          toast({
-            title: "Aviso",
-            description: "Não foi possível carregar a lista completa de supervisores",
-            variant: "destructive",
-          });
+          return [];
+        }
+      } else if ((isManager || isCoordinator) && user?.id) {
+        try {
+          const allSubordinates = await userApi.getSubordinates(user.id);
+          return allSubordinates.filter(subordinate => subordinate.role === "supervisor");
+        } catch (error) {
+          console.error("Erro ao buscar supervisores:", error);
           return [];
         }
       }
-      return Promise.resolve([]);
+      return [];
     },
-    enabled: !!(user?.id && (isManager || isCoordinator)),
-    retry: 2,
-    retryDelay: 3000,
+    enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
   });
 
   // New query to fetch team members (subordinates) for creating events on their behalf
@@ -190,28 +248,6 @@ const AgendaPage = () => {
     enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
     retry: 3,
     retryDelay: 3000,
-  });
-
-  const { data: eventos = [], isLoading, error } = useQuery({
-    queryKey: ['events', selectedSupervisor],
-    queryFn: async () => {
-      try {
-        return await eventApi.getEvents(
-          undefined, 
-          selectedSupervisor || undefined
-        );
-      } catch (error) {
-        console.error("Erro ao buscar eventos:", error);
-        // Não exibe toast aqui para evitar múltiplas notificações
-        // O tratamento de erro visual é feito no useEffect abaixo
-        return [];
-      }
-    },
-    enabled: !!user?.id,
-    retry: isAdmin ? 1 : 3,
-    retryDelay: 5000,
-    refetchOnWindowFocus: !isAdmin,
-    refetchInterval: isAdmin ? false : 60000, // Atualiza a cada minuto para não-admin
   });
 
   // Exibe mensagem de erro apenas uma vez para usuários
@@ -914,28 +950,34 @@ const AgendaPage = () => {
           setParecerText(tratativas[0].DESCRICAO);
         }
       } else {
-        handleLegacyTratativa(evento);
+        const eventoAtual = eventos.find(e => e.id === id);
+        if (eventoAtual) {
+          handleLegacyTratativa(eventoAtual);
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar dados de prospecção:", error);
-      handleLegacyTratativa(evento);
+      const eventoAtual = eventos.find(e => e.id === id);
+      if (eventoAtual) {
+        handleLegacyTratativa(eventoAtual);
+      }
     }
   };
 
-  const handleLegacyTratativa = (evento: any) => {
-    if (evento.tratativa) {
-      const cnpjMatch = evento.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
+  const handleLegacyTratativa = (eventoAtual: Event) => {
+    if (eventoAtual.tratativa) {
+      const cnpjMatch = eventoAtual.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
       if (cnpjMatch && cnpjMatch[1]) {
         const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
         setCnpjValues(cnpjList);
         setCnpjProspectStatus(cnpjList.map(() => false));
         setNumCnpjs(cnpjList.length);
         
-        const cleanedText = evento.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
+        const cleanedText = eventoAtual.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
         setParecerText(cleanedText);
       } else {
         resetProspeccaoState();
-        setParecerText(evento.tratativa || "");
+        setParecerText(eventoAtual.tratativa || "");
       }
     } else {
       resetProspeccaoState();
@@ -943,21 +985,21 @@ const AgendaPage = () => {
     }
   };
 
-  const handleParecerClick = (evento: any) => {
-    setSelectedEvento(evento);
-    const isProspecao = evento.tipo === 'prospecao';
+  const handleParecerClick = (eventoAtual: Event) => {
+    setSelectedEvento(eventoAtual);
+    const isProspecao = eventoAtual.location === 'Prospecção';
     
     if (isProspecao) {
-      loadTratativasProspecao(evento.id);
+      loadTratativasProspecao(eventoAtual.id);
     } else {
       resetProspeccaoState();
-      setParecerText(evento.tratativa || "");
+      setParecerText(eventoAtual.tratativa || "");
     }
     
     setIsParecerDialogOpen(true);
   };
 
-  const handleSubmitTratativa = async (data: any) => {
+  const handleTratativaSubmit = async (id: string, data: any) => {
     try {
       const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao`, {
         method: 'POST',
@@ -965,11 +1007,34 @@ const AgendaPage = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          ...data,
+          eventoId: id,
+          userId: user?.id,
+          userName: user?.name
+        })
       });
-      // ... rest of the function
+      
+      if (!response.ok) {
+        throw new Error('Erro ao salvar tratativa');
+      }
+      
+      // Atualiza a lista de eventos
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+      
+      toast({
+        title: "Sucesso",
+        description: "Tratativa salva com sucesso",
+      });
+      
+      setIsParecerDialogOpen(false);
     } catch (error) {
-      // ... error handling
+      console.error('Erro ao salvar tratativa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar tratativa",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1452,28 +1517,6 @@ const AgendaPage = () => {
         </div>
       )}
 
-      {isAdmin && (
-        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
-          <div className="flex items-start gap-2">
-            <div className="text-amber-600 mt-0.5">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-medium text-amber-800">Modo Administrador</h3>
-              <p className="text-sm text-amber-700 mt-1">
-                Atualmente, a funcionalidade de agenda para administradores está limitada. 
-                Você está vendo uma visão simplificada da agenda. Para visualizar detalhes 
-                específicos de um supervisor, por favor acesse como Coordenador ou Gerente.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <Tabs defaultValue="calendar" onValueChange={(value) => setViewMode(value as "calendar" | "table")}>
         <TabsList className="mb-4">
           <TabsTrigger value="calendar" className="flex items-center gap-2">
@@ -1535,9 +1578,34 @@ const AgendaPage = () => {
                 
                 {(isManager || isCoordinator || isAdmin) && supervisors.length > 0 && (
                   <div className="mt-6">
+                    {isAdmin && (
+                      <div className="mb-4">
+                        <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
+                          <Users className="h-4 w-4" /> 
+                          Filtrar por Gerência/Coordenação
+                        </h3>
+                        <Select
+                          value={selectedManager || ""}
+                          onValueChange={(value) => setSelectedManager(value || null)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos os Supervisores" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">Todos os Supervisores</SelectItem>
+                            {managers.map((manager) => (
+                              <SelectItem key={manager.id} value={manager.id}>
+                                {manager.name} ({manager.role === "gerente" ? "Gerente" : "Coordenador"})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    
                     <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
                       <Users className="h-4 w-4" /> 
-                      Usuários
+                      {isAdmin ? "Supervisores" : "Usuários"}
                     </h3>
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                       <div 

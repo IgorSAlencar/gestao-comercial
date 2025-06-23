@@ -14,10 +14,10 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const eventRoutes = require('./routes/events');
 const oportunidadesRoutes = require('./routes/oportunidades');
-const acoesDiariasRoutes = require('./routes/acoes-diarias');
 const prospectVisitasRoutes = require('./routes/prospectVisitas');
 const hotlistRoutes = require('./routes/hotlist');
 const trativasProspecaoRoutes = require('./routes/trativasProspecao');
+const { router: userLogsRoutes } = require('./routes/user-logs');
 
 const app = express();
 const PORT = config.server.port;
@@ -43,35 +43,45 @@ app.get('/api/health', async (req, res) => {
   try {
     const pool = await poolConnect;
     
-    // Verificar se a tabela existe
-    const tableCheckQuery = `
-      SELECT CASE 
-        WHEN EXISTS (
-          SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
-          WHERE TABLE_SCHEMA = 'teste' AND TABLE_NAME = 'ACAO_DIARIA_CONTAS'
-        ) 
-        THEN 1 ELSE 0 
-      END AS table_exists
-    `;
-    
-    const tableCheckResult = await pool.request().query(tableCheckQuery);
-    const tableExists = tableCheckResult.recordset[0].table_exists === 1;
-    
-    let recordCount = 0;
-    if (tableExists) {
-      // Verificar se há registros na tabela
-      const countQuery = `SELECT COUNT(*) AS count FROM teste..ACAO_DIARIA_CONTAS`;
-      const countResult = await pool.request().query(countQuery);
-      recordCount = countResult.recordset[0].count;
-    }
+    // Verificar se as tabelas necessárias existem
+    const checkTables = async () => {
+      try {
+        const result = await pool.request().query(`
+          SELECT TABLE_NAME 
+          FROM INFORMATION_SCHEMA.TABLES 
+          WHERE TABLE_SCHEMA = 'teste' AND TABLE_NAME IN (
+            'HOTLIST',
+            'PROSPECT_VISITAS',
+            'TRATATIVAS_PROSPECAO',
+            'OPORTUNIDADES_CONTAS'
+          )
+        `);
+
+        const existingTables = result.recordset.map(r => r.TABLE_NAME);
+        console.log("Tabelas existentes:", existingTables);
+
+        // Verificar contagem de registros em cada tabela
+        for (const table of existingTables) {
+          const countQuery = `SELECT COUNT(*) AS count FROM teste..${table}`;
+          const countResult = await pool.request().query(countQuery);
+          console.log(`Registros em ${table}:`, countResult.recordset[0].count);
+        }
+
+        return true;
+      } catch (error) {
+        console.error("Erro ao verificar tabelas:", error);
+        return false;
+      }
+    };
+
+    const tableExists = await checkTables();
     
     res.json({
       status: 'ok',
       timestamp: new Date(),
       server: 'Express',
       database: 'Connected',
-      tableExists,
-      recordCount
+      tableExists
     });
   } catch (error) {
     console.error('Health check error:', error);
@@ -167,9 +177,9 @@ app.patch('/api/events-feedback/:eventId', (req, res) => {
 // Rotas
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/user-logs', userLogsRoutes);
 app.use('/api/events', eventRoutes);
-app.use('/api', oportunidadesRoutes);
-app.use('/api/acoes-diarias', acoesDiariasRoutes);
+app.use('/api/oportunidades', oportunidadesRoutes);
 app.use('/api/prospect-visitas', prospectVisitasRoutes);
 app.use('/api/hotlist', hotlistRoutes);
 app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);

@@ -37,9 +37,10 @@ interface HotlistFiltersProps {
   dados: HotListItem[];
   onFilter: (filters: FiltrosHotList) => void;
   onExport: () => void;
+  isSupervisor?: boolean;
 }
 
-const HotlistFilters: React.FC<HotlistFiltersProps> = ({ dados, onFilter, onExport }) => {
+const HotlistFilters: React.FC<HotlistFiltersProps> = ({ dados, onFilter, onExport, isSupervisor = false }) => {
   const form = useForm<FiltrosHotList>({
     defaultValues: {
       searchTerm: "",
@@ -215,13 +216,15 @@ const HotlistFilters: React.FC<HotlistFiltersProps> = ({ dados, onFilter, onExpo
               title="Praça Presença"
               options={uniqueOptions.pracasPresenca}
             />
-            <ComboboxFilter
-              name="supervisor"
-              title="Supervisor"
-              options={uniqueOptions.supervisores}
-              valueKey="id"
-              labelKey="name"
-            />
+            {!isSupervisor && (
+              <ComboboxFilter
+                name="supervisor"
+                title="Supervisor"
+                options={uniqueOptions.supervisores}
+                valueKey="id"
+                labelKey="name"
+              />
+            )}
             <ComboboxFilter
               name="diretoriaRegional"
               title="Diretoria Regional"

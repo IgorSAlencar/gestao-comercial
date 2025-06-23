@@ -13,6 +13,7 @@ import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import Hotlist from "@/pages/Hotlist";
 import Equipe from "@/pages/Equipe";
+import UserLogs from "@/pages/UserLogs";
 
 import NotFound from "./pages/NotFound";
 
@@ -72,6 +73,16 @@ const App = () => (
                   <Layout><Equipe /></Layout>
                 </PrivateRoute>
               } 
+            />
+            <Route
+              path="/logs"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <UserLogs />
+                  </Layout>
+                </PrivateRoute>
+              }
             />
             <Route path="*" element={<NotFound />} />
           </Routes>

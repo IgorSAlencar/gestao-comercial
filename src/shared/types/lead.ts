@@ -22,3 +22,52 @@ export const statusLabels = {
   convertido: { label: "Convertido", color: "bg-green-100 text-green-800" },
   sem_interesse: { label: "Sem Interesse", color: "bg-gray-100 text-gray-800" }
 }; 
+
+export interface DadosLoja {
+  chaveLoja: string;
+  cnpj: string;
+  nomeLoja: string;
+  mesM3: number;
+  mesM2: number;
+  mesM1: number;
+  mesM0: number;
+  situacao: string;
+  dataUltTrxContabil: Date;
+  dataUltTrxNegocio: Date;
+  dataBloqueio?: Date;
+  dataInauguracao: Date;
+  agencia: string;
+  telefoneLoja: string;
+  nomeContato: string;
+  gerenciaRegional: string;
+  diretoriaRegional: string;
+  tendencia: string;
+  endereco: string;
+  nomePdv: string;
+  multiplicadorResponsavel: string;
+  dataCertificacao?: Date;
+  situacaoTablet: string;
+  produtosHabilitados: {
+    consignado: boolean;
+    microsseguro: boolean;
+    lime: boolean;
+  };
+  motivoBloqueio?: string;
+}
+
+export interface DadosEstrategia {
+  titulo: string;
+  visaoGeral: string;
+  dadosAnaliticos: DadosLoja[];
+}
+
+export interface FiltrosLoja {
+  chaveLoja: string;
+  cnpj: string;
+  nomeLoja: string;
+  situacao: string | string[];
+  agencia: string;
+  gerenciaRegional: string | string[];
+  diretoriaRegional: string | string[];
+  tendencia: string | string[];
+} 

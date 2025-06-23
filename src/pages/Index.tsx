@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Card, 
   CardContent,
@@ -30,22 +31,38 @@ import {
   CreditCard,
   Shield,
   Flame,
-  AlertCircle
+  AlertCircle,
+  ChartBar,
+  TrendingDown,
+  Activity,
+  Plus,
+  MoreHorizontal,
+  Info,
+  Search,
+  Pin,
+  Download
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import CardsAcaoDiariaContas from "@/components/AcaoDiariaContas";
 import DashboardGerencial from "@/components/DashboardGerencial";
 import AgendaStats from "@/components/AgendaStats";
-import { acaoDiariaApi, AcaoDiariaContas, eventApi, Event, hotListApi } from "@/services/api";
+import { eventApi, Event, hotListApi } from "@/services/api";
 import { format, isPast, isToday, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/components/ui/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useForm } from "react-hook-form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import * as XLSX from 'xlsx';
+import axios from 'axios';
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, isManager, isCoordinator, isSupervisor, isAdmin } = useAuth();
   
-  const [acoesPendentes, setAcoesPendentes] = useState<AcaoDiariaContas[]>([]);
   const [alertas, setAlertas] = useState([]);
   const [eventosHoje, setEventosHoje] = useState<Event[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
@@ -60,28 +77,33 @@ const Index = () => {
     contasAbertasSemana: 0,
     contasAbertasMes: 0
   });
+  const [events, setEvents] = useState<Event[]>([]);
   
   // Função para carregar ações pendentes e eventos
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         if (!user) return;
 
-        // Buscar dados da HotList
-        const hotListSummary = await hotListApi.getHotListSummary(user.id);
-        setTotalLeadsUsuario(hotListSummary.totalLeads);
-        setTotalLeadsPendentes(hotListSummary.leadsPendentes);
+        // Carregar eventos
+        const eventosData = await eventApi.getEvents();
+        setEvents(eventosData);
+        setEventosHoje(eventosData.filter(evento => {
+          const dataEvento = parseISO(evento.dataInicio.toString());
+          return isToday(dataEvento);
+        }));
 
-        // Carregar ações diárias
-        const acoes = await acaoDiariaApi.getAcoesDiarias();
-        setAcoesPendentes(acoes.filter(acao => acao.situacao !== "concluido"));
+        // Carregar hotlist summary
+        const hotListSummary = await hotListApi.getHotListSummary(user.id);
+        setTotalLeadsPendentes(hotListSummary.leadsPendentes);
         
         // Simular estatísticas - em produção, estas viriam da API
         setEstatisticas({
-          totalAcoes: acoes.length,
-          concluidas: acoes.filter(acao => acao.situacao === "concluido").length,
-          pendentes: acoes.filter(acao => acao.situacao !== "concluido").length,
-          prioridadeAlta: acoes.filter(acao => acao.prioridade === "alta").length,
+          totalAcoes: 0,
+          concluidas: 0,
+          pendentes: 0,
+          prioridadeAlta: 0,
           contasAbertasSemana: Math.floor(Math.random() * 30) + 10,
           contasAbertasMes: Math.floor(Math.random() * 120) + 50
         });
@@ -114,7 +136,7 @@ const Index = () => {
           }
         ]);
       } catch (error) {
-        console.error("Erro ao carregar dados:", error);
+        console.error("Erro ao buscar dados:", error);
         toast({
           title: "Erro",
           description: "Não foi possível carregar os dados",
@@ -206,7 +228,14 @@ const Index = () => {
   
   // Função para navegar para um evento específico
   const navegarParaEvento = (eventoId: string) => {
-    navigate(`/agenda?evento=${eventoId}`);
+    const evento = eventosHoje.find(e => e.id === eventoId);
+    if (evento) {
+      // Formata a data para o formato esperado pela URL (YYYY-MM-DD)
+      const dataEvento = format(new Date(evento.dataInicio), 'yyyy-MM-dd');
+      navigate(`/agenda?data=${dataEvento}&evento=${eventoId}`);
+    } else {
+      navigate('/agenda');
+    }
   };
   
   // Função para verificar se um evento ocorre no dia atual
@@ -303,12 +332,7 @@ const Index = () => {
               >
                 Ver Campanha
               </Button>
-              <Button 
-                onClick={() => navegarPara('/pade')}
-                className="flex-1 bg-white hover:bg-blue-50 text-blue-600 border border-blue-300 shadow-sm h-10"
-              >
-                Manual
-              </Button>
+
             </div>
           </CardContent>
         </Card>
@@ -382,8 +406,8 @@ const Index = () => {
       </div>
       
       {/* Conteúdo principal */}
-      {isManager ? (
-        /* Dashboard Gerencial para Gerentes e Coordenadores */
+      {(isManager || isAdmin) ? (
+        /* Dashboard Gerencial para Gerentes, Coordenadores e Admins */
         <DashboardGerencial />
       ) : (
         /* Conteúdo de Agenda e Ações para outros usuários */
@@ -391,21 +415,25 @@ const Index = () => {
           {/* Coluna 1: Agenda do Dia */}
           <div className="lg:col-span-2 space-y-6">
             {/* Agenda do Dia */}
-            <Card className="border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-white shadow hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
+            <Card className="border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-indigo-50 shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-200 to-transparent opacity-20 rounded-full transform translate-x-32 -translate-y-32"></div>
+              <CardHeader className="pb-3 relative">
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle className="text-lg text-indigo-800">Agenda Comercial</CardTitle>
-                    <CardDescription>
-                        Seus compromissos e visitas agendadas para hoje
+                    <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-800 to-indigo-600 bg-clip-text text-transparent">
+                      Agenda Comercial
+                    </CardTitle>
+                    <CardDescription className="text-indigo-600/80">
+                      Seus compromissos e próximas visitas agendadas
                     </CardDescription>
                   </div>
                   <Button 
                     variant="ghost" 
-                    className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50"
+                    className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100/50 transition-all duration-300 group"
                     onClick={() => navegarPara('/agenda')}
                   >
-                    Ver Completa <ChevronRight className="ml-1 h-4 w-4" />
+                    Ver Completa 
+                    <ChevronRight className="ml-1 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               </CardHeader>
@@ -413,66 +441,98 @@ const Index = () => {
                 {loadingEvents ? (
                   <div className="flex justify-center py-8">
                     <div className="flex flex-col items-center gap-2">
-                      <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
-                      <p className="text-sm text-indigo-600">Carregando eventos...</p>
+                      <div className="relative">
+                        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+                        <div className="absolute inset-0 h-8 w-8 border-4 border-indigo-100 rounded-full"></div>
+                      </div>
+                      <p className="text-sm text-indigo-600 animate-pulse">Carregando eventos...</p>
                     </div>
                   </div>
                 ) : eventosHoje.length > 0 ? (
-                  <div className="space-y-3">
-                    {eventosParaMostrar(eventosHoje).map((evento) => (
-                      <div 
-                        key={evento.id} 
-                        className={`p-3 rounded-md border-l-4 ${
-                          !eventoHoje(evento) ? 'border-l-red-500 bg-red-50' :
-                          eventoPassado(evento) && !temTratativa(evento) ? 'border-l-red-500 bg-red-50' : 
-                          eventoPassado(evento) && temTratativa(evento) ? 'border-l-green-500 bg-green-50' : 
-                          'border-l-indigo-500 bg-indigo-50'
-                        } cursor-pointer hover:shadow-sm transition-shadow`}
-                        onClick={() => navegarParaEvento(evento.id)}
-                      >
-                        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2">
-                          <div className="font-medium">{evento.titulo}</div>
-                          <div className="text-sm font-medium text-center bg-indigo-100 text-indigo-800 px-3 py-1 rounded-md whitespace-nowrap">
-                            <CalendarDays className="h-3.5 w-3.5 inline-block mr-1" />
-                            {formatarRangeDatas(evento.dataInicio, evento.dataFim)}
+                  <div className="space-y-4">
+                    {eventosParaMostrar(eventosHoje).map((evento) => {
+                      const isPendente = !eventoHoje(evento);
+                      const isPassadoSemTratativa = eventoPassado(evento) && !temTratativa(evento);
+                      const isComTratativa = eventoPassado(evento) && temTratativa(evento);
+                      
+                      return (
+                        <div 
+                          key={evento.id} 
+                          className={`group p-4 rounded-lg border ${
+                            isPendente ? 'border-red-200 bg-gradient-to-r from-red-50 to-white' :
+                            isPassadoSemTratativa ? 'border-amber-200 bg-gradient-to-r from-amber-50 to-white' :
+                            isComTratativa ? 'border-green-200 bg-gradient-to-r from-green-50 to-white' :
+                            'border-indigo-200 bg-gradient-to-r from-blue-50 via-white to-white'
+                          } cursor-pointer hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5 hover:border-indigo-300`}
+                          onClick={() => navegarParaEvento(evento.id)}
+                        >
+                          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`p-2 rounded-full ${
+                                  isPendente ? 'bg-red-100 text-red-600' :
+                                  isPassadoSemTratativa ? 'bg-amber-100 text-amber-600' :
+                                  isComTratativa ? 'bg-green-100 text-green-600' :
+                                  'bg-indigo-100 text-indigo-600'
+                                } group-hover:scale-110 transition-transform`}>
+                                  {isPendente ? <AlertTriangle className="h-4 w-4" /> :
+                                   isPassadoSemTratativa ? <Clock className="h-4 w-4" /> :
+                                   isComTratativa ? <CheckCircle className="h-4 w-4" /> :
+                                   <Calendar className="h-4 w-4" />}
+                                </div>
+                                <h4 className="font-semibold text-gray-800 group-hover:text-indigo-700 transition-colors">
+                                  {evento.titulo}
+                                </h4>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-600">
+                                <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded">
+                                  <CalendarDays className="h-3.5 w-3.5 text-indigo-500" />
+                                  <span>{formatarRangeDatas(evento.dataInicio, evento.dataFim)}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded">
+                                  <MapPin className="h-3.5 w-3.5 text-indigo-500" />
+                                  <span>{evento.location || "Sem local definido"}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {isPendente && (
+                              <div className="px-3 py-1.5 bg-red-100 text-red-700 text-xs font-medium rounded-full inline-flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" />
+                                Pendente de tratativa
+                              </div>
+                            )}
+                            {isPassadoSemTratativa && (
+                              <div className="px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full inline-flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Evento finalizado sem tratativa
+                              </div>
+                            )}
+                            {isComTratativa && (
+                              <div className="px-3 py-1.5 bg-green-100 text-green-700 text-xs font-medium rounded-full inline-flex items-center gap-1">
+                                <MessageSquare className="h-3 w-3" />
+                                Com tratativa
+                              </div>
+                            )}
                           </div>
                         </div>
-
-                        <div className="flex items-center flex-wrap gap-x-4 gap-y-2 mt-2 text-sm text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3.5 w-3.5" />
-                            <span>{evento.location || "Sem local definido"}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {!eventoHoje(evento) && (
-                            <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
-                              Pendente de tratativa
-                            </div>
-                          )}
-                          {eventoHoje(evento) && eventoPassado(evento) && !temTratativa(evento) && (
-                            <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded inline-block">
-                              Evento finalizado sem tratativa
-                            </div>
-                          )}
-                          {temTratativa(evento) && (
-                            <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded inline-block">
-                              <MessageSquare className="h-3 w-3 inline mr-1" />
-                              Com tratativa
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <CalendarDays className="h-12 w-12 text-indigo-300 mx-auto mb-3" />
-                    <p className="text-gray-500">Não há eventos agendados para hoje</p>
+                  <div className="text-center py-12 bg-white/50 rounded-lg border-2 border-dashed border-indigo-200">
+                    <div className="relative inline-block">
+                      <CalendarDays className="h-16 w-16 text-indigo-300 mx-auto mb-3 transform -rotate-6" />
+                      <div className="absolute top-0 left-0 h-16 w-16 border-4 border-indigo-100 rounded-lg transform rotate-6"></div>
+                    </div>
+                    <p className="text-gray-500 mb-2">Não há eventos agendados para hoje</p>
+                    <p className="text-sm text-gray-400 mb-4">Que tal adicionar um novo compromisso?</p>
                     <Button 
                       variant="outline" 
-                      className="mt-4 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                      className="border-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-300 transform hover:-translate-y-0.5"
                       onClick={() => navegarPara('/agenda')}
                     >
                       <Calendar className="mr-2 h-4 w-4" />
@@ -486,9 +546,6 @@ const Index = () => {
         
           {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
           <div className="space-y-6">
-            {/* Ações Diárias */}
-            <CardsAcaoDiariaContas />
-            
             {/* Links para Estratégias Comerciais */}
             <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-white">
               <CardHeader>
