@@ -19,13 +19,28 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/AuthContext";
-import { eventApi, Event, userApi } from "@/services/api";
+import { eventApi, Event, userApi, eventCategoryApi } from "@/services/api";
 import { format, isToday, isPast, isFuture, isThisWeek, isThisMonth, addDays, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import SupervisorGridDialog from "./SupervisorGridDialog";
+
+// Tipo para as categorias dinâmicas
+interface EventCategory {
+  id: number;
+  name: string;
+  description?: string;
+  subcategories?: EventSubcategory[];
+}
+
+interface EventSubcategory {
+  id: number;
+  categoryId: number;
+  name: string;
+  description?: string;
+}
 
 interface AgendaSummary {
   totalAgendamentos: number;
@@ -37,13 +52,8 @@ interface AgendaSummary {
   supervisoresSemAgenda: number;
   supervisoresComAgendaHoje: number;
   proximosAgendamentos: Event[];
-  // Categorias de eventos
-  categorias: {
-    prospeccao: number;
-    visitasOperacionais: number;
-    visitasNegociacao: number;
-    outros: number;
-  };
+  // Categorias dinâmicas de eventos
+  categoriasDinamicas: Record<string, number>;
 }
 
 const AgendaStats: React.FC = () => {
@@ -58,17 +68,36 @@ const AgendaStats: React.FC = () => {
     supervisoresSemAgenda: 0,
     supervisoresComAgendaHoje: 0,
     proximosAgendamentos: [],
-    categorias: {
-      prospeccao: 0,
-      visitasOperacionais: 0,
-      visitasNegociacao: 0,
-      outros: 0,
-    }
+    categoriasDinamicas: {}
   });
 
   const navigate = useNavigate();
   const [showSupervisoresSemAgenda, setShowSupervisoresSemAgenda] = useState(false);
   const [showSupervisorGrid, setShowSupervisorGrid] = useState(false);
+
+  // Buscar categorias de eventos da API
+  const { data: eventCategories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['eventCategories-stats'],
+    queryFn: async () => {
+      try {
+        console.log('[AgendaStats] Buscando categorias de eventos...');
+        const categories = await eventCategoryApi.getCategories();
+        console.log('[AgendaStats] Categorias carregadas:', categories);
+        return categories;
+      } catch (error) {
+        console.error('[AgendaStats] Erro ao buscar categorias, usando categorias padrão:', error);
+        // Fallback para categorias padrão
+        return [
+          { id: 1, name: "Prospecção", description: "Eventos de prospecção" },
+          { id: 2, name: "Visitas Operacionais", description: "Visitas operacionais" },
+          { id: 3, name: "Visitas de Negociação", description: "Visitas de negociação" },
+          { id: 4, name: "Outros", description: "Outros tipos de eventos" }
+        ];
+      }
+    },
+    retry: 1,
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
 
   // Buscar supervisores para a estatística
   const { data: supervisors = [], isLoading: isLoadingSupervisors } = useQuery({
@@ -124,9 +153,10 @@ const AgendaStats: React.FC = () => {
 
   // Calcular estatísticas quando os dados estiverem disponíveis
   useEffect(() => {
-    if (supervisors.length > 0) {
+    if (supervisors.length > 0 && eventCategories.length > 0) {
       try {
         console.log(`[AgendaStats] Processando ${events.length} eventos para ${supervisors.length} supervisores`);
+        console.log(`[AgendaStats] Categorias disponíveis:`, eventCategories.map(c => c.name));
         
         // Mapear os IDs dos supervisores para facilitar a busca
         const supervisorIds = new Set(supervisors.map(s => s.id));
@@ -181,11 +211,13 @@ const AgendaStats: React.FC = () => {
         // Eventos futuros para exibição
         let todosEventosFuturos: Event[] = [];
         
-        // Contadores para categorias de eventos
-        let countProspeccao = 0;
-        let countVisitasOperacionais = 0;
-        let countVisitasNegociacao = 0;
-        let countOutros = 0;
+        // Contadores dinâmicos para categorias de eventos
+        const categoriaCounters: Record<string, number> = {};
+        
+        // Inicializar contadores para todas as categorias
+        eventCategories.forEach(categoria => {
+          categoriaCounters[categoria.name] = 0;
+        });
 
         // Calcular estatísticas por supervisor
         const estatisticasPorSupervisor: Record<string, {
@@ -221,23 +253,28 @@ const AgendaStats: React.FC = () => {
         
         // Processar estatísticas por supervisor
         Object.entries(eventosPorSupervisor).forEach(([supervisorId, supervisorEventos]) => {
-          const stats = estatisticasPorSupervisor[supervisorId];
           
           // Contar eventos por categoria
           supervisorEventos.forEach(evento => {
-            // Contar por tipo de evento/categoria
-            if (evento.location === "Prospecção") {
-              stats.categorias.prospeccao++;
-              countProspeccao++;
-            } else if (evento.location === "Visitas Operacionais") {
-              stats.categorias.visitasOperacionais++;
-              countVisitasOperacionais++;
-            } else if (evento.location === "Visitas de Negociação") {
-              stats.categorias.visitasNegociacao++;
-              countVisitasNegociacao++;
-            } else if (evento.location === "Outros") {
-              stats.categorias.outros++;
-              countOutros++;
+            // Contar por tipo de evento/categoria usando as categorias dinâmicas
+            const eventoCategoria = evento.location || "Outros";
+            
+            // Verificar se a categoria existe nas categorias carregadas
+            const categoriaEncontrada = eventCategories.find(c => c.name === eventoCategoria);
+            
+            if (categoriaEncontrada) {
+              categoriaCounters[categoriaEncontrada.name]++;
+            } else {
+              // Se não encontrar a categoria específica, contar como "Outros"
+              const outrosCategoria = eventCategories.find(c => c.name === "Outros");
+              if (outrosCategoria) {
+                categoriaCounters[outrosCategoria.name]++;
+              } else {
+                // Se não tiver categoria "Outros", usar a primeira categoria disponível
+                if (eventCategories.length > 0) {
+                  categoriaCounters[eventCategories[0].name]++;
+                }
+              }
             }
           });
           
@@ -248,7 +285,6 @@ const AgendaStats: React.FC = () => {
             return dataEvento.getTime() === hoje.getTime();
           });
           
-          stats.eventosHoje = eventosHoje.length;
           if (eventosHoje.length > 0) {
             totalEventosHoje += eventosHoje.length;
             supervisoresComEventoHoje.add(supervisorId);
@@ -261,7 +297,6 @@ const AgendaStats: React.FC = () => {
             return dataInicio >= inicioSemana && dataInicio <= fimSemana;
           });
           
-          stats.eventosSemana = eventosSemana.length;
           totalEventosSemana += eventosSemana.length;
           
           // Eventos concluídos
@@ -270,7 +305,6 @@ const AgendaStats: React.FC = () => {
             return isPast(dataFim) && e.tratativa && e.tratativa.trim() !== '';
           });
           
-          stats.eventosConcluidos = eventosConcluidos.length;
           totalConcluidos += eventosConcluidos.length;
           
           // Eventos pendentes
@@ -279,11 +313,7 @@ const AgendaStats: React.FC = () => {
             return isPast(dataFim) && (!e.tratativa || e.tratativa.trim() === '');
           });
           
-          stats.eventosPendentes = eventosPendentes.length;
           totalPendentes += eventosPendentes.length;
-          
-          // Total de eventos do supervisor
-          stats.totalEventos = supervisorEventos.length;
           
           // Adicionar os eventos desta semana para exibição no card de próximos agendamentos
           if (eventosSemana.length > 0) {
@@ -303,7 +333,7 @@ const AgendaStats: React.FC = () => {
         
         console.log(`[AgendaStats] Estatísticas calculadas: Total=${totalEventosMes}, Hoje=${totalEventosHoje}, Semana=${totalEventosSemana}, Concluídos=${totalConcluidos}, Pendentes=${totalPendentes}`);
         console.log(`[AgendaStats] Supervisores sem agenda na semana: ${supervisoresSemEventoFuturo}`);
-        console.log(`[AgendaStats] Categorias: Prospecção=${countProspeccao}, Visitas Operacionais=${countVisitasOperacionais}, Visitas de Negociação=${countVisitasNegociacao}, Outros=${countOutros}`);
+        console.log(`[AgendaStats] Categorias dinâmicas:`, categoriaCounters);
         
         // Atualizar o resumo
         setSummary({
@@ -316,18 +346,13 @@ const AgendaStats: React.FC = () => {
           supervisoresSemAgenda: supervisoresSemEventoFuturo,
           supervisoresComAgendaHoje: supervisoresComEventoHoje.size,
           proximosAgendamentos: todosEventosFuturos,
-          categorias: {
-            prospeccao: countProspeccao,
-            visitasOperacionais: countVisitasOperacionais,
-            visitasNegociacao: countVisitasNegociacao,
-            outros: countOutros,
-          }
+          categoriasDinamicas: categoriaCounters
         });
       } catch (error) {
         console.error("[AgendaStats] Erro ao processar dados para estatísticas:", error);
       }
     }
-  }, [supervisors, events]);
+  }, [supervisors, events, eventCategories]);
 
   // Formatar data e hora
   const formatDateTime = (dataISO: string | Date) => {
@@ -669,7 +694,7 @@ const AgendaStats: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading || isLoadingCategories ? (
               <div className="space-y-3">
                 {[1, 2, 3, 4].map(i => (
                   <div key={i} className="flex justify-between items-center mb-2">
@@ -680,60 +705,39 @@ const AgendaStats: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <div 
-                  className="flex justify-between items-center p-2 bg-blue-50 hover:bg-blue-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => navigate('/agenda?filter=prospeccao')}
-                >
-                  <div className="flex items-center">
-                    <div className="h-7 w-7 bg-blue-500 rounded-full flex items-center justify-center mr-2">
-                      <Search className="h-3.5 w-3.5 text-white" />
+                {eventCategories.map((categoria, index) => {
+                  const count = summary.categoriasDinamicas[categoria.name] || 0;
+                  const colors = [
+                    { bg: 'bg-blue-50 hover:bg-blue-100', icon: 'bg-blue-500', iconColor: 'text-white' },
+                    { bg: 'bg-green-50 hover:bg-green-100', icon: 'bg-green-500', iconColor: 'text-white' },
+                    { bg: 'bg-amber-50 hover:bg-amber-100', icon: 'bg-amber-500', iconColor: 'text-white' },
+                    { bg: 'bg-purple-50 hover:bg-purple-100', icon: 'bg-purple-500', iconColor: 'text-white' },
+                    { bg: 'bg-red-50 hover:bg-red-100', icon: 'bg-red-500', iconColor: 'text-white' },
+                    { bg: 'bg-gray-50 hover:bg-gray-100', icon: 'bg-gray-500', iconColor: 'text-white' }
+                  ];
+                  const colorScheme = colors[index % colors.length];
+                  
+                  const icons = [Search, Users, BarChart, Calendar, Clock, MapPin];
+                  const IconComponent = icons[index % icons.length];
+                  
+                  return (
+                    <div 
+                      key={categoria.id}
+                      className={`flex justify-between items-center p-2 ${colorScheme.bg} rounded-md cursor-pointer transition-all`}
+                      onClick={() => navigate(`/agenda?filter=${encodeURIComponent(categoria.name.toLowerCase())}`)}
+                    >
+                      <div className="flex items-center">
+                        <div className={`h-7 w-7 ${colorScheme.icon} rounded-full flex items-center justify-center mr-2`}>
+                          <IconComponent className={`h-3.5 w-3.5 ${colorScheme.iconColor}`} />
+                        </div>
+                        <span className="font-medium">{categoria.name}</span>
+                      </div>
+                      <span className="text-lg font-bold">{count}</span>
                     </div>
-                    <span className="font-medium">Prospecção</span>
-                  </div>
-                  <span className="text-lg font-bold">{summary.categorias.prospeccao}</span>
-                </div>
+                  );
+                })}
                 
-                <div 
-                  className="flex justify-between items-center p-2 bg-green-50 hover:bg-green-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => navigate('/agenda?filter=operacional')}
-                >
-                  <div className="flex items-center">
-                    <div className="h-7 w-7 bg-green-500 rounded-full flex items-center justify-center mr-2">
-                      <Users className="h-3.5 w-3.5 text-white" />
-                    </div>
-                    <span className="font-medium">Visitas Operacionais</span>
-                  </div>
-                  <span className="text-lg font-bold">{summary.categorias.visitasOperacionais}</span>
-                </div>
-                
-                <div 
-                  className="flex justify-between items-center p-2 bg-amber-50 hover:bg-amber-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => navigate('/agenda?filter=negociacao')}
-                >
-                  <div className="flex items-center">
-                    <div className="h-7 w-7 bg-amber-500 rounded-full flex items-center justify-center mr-2">
-                      <BarChart className="h-3.5 w-3.5 text-white" />
-                    </div>
-                    <span className="font-medium">Visitas de Negociação</span>
-                  </div>
-                  <span className="text-lg font-bold">{summary.categorias.visitasNegociacao}</span>
-                </div>
-                
-                <div 
-                  className="flex justify-between items-center p-2 bg-gray-50 hover:bg-gray-100 rounded-md cursor-pointer transition-all"
-                  onClick={() => navigate('/agenda?filter=outros')}
-                >
-                  <div className="flex items-center">
-                    <div className="h-7 w-7 bg-gray-500 rounded-full flex items-center justify-center mr-2">
-                      <Calendar className="h-3.5 w-3.5 text-white" />
-                    </div>
-                    <span className="font-medium">Outros</span>
-                  </div>
-                  <span className="text-lg font-bold">{summary.categorias.outros}</span>
-                </div>
-                
-                {(summary.categorias.prospeccao + summary.categorias.visitasOperacionais + 
-                  summary.categorias.visitasNegociacao + summary.categorias.outros) === 0 && (
+                {Object.values(summary.categoriasDinamicas).reduce((a, b) => a + b, 0) === 0 && (
                   <div className="text-center py-3 text-gray-500">
                     Não há eventos cadastrados neste mês
                   </div>
@@ -741,16 +745,6 @@ const AgendaStats: React.FC = () => {
               </div>
             )}
             
-            <div className="mt-3">
-              <Button 
-                variant="outline" 
-                className="w-full border-dashed"
-                onClick={() => navigate('/agenda')}
-              >
-                Ver todos os eventos
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
           </CardContent>
         </Card>
         
@@ -792,10 +786,14 @@ const AgendaStats: React.FC = () => {
                       {/* Adicionando indicador de categoria */}
                       <div className="mt-1">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          evento.location === "Prospecção" ? "bg-blue-100 text-blue-800" :
-                          evento.location === "Visitas Operacionais" ? "bg-green-100 text-green-800" :
-                          evento.location === "Visitas de Negociação" ? "bg-amber-100 text-amber-800" :
-                          "bg-gray-100 text-gray-800"
+                          eventCategories.find(c => c.name === evento.location)
+                            ? eventCategories.findIndex(c => c.name === evento.location) % 6 === 0 ? "bg-blue-100 text-blue-800" :
+                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 1 ? "bg-green-100 text-green-800" :
+                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 2 ? "bg-amber-100 text-amber-800" :
+                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 3 ? "bg-purple-100 text-purple-800" :
+                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 4 ? "bg-red-100 text-red-800" :
+                              "bg-gray-100 text-gray-800"
+                            : "bg-gray-100 text-gray-800"
                         }`}>
                           {evento.location || "Evento"}
                         </span>
@@ -813,19 +811,28 @@ const AgendaStats: React.FC = () => {
                 Não há agendamentos para esta semana
               </div>
             )}
-            
-            <div className="mt-4">
-              <Button 
-                variant="outline" 
-                className="w-full border-dashed"
-                onClick={() => navigate('/agenda')}
-              >
-                Ver todos os agendamentos
-                <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Botões de ação alinhados horizontalmente */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Button 
+          variant="outline" 
+          className="w-full border-dashed border-blue-200 hover:bg-blue-50"
+          onClick={() => navigate('/agenda')}
+        >
+          Ver todos os eventos
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Button>
+        <Button 
+          variant="outline" 
+          className="w-full border-dashed border-green-200 hover:bg-green-50"
+          onClick={() => navigate('/agenda')}
+        >
+          Ver todos os agendamentos
+          <ChevronRight className="ml-2 h-4 w-4" />
+        </Button>
       </div>
 
       {/* Modal de Supervisores */}

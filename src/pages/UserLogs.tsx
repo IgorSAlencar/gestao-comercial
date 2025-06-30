@@ -143,15 +143,52 @@ const UserLogs: React.FC = () => {
 
   const formatDate = (date: string) => {
     try {
-      const parsedDate = new Date(date);
+      if (!date) return "Data não disponível";
+      
+      let parsedDate: Date;
+      
+      // Diferentes estratégias baseadas no formato da data recebida
+      if (date.includes('Z')) {
+        // Data em UTC (ex: 2024-01-15T10:30:00.000Z)
+        parsedDate = new Date(date);
+      } else if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}/.test(date)) {
+        // Data com timezone específico (ex: 2024-01-15T10:30:00-03:00)
+        parsedDate = new Date(date);
+      } else if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(date)) {
+        // Data sem timezone (ex: 2024-01-15T10:30:00)
+        // Assumir que é horário UTC do servidor
+        parsedDate = new Date(date + 'Z');
+      } else if (/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(date)) {
+        // Formato de banco de dados (ex: 2024-01-15 10:30:00)
+        parsedDate = new Date(date.replace(' ', 'T') + 'Z');
+      } else {
+        // Tentar parsing direto como fallback
+        parsedDate = new Date(date);
+      }
+      
       // Verifica se a data é válida
       if (isNaN(parsedDate.getTime())) {
+        console.error("Data inválida recebida:", date);
         return "Data inválida";
       }
-      return format(parsedDate, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+      
+      // Converter para horário de Brasília
+      const formatter = new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Sao_Paulo',
+        hour12: false
+      });
+      
+      return formatter.format(parsedDate);
+      
     } catch (error) {
-      console.error("Erro ao formatar data:", error);
-      return "Data inválida";
+      console.error("Erro ao formatar data:", error, "Data original:", date);
+      return "Erro na data";
     }
   };
 
@@ -291,7 +328,12 @@ const UserLogs: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data/Hora</TableHead>
+                  <TableHead>
+                    Data/Hora
+                    <span className="text-xs text-gray-500 block font-normal">
+                      (Horário de Brasília)
+                    </span>
+                  </TableHead>
                   <TableHead>Usuário</TableHead>
                   <TableHead>Ação</TableHead>
                   <TableHead>IP</TableHead>

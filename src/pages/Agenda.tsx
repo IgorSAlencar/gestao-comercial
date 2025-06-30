@@ -47,6 +47,7 @@ import EventsTable from "@/components/EventsTable";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { useSearchParams } from 'react-router-dom';
 import { API_CONFIG } from "@/config/api.config";
+import { eventCategoryApi, EventCategory } from "@/services/api";
 
 const AgendaPage = () => {
   const [searchParams] = useSearchParams();
@@ -72,7 +73,40 @@ const AgendaPage = () => {
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
-  const [dateError, setDateError] = useState<string>("");
+    const [dateError, setDateError] = useState<string>("");
+  
+  // Categorias padrão como fallback
+  const defaultCategories: EventCategory[] = [
+    {
+      id: 1,
+      name: "Prospecção",
+      description: "Atividades de prospecção de novos clientes",
+      subcategories: []
+    },
+    {
+      id: 2,
+      name: "Visitas Operacionais",
+      description: "Visitas operacionais para clientes existentes",
+      subcategories: []
+    },
+    {
+      id: 3,
+      name: "Visitas de Negociação",
+      description: "Visitas para negociação de produtos e serviços",
+      subcategories: []
+    },
+    {
+      id: 4,
+      name: "Outros",
+      description: "Outros tipos de eventos",
+      subcategories: []
+    }
+  ];
+
+  // Estado para categorias
+  const [eventCategories, setEventCategories] = useState<EventCategory[]>(defaultCategories);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
   
   const [novoEvento, setNovoEvento] = useState<Omit<Event, "id">>({
     titulo: "",
@@ -550,14 +584,12 @@ const AgendaPage = () => {
       
       // Se for evento de prospecção, busca os dados da nova tabela
       if (isProspecao) {
-        handleTratativaSubmit(id, {
-          cnpjs: cnpjValues,
-          prospectStatus: cnpjProspectStatus,
-          observacao: parecerText
-        });
+        loadTratativasProspecao(id);
       } else {
-        setIsParecerDialogOpen(true);
+        setParecerText(evento.tratativa || "");
       }
+      
+      setIsParecerDialogOpen(true);
     }
   };
 
@@ -779,13 +811,25 @@ const AgendaPage = () => {
     // Filtro por supervisor
     const matchesSupervisor = !selectedSupervisor || evento.supervisorId === selectedSupervisor;
     
-    // Filtro por tipo de evento
-    const matchesFilter = !selectedFilter || (
-      selectedFilter === "operacional" && evento.location === "Visitas Operacionais" ||
-      selectedFilter === "negociacao" && evento.location === "Visitas de Negociação" ||
-      selectedFilter === "prospeccao" && evento.location === "Prospecção" ||
-      selectedFilter === "outros" && evento.location === "Outros"
-    );
+    // Filtro por categoria de evento (dinâmico)
+    let matchesFilter = true;
+    if (selectedFilter) {
+      // Usar categorias padrão se eventCategories não estiver disponível
+      const categoriesToUse = eventCategories || [
+        { id: 1, name: "Prospecção", description: "", subcategories: [] },
+        { id: 2, name: "Visitas Operacionais", description: "", subcategories: [] },
+        { id: 3, name: "Visitas de Negociação", description: "", subcategories: [] },
+        { id: 4, name: "Outros", description: "", subcategories: [] }
+      ];
+      
+      const selectedCategory = categoriesToUse.find(category => 
+        category.name.toLowerCase() === selectedFilter
+      );
+      
+      if (selectedCategory) {
+        matchesFilter = evento.location === selectedCategory.name;
+      }
+    }
     
     return eventDate >= start && eventDate <= end && matchesSupervisor && matchesFilter;
   });
@@ -820,10 +864,20 @@ const AgendaPage = () => {
   };
 
   const handleFilterChange = (value: string) => {
-    if (value === "all") {
+    try {
+      console.log('[Agenda] Alterando filtro para:', value);
+      console.log('[Agenda] Categorias disponíveis:', eventCategories?.map(c => c.name));
+      
+      if (value === "all") {
+        setSelectedFilter(null);
+        console.log('[Agenda] Filtro removido');
+      } else {
+        setSelectedFilter(value);
+        console.log('[Agenda] Filtro definido para:', value);
+      }
+    } catch (error) {
+      console.error('[Agenda] Erro ao alterar filtro:', error);
       setSelectedFilter(null);
-    } else {
-      setSelectedFilter(value);
     }
   };
 
@@ -1036,6 +1090,48 @@ const AgendaPage = () => {
         variant: "destructive",
       });
     }
+  };
+
+
+
+  // Função para carregar categorias
+  const loadCategories = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingCategories(true);
+    setCategoriesError(null);
+    
+    try {
+      console.log('[Agenda] Iniciando busca de categorias da API...');
+      const categories = await eventCategoryApi.getCategories();
+      console.log('[Agenda] Categorias carregadas da API com sucesso:', categories);
+      setEventCategories(categories);
+      setErrorNotificationShown(false);
+    } catch (error) {
+      console.error('[Agenda] Erro ao buscar categorias da API, usando categorias padrão:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      setCategoriesError(errorMessage);
+      
+      // Usar categorias padrão como fallback
+      setEventCategories(defaultCategories);
+      console.log('[Agenda] Usando categorias padrão como fallback');
+      
+      // Não mostrar toast de erro, apenas log
+      console.warn('[Agenda] API de categorias indisponível, usando dados padrão');
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  };
+
+  // Carregar categorias ao montar o componente
+  useEffect(() => {
+    loadCategories();
+  }, [user?.id]);
+
+  // Função auxiliar para obter subcategorias de uma categoria
+  const getSubcategories = (categoryName: string) => {
+    const category = eventCategories.find(c => c.name === categoryName);
+    return category?.subcategories || [];
   };
 
   return (
@@ -1324,19 +1420,22 @@ const AgendaPage = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a Ocorrência" />
                     </SelectTrigger>
-                    <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
-                      <SelectItem value="Prospecção" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                        Prospecção
-                      </SelectItem>
-                      <SelectItem value="Visitas Operacionais" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                        Visitas Operacionais
-                      </SelectItem>
-                      <SelectItem value="Visitas de Negociação" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                        Visitas de Negociação
-                      </SelectItem>
-                      <SelectItem value="Outros" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                        Outros
-                      </SelectItem>
+                    <SelectContent>
+                      {isLoadingCategories ? (
+                        <div className="px-4 py-2 text-center text-gray-500">
+                          Carregando categorias...
+                        </div>
+                      ) : (
+                        eventCategories.map(category => (
+                          <SelectItem 
+                            key={category.id} 
+                            value={category.name}
+                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
+                          >
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1354,41 +1453,16 @@ const AgendaPage = () => {
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione a Subcategoria" />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-300 rounded-lg shadow-lg mt-1 p-2 focus:outline-none">
-                        {novoEvento.location === "Prospecção" && (
-                          <>
-                            <SelectItem value="Prospecção Habitual" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Prospecção Habitual
-                            </SelectItem>
-                            <SelectItem value="Prospecção em Praça Presença" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Prospecção em Praça Presença
-                            </SelectItem>
-                          </>
-                        )}
-
-                        {novoEvento.location === "Visitas Operacionais" && (
-                          <>
-                            <SelectItem value="Treinamento" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Treinamento
-                            </SelectItem>
-                            <SelectItem value="Apoio Operacional" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Apoio Operacional
-                            </SelectItem>
-                            <SelectItem value="Incentivo e Engajamento" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Incentivo e Engajamento
-                            </SelectItem>
-                          </>
-                        )}
-                        {novoEvento.location === "Visitas de Negociação" && (
-                          <>
-                            <SelectItem value="Alinhamento com AG/PA" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Alinhamento com AG/PA
-                            </SelectItem>
-                            <SelectItem value="Proposta Comercial" className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200">
-                              Proposta Comercial
-                            </SelectItem>
-                          </>
-                        )}
+                      <SelectContent>
+                        {getSubcategories(novoEvento.location).map(subcategory => (
+                          <SelectItem 
+                            key={subcategory.id} 
+                            value={subcategory.name}
+                            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition-colors duration-200"
+                          >
+                            {subcategory.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1638,6 +1712,11 @@ const AgendaPage = () => {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>
                   Eventos de {format(date, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {selectedFilter && (
+                    <span className="ml-2 text-sm font-normal text-bradesco-blue">
+                      • Filtrado por: {eventCategories?.find(c => c.name.toLowerCase() === selectedFilter)?.name || selectedFilter}
+                    </span>
+                  )}
                 </CardTitle>
                 
                 <DropdownMenu>
@@ -1650,22 +1729,34 @@ const AgendaPage = () => {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("all")}>
-                      Todas as visitas
+                      Todas as categorias
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("operacional")}>
-                      Visitas operacionais
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("negociacao")}>
-                      Visitas de negociação
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("prospeccao")}>
-                      Prospecção
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer" onClick={() => handleFilterChange("outros")}>
-                      Outros eventos
-                    </DropdownMenuItem>
+                    {isLoadingCategories ? (
+                      <DropdownMenuItem disabled>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 animate-spin border border-gray-300 border-t-bradesco-blue rounded-full"></div>
+                          Carregando categorias...
+                        </div>
+                      </DropdownMenuItem>
+                    ) : eventCategories && eventCategories.length > 0 ? (
+                      eventCategories.map((category) => (
+                        <DropdownMenuItem 
+                          key={category.id}
+                          className="cursor-pointer" 
+                          onClick={() => handleFilterChange(category.name.toLowerCase())}
+                        >
+                          {category.name}
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <DropdownMenuItem disabled>
+                        <div className="text-gray-500">
+                          Nenhuma categoria disponível
+                        </div>
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </CardHeader>
@@ -1684,10 +1775,27 @@ const AgendaPage = () => {
                 
                 {!isLoading && !error && eventosFiltrados.length === 0 ? (
                   <div className="py-8 text-center text-gray-500">
-                    {selectedSupervisor 
-                      ? `Nenhum evento agendado para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este usuário"} nesta data.`
-                      : "Nenhum evento agendado para esta data."
-                    }
+                    {selectedFilter ? (
+                      <>
+                        Nenhum evento da categoria "{eventCategories?.find(c => c.name.toLowerCase() === selectedFilter)?.name || selectedFilter}" 
+                        {selectedSupervisor && ` para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este usuário"}`} 
+                        {" "}nesta data.
+                        <div className="mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setSelectedFilter(null)}
+                            className="text-bradesco-blue border-bradesco-blue hover:bg-bradesco-blue hover:text-white"
+                          >
+                            Limpar filtro de categoria
+                          </Button>
+                        </div>
+                      </>
+                    ) : selectedSupervisor ? (
+                      `Nenhum evento agendado para ${supervisors.find(s => s.id === selectedSupervisor)?.name || "este usuário"} nesta data.`
+                    ) : (
+                      "Nenhum evento agendado para esta data."
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">

@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableStatus } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List, ChevronLeft, ChevronRight, BarChart2 } from 'lucide-react';
+import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List, ChevronLeft, ChevronRight, BarChart2, Flame } from 'lucide-react';
 import { useForm } from "react-hook-form";
 import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -111,6 +111,10 @@ const Hotlist: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      // Registrar o tempo de início
+      const startTime = Date.now();
+      const minimumLoadingTime = 5000; // 5 segundos
+      
       try {
         if (!user) return;
         
@@ -144,7 +148,18 @@ const Hotlist: React.FC = () => {
           variant: "destructive",
         });
       } finally {
+        // Calcular tempo decorrido
+        const elapsedTime = Date.now() - startTime;
+        
+        // Se o carregamento foi mais rápido que 5 segundos, aguardar o tempo restante
+        if (elapsedTime < minimumLoadingTime) {
+          const remainingTime = minimumLoadingTime - elapsedTime;
+          setTimeout(() => {
+            setIsLoading(false);
+          }, remainingTime);
+        } else {
         setIsLoading(false);
+        }
       }
     };
 
@@ -336,8 +351,194 @@ const Hotlist: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4">
+          <div className="text-center">
+            {/* Logo ou ícone principal */}
+            <div className="mx-auto mb-6 w-16 h-16 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+              <Flame className="w-8 h-8 text-white animate-pulse" />
+            </div>
+            
+            {/* Título */}
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              Carregando HotList
+            </h2>
+            
+            {/* Subtítulo */}
+            <p className="text-gray-600 mb-8">
+              Preparando seus dados de prospecção...
+            </p>
+            
+            {/* Retângulo com borda preenchendo progressivamente */}
+            <div className="relative mx-auto w-64 h-32">
+              {/* Retângulo base */}
+              <div className="w-full h-full border-2 border-gray-200 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden shadow-lg">
+                
+                {/* Borda superior */}
+                <div className="absolute top-0 left-0 h-1 bg-blue-600 rounded-t-lg" style={{
+                  width: '0%',
+                  animation: 'fillTop 1.25s ease-out 0s forwards'
+                }}></div>
+                
+                {/* Borda direita */}
+                <div className="absolute top-0 right-0 w-1 bg-green-600" style={{
+                  height: '0%',
+                  animation: 'fillRight 1.25s ease-out 1.25s forwards'
+                }}></div>
+                
+                {/* Borda inferior */}
+                <div className="absolute bottom-0 right-0 h-1 bg-purple-600 rounded-b-lg" style={{
+                  width: '0%',
+                  animation: 'fillBottom 1.25s ease-out 2.5s forwards'
+                }}></div>
+                
+                {/* Borda esquerda */}
+                <div className="absolute bottom-0 left-0 w-1 bg-orange-600" style={{
+                  height: '0%',
+                  animation: 'fillLeft 1.25s ease-out 3.75s forwards'
+                }}></div>
+                
+                {/* Conteúdo interno */}
+                <div className="absolute inset-4 bg-white rounded-md flex flex-col items-center justify-center shadow-inner">
+                  <Flame className="w-8 h-8 text-orange-600 mb-3 animate-pulse" />
+                  <div className="text-sm text-gray-700 font-medium">Carregando HotList</div>
+                  <div className="text-xs text-gray-500 mt-1">Aguarde...</div>
+                </div>
+              </div>
+            </div>
+            
+            {/* CSS para as animações */}
+            <style dangerouslySetInnerHTML={{
+              __html: `
+                @keyframes fillTop {
+                  from { width: 0%; }
+                  to { width: 100%; }
+                }
+                @keyframes fillRight {
+                  from { height: 0%; }
+                  to { height: 100%; }
+                }
+                @keyframes fillBottom {
+                  from { width: 0%; }
+                  to { width: 100%; }
+                }
+                @keyframes fillLeft {
+                  from { height: 0%; }
+                  to { height: 100%; }
+                }
+                @keyframes fadeInUp {
+                  from { 
+                    opacity: 0; 
+                    transform: translateY(20px); 
+                  }
+                  to { 
+                    opacity: 1; 
+                    transform: translateY(0); 
+                  }
+                }
+                @keyframes scaleIn {
+                  from { 
+                    transform: scale(0); 
+                  }
+                  to { 
+                    transform: scale(1); 
+                  }
+                }
+                @keyframes progressFill {
+                  from { 
+                    width: 0%; 
+                  }
+                  to { 
+                    width: 100%; 
+                  }
+                }
+                @keyframes pulse {
+                  0%, 100% { 
+                    opacity: 1; 
+                  }
+                  50% { 
+                    opacity: 0.5; 
+                  }
+                }
+              `
+            }} />
+            
+            {/* Indicadores de progresso com fade dinâmico */}
+            <div className="mt-8 space-y-4">
+              <div className="flex items-center justify-between text-sm text-gray-600" style={{
+                opacity: 0,
+                animation: 'fadeInUp 0.6s ease-out 0.5s forwards'
+              }}>
+                <span className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full" style={{
+                    animation: 'pulse 2s infinite, scaleIn 0.4s ease-out 0.8s forwards',
+                    transform: 'scale(0)'
+                  }}></div>
+                  <span className="font-medium">Carregando dados...</span>
+                </span>
+                <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full" style={{
+                    width: '0%',
+                    animation: 'progressFill 1s ease-out 1s forwards'
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm text-gray-600" style={{
+                opacity: 0,
+                animation: 'fadeInUp 0.6s ease-out 1.8s forwards'
+              }}>
+                <span className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-green-500 rounded-full" style={{
+                    animation: 'pulse 2s infinite, scaleIn 0.4s ease-out 2.1s forwards',
+                    transform: 'scale(0)'
+                  }}></div>
+                  <span className="font-medium">Processando leads...</span>
+                </span>
+                <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 rounded-full" style={{
+                    width: '0%',
+                    animation: 'progressFill 1s ease-out 2.3s forwards'
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between text-sm text-gray-600" style={{
+                opacity: 0,
+                animation: 'fadeInUp 0.6s ease-out 3.1s forwards'
+              }}>
+                <span className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full" style={{
+                    animation: 'pulse 2s infinite, scaleIn 0.4s ease-out 3.4s forwards',
+                    transform: 'scale(0)'
+                  }}></div>
+                  <span className="font-medium">Organizando informações...</span>
+                </span>
+                <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-purple-500 rounded-full" style={{
+                    width: '0%',
+                    animation: 'progressFill 1s ease-out 3.6s forwards'
+                  }}></div>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-center mt-6" style={{
+                opacity: 0,
+                animation: 'fadeInUp 0.6s ease-out 4.5s forwards'
+              }}>
+                <span className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  Finalizando...
+                </span>
+              </div>
+            </div>
+            
+            {/* Barra de progresso animada */}
+            <div className="mt-6 w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

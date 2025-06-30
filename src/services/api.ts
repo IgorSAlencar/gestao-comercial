@@ -665,6 +665,37 @@ export const eventApi = {
   },
 };
 
+// Interface para Tratativa
+export interface Tratativa {
+  id: string;
+  hotlist_id: string;
+  data_visita: Date;
+  tem_perfil_comercial: 'sim' | 'nao';
+  motivo_sem_perfil?: string;
+  aceitou_proposta?: 'sim' | 'nao';
+  motivo_nao_efetivacao?: string;
+  situacao: 'realizada' | 'pendente';
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Função auxiliar para fazer chamadas POST
+const post = async (url: string, data: any) => {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Usuário não autenticado");
+
+  const options = {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  };
+  
+  return await fetchWithErrorHandling(`${API_URL}${url}`, options);
+};
+
 // HotList APIs
 export const hotListApi = {
   getHotList: async (userId: string): Promise<HotListItem[]> => {
@@ -710,8 +741,7 @@ export const hotListApi = {
   },
 
   registrarTratativa: async (data: TratativaRequest) => {
-    const response = await api.post('/hotlist/tratativa', data);
-    return response.data;
+    return await post('/hotlist/tratativa', data);
   },
 
   getTratativas: async (itemId: string): Promise<Tratativa[]> => {
@@ -726,5 +756,85 @@ export const hotListApi = {
     
     return await fetchWithErrorHandling(`${API_URL}/hotlist/${itemId}/tratativas`, options);
   },
+};
+
+// Tipos para categorias de eventos
+export interface EventCategory {
+  id: number;
+  name: string;
+  description: string;
+  subcategories: EventSubcategory[];
+}
+
+export interface EventSubcategory {
+  id: number;
+  name: string;
+  description: string;
+}
+
+// Serviço para categorias de eventos
+export const eventCategoryApi = {
+  getCategories: async (): Promise<EventCategory[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.error('[EventCategoryAPI] Token não encontrado');
+      throw new Error("Usuário não autenticado");
+    }
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    };
+    
+    try {
+      console.log('[EventCategoryAPI] Iniciando busca de categorias...');
+      console.log('[EventCategoryAPI] URL:', `${API_URL}/events/categories`);
+      console.log('[EventCategoryAPI] Headers:', options.headers);
+      
+      const response = await fetch(`${API_URL}/events/categories`, options);
+      
+      console.log('[EventCategoryAPI] Status da resposta:', response.status);
+      console.log('[EventCategoryAPI] Headers da resposta:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[EventCategoryAPI] Erro na resposta:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        
+        if (response.status === 401) {
+          throw new Error("Token inválido ou expirado. Faça login novamente.");
+        }
+        
+        if (response.status === 404) {
+          throw new Error("Endpoint de categorias não encontrado");
+        }
+        
+        throw new Error(`Erro ${response.status}: ${response.statusText} - ${errorText}`);
+      }
+      
+      const categories = await response.json();
+      console.log('[EventCategoryAPI] Categorias recebidas:', categories);
+      
+      if (!Array.isArray(categories)) {
+        console.error('[EventCategoryAPI] Resposta não é um array:', categories);
+        throw new Error("Formato de resposta inválido - esperado array de categorias");
+      }
+      
+      return categories;
+    } catch (error) {
+      console.error('[EventCategoryAPI] Erro ao buscar categorias:', error);
+      
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      throw new Error("Erro desconhecido ao buscar categorias");
+    }
+  }
 };
 

@@ -134,6 +134,84 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Rota para buscar categorias e subcategorias de eventos
+router.get('/categories', authenticateToken, async (req, res) => {
+  console.log('GET /categories - Iniciando busca de categorias');
+  try {
+    await poolConnect;
+    console.log('GET /categories - Conectado ao banco de dados');
+    
+    // Query para verificar se as tabelas existem
+    const checkTablesQuery = `
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = 'dbo' 
+      AND TABLE_NAME IN ('EventCategories', 'EventSubcategories')
+    `;
+    
+    const tablesResult = await pool.request().query(checkTablesQuery);
+    console.log('Tabelas encontradas:', tablesResult.recordset);
+    
+    if (tablesResult.recordset.length < 2) {
+      throw new Error('Tabelas de categorias não encontradas');
+    }
+    
+    // Buscar categorias e subcategorias
+    const query = `
+      SELECT 
+        c.CategoryId as id,
+        c.Name as name,
+        c.Description as description,
+        s.SubcategoryId as subcategory_id,
+        s.Name as subcategory_name,
+        s.Description as subcategory_description
+      FROM TESTE.dbo.EventCategories c
+      LEFT JOIN TESTE.dbo.EventSubcategories s ON c.CategoryId = s.CategoryId
+      WHERE c.IsActive = 1 AND (s.IsActive = 1 OR s.IsActive IS NULL)
+      ORDER BY c.Name, s.Name
+    `;
+    
+    console.log('Executando query:', query);
+    const result = await pool.request().query(query);
+    console.log('Resultados da query:', result.recordset);
+
+    // Formatar os resultados em uma estrutura hierárquica
+    const categories = [];
+    const categoriesMap = new Map();
+
+    result.recordset.forEach(record => {
+      if (!categoriesMap.has(record.id)) {
+        const category = {
+          id: record.id,
+          name: record.name,
+          description: record.description,
+          subcategories: []
+        };
+        categories.push(category);
+        categoriesMap.set(record.id, category);
+      }
+
+      if (record.subcategory_id) {
+        const category = categoriesMap.get(record.id);
+        category.subcategories.push({
+          id: record.subcategory_id,
+          name: record.subcategory_name,
+          description: record.subcategory_description
+        });
+      }
+    });
+
+    console.log('GET /categories - Dados formatados:', categories);
+    res.json(categories);
+  } catch (error) {
+    console.error('Erro ao buscar categorias:', error);
+    res.status(500).json({ 
+      message: 'Erro ao buscar categorias de eventos',
+      error: error.message 
+    });
+  }
+});
+
 // Get a specific event
 router.get('/:eventId', authenticateToken, async (req, res) => {
   const { eventId } = req.params;

@@ -64,8 +64,8 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
       </div>
 
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {supervisores.map(supervisor => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 place-items-center">
+          {supervisores.map((supervisor, index) => {
             const supervisorEventos = eventos[supervisor.id] || [];
             const hoje = new Date();
             hoje.setHours(0, 0, 0, 0);
@@ -108,75 +108,98 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
               : 0;
 
             return (
-              <div key={supervisor.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-                <div className="p-4">
+              <div 
+                key={supervisor.id} 
+                className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-all duration-300 w-full max-w-sm transform hover:-translate-y-1"
+                style={{
+                  animation: `fadeIn 0.5s ease-out ${index * 0.1}s both`
+                }}
+              >
+                <div className="p-6">
                   {/* Cabeçalho com informações do supervisor */}
-                  <div className="flex items-center mb-4">
-                    <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center mr-3">
-                      <UserIcon className="h-6 w-6 text-amber-600" />
+                  <div className="flex items-center mb-6">
+                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center mr-4 shadow-inner">
+                      <UserIcon className="h-7 w-7 text-amber-600" />
                     </div>
                     <div>
-                      <h3 className="font-medium text-lg">{supervisor.name}</h3>
-                      <p className="text-xs text-gray-500">{supervisor.email}</p>
+                      <h3 className="font-medium text-lg text-gray-900">{supervisor.name}</h3>
+                      <p className="text-sm text-gray-500">{supervisor.email}</p>
                     </div>
                   </div>
 
                   {/* Estatísticas principais */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-white p-4 rounded-lg border border-blue-100">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">Hoje</span>
-                        <Calendar className="h-3 w-3 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-900">Hoje</span>
+                        <Calendar className="h-4 w-4 text-blue-600" />
                       </div>
-                      <p className="text-lg font-bold text-blue-700">{eventosHoje.length}</p>
+                      <p className="text-2xl font-bold text-blue-700">{eventosHoje.length}</p>
                     </div>
-                    <div className="bg-amber-50 p-3 rounded-lg">
+                    <div className="bg-gradient-to-br from-amber-50 to-white p-4 rounded-lg border border-amber-100">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">Esta Semana</span>
-                        <Clock className="h-3 w-3 text-amber-600" />
+                        <span className="text-sm font-medium text-amber-900">Semana</span>
+                        <Clock className="h-4 w-4 text-amber-600" />
                       </div>
-                      <p className="text-lg font-bold text-amber-700">{eventosSemana.length}</p>
+                      <p className="text-2xl font-bold text-amber-700">{eventosSemana.length}</p>
                     </div>
                   </div>
 
                   {/* Barra de progresso e status */}
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center text-green-600">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Concluídos: {eventosConcluidos.length}</span>
+                  <div className="space-y-4 mb-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center text-green-700 bg-green-50 px-3 py-1 rounded-full">
+                        <CheckCircle className="h-4 w-4 mr-1.5" />
+                        <span className="text-sm font-medium">Concluídos: {eventosConcluidos.length}</span>
                       </div>
-                      <div className="flex items-center text-red-600">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        <span className="text-xs">Pendentes: {eventosPendentes.length}</span>
+                      <div className="flex items-center text-red-700 bg-red-50 px-3 py-1 rounded-full">
+                        <AlertCircle className="h-4 w-4 mr-1.5" />
+                        <span className="text-sm font-medium">Pendentes: {eventosPendentes.length}</span>
                       </div>
                     </div>
-                    <Progress value={porcentagemConcluidos} className="h-2" />
+                    <div className="relative pt-1">
+                      <div className="flex mb-2 items-center justify-between">
+                        <div>
+                          <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-blue-600 bg-blue-200">
+                            Progresso
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-semibold inline-block text-blue-600">
+                            {Math.round(porcentagemConcluidos)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-blue-100">
+                        <div 
+                          style={{ width: `${porcentagemConcluidos}%` }}
+                          className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
+                        />
+                      </div>
+                    </div>
                     <div className="text-center">
-                      <span className="text-xs text-gray-500">
+                      <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full">
                         {eventosMes.length} eventos este mês
                       </span>
                     </div>
                   </div>
 
                   {/* Botões de ação */}
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <Button 
                       variant="outline" 
-                      size="sm"
                       onClick={() => onViewAgenda(supervisor.id)}
-                      className="flex-1"
+                      className="flex-1 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-blue-50 border-blue-200"
                     >
-                      <CalendarDays className="h-3 w-3 mr-1" />
+                      <CalendarDays className="h-4 w-4 mr-2 text-blue-600" />
                       Agenda
                     </Button>
                     <Button 
                       variant="outline" 
-                      size="sm"
                       onClick={() => onViewRelatorio(supervisor.id)}
-                      className="flex-1"
+                      className="flex-1 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 border-gray-200"
                     >
-                      <FileText className="h-3 w-3 mr-1" />
+                      <FileText className="h-4 w-4 mr-2 text-gray-600" />
                       Relatório
                     </Button>
                   </div>
@@ -330,6 +353,19 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
           </table>
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 };
