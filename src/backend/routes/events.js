@@ -136,10 +136,10 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // Rota para buscar categorias e subcategorias de eventos
 router.get('/categories', authenticateToken, async (req, res) => {
-  console.log('GET /categories - Iniciando busca de categorias');
+  // console.log('GET /categories - Iniciando busca de categorias');
   try {
     await poolConnect;
-    console.log('GET /categories - Conectado ao banco de dados');
+    // console.log('GET /categories - Conectado ao banco de dados');
     
     // Query para verificar se as tabelas existem
     const checkTablesQuery = `
@@ -150,7 +150,7 @@ router.get('/categories', authenticateToken, async (req, res) => {
     `;
     
     const tablesResult = await pool.request().query(checkTablesQuery);
-    console.log('Tabelas encontradas:', tablesResult.recordset);
+    //console.log('Tabelas encontradas:', tablesResult.recordset);
     
     if (tablesResult.recordset.length < 2) {
       throw new Error('Tabelas de categorias não encontradas');
@@ -171,9 +171,9 @@ router.get('/categories', authenticateToken, async (req, res) => {
       ORDER BY c.Name, s.Name
     `;
     
-    console.log('Executando query:', query);
+    //console.log('Executando query:', query);
     const result = await pool.request().query(query);
-    console.log('Resultados da query:', result.recordset);
+    //console.log('Resultados da query:', result.recordset);
 
     // Formatar os resultados em uma estrutura hierárquica
     const categories = [];
@@ -201,7 +201,7 @@ router.get('/categories', authenticateToken, async (req, res) => {
       }
     });
 
-    console.log('GET /categories - Dados formatados:', categories);
+    //console.log('GET /categories - Dados formatados:', categories);
     res.json(categories);
   } catch (error) {
     console.error('Erro ao buscar categorias:', error);

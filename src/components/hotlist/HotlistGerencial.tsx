@@ -39,7 +39,7 @@ interface SupervisorMetrics {
   total: number;
   pendentes: number;
   tratadas: number;
-  realizar: number;
+  prospectadas: number;
   desempenho: number;
 }
 
@@ -60,7 +60,7 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
           total: 0,
           pendentes: 0,
           tratadas: 0,
-          realizar: 0,
+          prospectadas: 0,
           desempenho: 0
         };
       }
@@ -73,8 +73,8 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
         case 'tratada':
           acc[supervisorId].tratadas += 1;
           break;
-        case 'realizar':
-          acc[supervisorId].realizar += 1;
+        case 'prospectada':
+          acc[supervisorId].prospectadas += 1;
           break;
       }
       
@@ -95,7 +95,7 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
   const totalSupervisores = metricas.length;
   const supervisoresComPendentes = metricas.filter(s => s.pendentes > 0).length;
   const supervisoresComTratadas = metricas.filter(s => s.tratadas > 0).length;
-  const supervisoresComRealizar = metricas.filter(s => s.realizar > 0).length;
+  const supervisoresComProspectadas = metricas.filter(s => s.prospectadas > 0).length;
   const mediaDesempenho = metricas.reduce((acc, curr) => acc + curr.desempenho, 0) / totalSupervisores;
 
   return (
@@ -165,7 +165,7 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
             <Card className="bg-gradient-to-br from-purple-50 to-purple-100">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg font-semibold text-purple-900">Com Realizar</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-purple-900">Com Prospectadas</CardTitle>
                   <div className="p-2 bg-purple-200 rounded-lg">
                     <TrendingUp className="h-5 w-5 text-purple-700" />
                   </div>
@@ -173,8 +173,8 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="mt-2">
-                  <p className="text-3xl font-bold text-purple-900">{formatarNumero(supervisoresComRealizar)}</p>
-                  <p className="text-sm text-purple-700">{calcularPorcentagem(supervisoresComRealizar, totalSupervisores)} dos supervisores</p>
+                  <p className="text-3xl font-bold text-purple-900">{formatarNumero(supervisoresComProspectadas)}</p>
+                  <p className="text-sm text-purple-700">{calcularPorcentagem(supervisoresComProspectadas, totalSupervisores)} dos supervisores</p>
                 </div>
               </CardContent>
             </Card>
@@ -223,7 +223,7 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
                     <TableHead className="text-right">Total Leads</TableHead>
                     <TableHead className="text-right">Pendentes</TableHead>
                     <TableHead className="text-right">Tratadas</TableHead>
-                    <TableHead className="text-right">Realizar</TableHead>
+                    <TableHead className="text-right">Prospectadas</TableHead>
                     <TableHead className="text-right">Desempenho</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -251,8 +251,8 @@ const HotlistGerencial: React.FC<HotlistGerencialProps> = ({
                           <span className="text-gray-500 text-xs ml-1">({calcularPorcentagem(supervisor.tratadas, supervisor.total)})</span>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="text-purple-600">{formatarNumero(supervisor.realizar)}</span>
-                          <span className="text-gray-500 text-xs ml-1">({calcularPorcentagem(supervisor.realizar, supervisor.total)})</span>
+                          <span className="text-purple-600">{formatarNumero(supervisor.prospectadas)}</span>
+                          <span className="text-gray-500 text-xs ml-1">({calcularPorcentagem(supervisor.prospectadas, supervisor.total)})</span>
                         </TableCell>
                         <TableCell className="text-right">
                           <span className={`font-medium ${

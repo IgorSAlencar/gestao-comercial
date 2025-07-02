@@ -78,7 +78,7 @@ export function TratativaModal({ isOpen, onClose, onSuccess, hotlistItem }: Trat
       await hotListApi.registrarTratativa({
         hotlist_id: hotlistItem.id,
         ...data,
-        situacao: data.tem_perfil_comercial === 'sim' && data.aceitou_proposta === 'sim' ? 'realizada' : 'pendente'
+        situacao: 'tratada' // Sempre marca como tratada quando registra uma tratativa
       });
 
       toast({

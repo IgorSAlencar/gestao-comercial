@@ -49,7 +49,7 @@ export interface HotListItem {
   AGENCIA: string;
   MERCADO: string;
   PRACA_PRESENCA: 'SIM' | 'NAO';
-  situacao: 'pendente' | 'realizar' | 'tratada' | 'bloqueada';
+  situacao: 'pendente' | 'prospectada' | 'tratada';
   DIRETORIA_REGIONAL: string;
   GERENCIA_REGIONAL: string;
   PA: string;
@@ -63,7 +63,7 @@ export interface TratativaRequest {
   motivo_sem_perfil?: string | null;
   aceitou_proposta?: 'sim' | 'nao' | null;
   motivo_nao_efetivacao?: string | null;
-  situacao: 'realizada' | 'pendente';
+  situacao: 'tratada' | 'pendente';
 }
 
 export interface HotListSummary {
@@ -669,14 +669,15 @@ export const eventApi = {
 export interface Tratativa {
   id: string;
   hotlist_id: string;
+  user_id: string;
+  user_name: string;
   data_visita: Date;
-  tem_perfil_comercial: 'sim' | 'nao';
+  tem_perfil_comercial: number; // 1 para sim, 0 para não
   motivo_sem_perfil?: string;
-  aceitou_proposta?: 'sim' | 'nao';
+  aceitou_proposta?: number; // 1 para sim, 0 para não, null para não aplicável
   motivo_nao_efetivacao?: string;
-  situacao: 'realizada' | 'pendente';
-  created_at: Date;
-  updated_at: Date;
+  situacao: 'tratada' | 'pendente';
+  data_tratativa: Date;
 }
 
 // Função auxiliar para fazer chamadas POST

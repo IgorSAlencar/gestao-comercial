@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableStatus } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
-import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List, ChevronLeft, ChevronRight, BarChart2, Flame } from 'lucide-react';
+import { Info, Plus, Search, Download, TrendingUp, Activity, AlertTriangle, CheckCircle, AlertCircle, List, ChevronLeft, ChevronRight, BarChart2, Flame, Eye } from 'lucide-react';
 import { useForm } from "react-hook-form";
 import { Form, FormField, FormItem, FormControl } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { hotListApi, HotListItem } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { TratativaModal } from '@/components/hotlist/TratativaModal';
+import { ViewTrativasModal } from '@/components/hotlist/ViewTrativasModal';
 import HotlistFilters from '@/components/hotlist/HotlistFilters';
 import HotlistGerencial from '@/components/hotlist/HotlistGerencial';
 
@@ -43,10 +44,8 @@ const getStatusLabel = (status: string) => {
       return 'Pendente Tratativa';
     case 'tratada':
       return 'Tratado';
-    case 'realizar':
-      return 'Realizar';
-    case 'bloqueada':
-      return 'Bloqueada';
+    case 'prospectada':
+      return 'Prospectada';
     default:
       return status;
   }
@@ -58,10 +57,8 @@ const getStatusColor = (status: string) => {
       return 'bg-amber-100 text-amber-800 border-amber-200';
     case 'tratada':
       return 'bg-blue-100 text-blue-800 border-blue-200';
-    case 'realizar':
+    case 'prospectada':
       return 'bg-green-100 text-green-800 border-green-200';
-    case 'bloqueada':
-      return 'bg-red-100 text-red-800 border-red-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
@@ -85,6 +82,7 @@ const Hotlist: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<HotListItem | null>(null);
   const [showGerencial, setShowGerencial] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
+  const [viewTrativasModalOpen, setViewTrativasModalOpen] = useState(false);
   // Novo estado para armazenar os totais originais
   const [totais, setTotais] = useState({
     total: 0,
@@ -111,10 +109,6 @@ const Hotlist: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Registrar o tempo de início
-      const startTime = Date.now();
-      const minimumLoadingTime = 5000; // 5 segundos
-      
       try {
         if (!user) return;
         
@@ -127,7 +121,7 @@ const Hotlist: React.FC = () => {
           total: hotListData.length,
           tratadas: hotListData.filter(d => d.situacao === 'tratada').length,
           pendentes: hotListData.filter(d => d.situacao === 'pendente').length,
-          prospectadas: hotListData.filter(d => d.situacao === 'realizar').length
+          prospectadas: hotListData.filter(d => d.situacao === 'prospectada').length
         });
 
         // Extrair lista única de supervisores
@@ -148,18 +142,8 @@ const Hotlist: React.FC = () => {
           variant: "destructive",
         });
       } finally {
-        // Calcular tempo decorrido
-        const elapsedTime = Date.now() - startTime;
-        
-        // Se o carregamento foi mais rápido que 5 segundos, aguardar o tempo restante
-        if (elapsedTime < minimumLoadingTime) {
-          const remainingTime = minimumLoadingTime - elapsedTime;
-          setTimeout(() => {
-            setIsLoading(false);
-          }, remainingTime);
-        } else {
+        // Finalizar loading assim que os dados estiverem prontos
         setIsLoading(false);
-        }
       }
     };
 
@@ -194,28 +178,38 @@ const Hotlist: React.FC = () => {
     }
 
     // Aplicar filtros de múltipla seleção
-    if (filtros.mercado?.length > 0) {
-      filtrados = filtrados.filter(loja => filtros.mercado.includes(loja.MERCADO));
-    }
-    if (filtros.situacao?.length > 0) {
-      filtrados = filtrados.filter(loja => filtros.situacao.includes(loja.situacao));
-    }
-    if (filtros.pracaPresenca?.length > 0) {
-      filtrados = filtrados.filter(loja => filtros.pracaPresenca.includes(loja.PRACA_PRESENCA));
-    }
-    if (filtros.supervisor?.length > 0) {
-      filtrados = filtrados.filter(loja => filtros.supervisor.includes(loja.supervisor_id));
-    }
     if (filtros.diretoriaRegional?.length > 0) {
       filtrados = filtrados.filter(loja => filtros.diretoriaRegional.includes(loja.DIRETORIA_REGIONAL));
     }
     if (filtros.gerenciaRegional?.length > 0) {
       filtrados = filtrados.filter(loja => filtros.gerenciaRegional.includes(loja.GERENCIA_REGIONAL));
     }
+    // Gerência Área - Por enquanto não implementado (campo não existe na tabela)
+    if (filtros.gerenciaArea?.length > 0) {
+      // TODO: Implementar quando campo estiver disponível
+      console.log('Filtro de Gerência Área ainda não implementado');
+    }
+    // Coordenador - Por enquanto não implementado (requer consulta de hierarquia)
+    if (filtros.coordenador?.length > 0) {
+      // TODO: Implementar filtro por coordenador via consulta de hierarquia
+      console.log('Filtro de Coordenador ainda não implementado');
+    }
+    if (filtros.supervisor?.length > 0) {
+      filtrados = filtrados.filter(loja => filtros.supervisor.includes(loja.supervisor_id));
+    }
     if (filtros.agenciaPa?.length > 0) {
       filtrados = filtrados.filter(loja => 
         filtros.agenciaPa.includes(loja.AGENCIA) || filtros.agenciaPa.includes(loja.PA)
       );
+    }
+    if (filtros.situacao?.length > 0) {
+      filtrados = filtrados.filter(loja => filtros.situacao.includes(loja.situacao));
+    }
+    if (filtros.mercado?.length > 0) {
+      filtrados = filtrados.filter(loja => filtros.mercado.includes(loja.MERCADO));
+    }
+    if (filtros.pracaPresenca?.length > 0) {
+      filtrados = filtrados.filter(loja => filtros.pracaPresenca.includes(loja.PRACA_PRESENCA));
     }
 
     setDadosFiltrados(filtrados);
@@ -284,6 +278,11 @@ const Hotlist: React.FC = () => {
     setTratativaModalOpen(true);
   };
 
+  const handleViewTrativas = (item: HotListItem) => {
+    setSelectedItem(item);
+    setViewTrativasModalOpen(true);
+  };
+
   const handleTratativaSuccess = async () => {
     // Recarregar os dados após registrar uma tratativa
     if (!user) return;
@@ -296,7 +295,7 @@ const Hotlist: React.FC = () => {
       total: hotListData.length,
       tratadas: hotListData.filter(d => d.situacao === 'tratada').length,
       pendentes: hotListData.filter(d => d.situacao === 'pendente').length,
-      prospectadas: hotListData.filter(d => d.situacao === 'realizar').length
+      prospectadas: hotListData.filter(d => d.situacao === 'prospectada').length
     });
   };
 
@@ -639,7 +638,7 @@ const Hotlist: React.FC = () => {
 
               <Card 
                 className="bg-gradient-to-br from-purple-50 to-purple-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
-                onClick={() => handleCardClick('realizar')}
+                onClick={() => handleCardClick('prospectada')}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
@@ -665,6 +664,7 @@ const Hotlist: React.FC = () => {
                   onFilter={aplicarFiltros}
                   onExport={exportarParaExcel}
                   isSupervisor={isSupervisor}
+                  userRole={user?.role}
                 />
 
                 <div className="overflow-x-auto mt-6">
@@ -739,7 +739,7 @@ const Hotlist: React.FC = () => {
                             </div>
                           </TableHead>
                         )}
-                        <TableHead className="w-[120px] text-center">
+                        <TableHead className="w-[150px] text-center">
                           <div className="flex items-center justify-center">Ações</div>
                         </TableHead>
                       </TableRow>
@@ -784,6 +784,26 @@ const Hotlist: React.FC = () => {
                                   onClick={() => handleOpenTratativa(loja)}
                                 >
                                   <Plus size={16} className="text-green-600" />
+                                </Button>
+                                <Button 
+                                  variant="outline" 
+                                  size="icon" 
+                                  title={loja.situacao === 'tratada' ? "Ver tratativas" : "Nenhuma tratativa registrada"}
+                                  className={
+                                    loja.situacao === 'tratada' 
+                                      ? "bg-purple-50 border-purple-200 hover:bg-purple-100" 
+                                      : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                                  }
+                                  onClick={() => handleViewTrativas(loja)}
+                                >
+                                  <Eye 
+                                    size={16} 
+                                    className={
+                                      loja.situacao === 'tratada' 
+                                        ? "text-purple-600" 
+                                        : "text-gray-400"
+                                    } 
+                                  />
                                 </Button>
                               </div>
                             </TableCell>
@@ -865,6 +885,15 @@ const Hotlist: React.FC = () => {
         <TratativaModal
           isOpen={tratativaModalOpen}
           onClose={() => setTratativaModalOpen(false)}
+          onSuccess={handleTratativaSuccess}
+          hotlistItem={selectedItem}
+        />
+      )}
+
+      {selectedItem && (
+        <ViewTrativasModal
+          isOpen={viewTrativasModalOpen}
+          onClose={() => setViewTrativasModalOpen(false)}
           onSuccess={handleTratativaSuccess}
           hotlistItem={selectedItem}
         />
