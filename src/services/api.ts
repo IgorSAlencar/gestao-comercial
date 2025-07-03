@@ -60,9 +60,9 @@ export interface TratativaRequest {
   hotlist_id: string;
   data_visita: Date;
   tem_perfil_comercial: 'sim' | 'nao';
-  motivo_sem_perfil?: string | null;
-  aceitou_proposta?: 'sim' | 'nao' | null;
-  motivo_nao_efetivacao?: string | null;
+  motivo_sem_perfil: string | null;
+  aceitou_proposta: 'sim' | 'nao' | null;
+  motivo_nao_efetivacao: string | null;
   situacao: 'tratada' | 'pendente';
 }
 

@@ -75,11 +75,17 @@ export function TratativaModal({ isOpen, onClose, onSuccess, hotlistItem }: Trat
 
   const onSubmit = async (data: TratativaFormData) => {
     try {
-      await hotListApi.registrarTratativa({
+      const tratativaRequest = {
         hotlist_id: hotlistItem.id,
-        ...data,
-        situacao: 'tratada' // Sempre marca como tratada quando registra uma tratativa
-      });
+        data_visita: data.data_visita,
+        tem_perfil_comercial: data.tem_perfil_comercial,
+        motivo_sem_perfil: data.motivo_sem_perfil,
+        aceitou_proposta: data.aceitou_proposta,
+        motivo_nao_efetivacao: data.motivo_nao_efetivacao,
+        situacao: 'tratada' as const // Sempre marca como tratada quando registra uma tratativa
+      };
+
+      await hotListApi.registrarTratativa(tratativaRequest);
 
       toast({
         title: 'Sucesso',
@@ -145,9 +151,13 @@ export function TratativaModal({ isOpen, onClose, onSuccess, hotlistItem }: Trat
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
-                        disabled={(date) =>
-                          date > new Date() || date < new Date("1900-01-01")
-                        }
+                        disabled={(date) => {
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const compareDate = new Date(date);
+                          compareDate.setHours(0, 0, 0, 0);
+                          return compareDate > today || date < new Date("1900-01-01");
+                        }}
                         initialFocus
                       />
                     </PopoverContent>

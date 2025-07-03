@@ -66,6 +66,7 @@ const AgendaPage = () => {
   const [cnpjProspectStatus, setCnpjProspectStatus] = useState<boolean[]>([]);
   const [currentEventType, setCurrentEventType] = useState<string | null>(null);
   const [filterSearchTerm, setFilterSearchTerm] = useState("");
+  const [teamMemberSearchTerm, setTeamMemberSearchTerm] = useState("");
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
@@ -1242,7 +1243,12 @@ const AgendaPage = () => {
           )}
           
           {(isManager || isCoordinator || isAdmin) ? (
-            <Dialog open={isTeamMemberDialogOpen} onOpenChange={setIsTeamMemberDialogOpen}>
+            <Dialog open={isTeamMemberDialogOpen} onOpenChange={(open) => {
+              setIsTeamMemberDialogOpen(open);
+              if (!open) {
+                setTeamMemberSearchTerm("");
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button className="bg-bradesco-blue">
                   <UserPlus className="h-4 w-4 mr-2" /> Agendar para Equipe
@@ -1254,7 +1260,26 @@ const AgendaPage = () => {
                 </DialogHeader>
                 
                 <div className="py-4">
-                  <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                  <div className="relative mb-4">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <Search className="h-4 w-4" />
+                    </div>
+                    <Input 
+                      placeholder="Buscar membro da equipe..." 
+                      value={teamMemberSearchTerm}
+                      onChange={(e) => setTeamMemberSearchTerm(e.target.value.toLowerCase())}
+                      className="pl-9"
+                    />
+                    {teamMemberSearchTerm && (
+                      <button
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        onClick={() => setTeamMemberSearchTerm("")}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                     {isLoadingTeamMembers ? (
                       <div className="flex justify-center p-4">
                         <div className="animate-spin h-6 w-6 border-2 border-bradesco-blue border-t-transparent rounded-full"></div>
@@ -1275,33 +1300,50 @@ const AgendaPage = () => {
                         </Button>
                       </div>
                     ) : (
-                      teamMembers.map((member) => (
-                        <div 
-                          key={member.id} 
-                          className="p-3 border rounded-md cursor-pointer transition-colors hover:bg-gray-100"
-                          onClick={() => {
-                            setSelectedTeamMember({ id: member.id, name: member.name });
-                            setIsTeamMemberDialogOpen(false);
-                            setIsDialogOpen(true);
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                              <Users className="h-5 w-5 text-gray-600" />
-                            </div>
-                            <div>
-                              <p className="font-medium">{member.name}</p>
-                              <p className="text-sm opacity-70">{member.role.charAt(0).toUpperCase() + member.role.slice(1)}</p>
+                      teamMembers
+                        .filter(member => 
+                          teamMemberSearchTerm === "" || 
+                          member.name.toLowerCase().includes(teamMemberSearchTerm)
+                        )
+                        .map((member) => (
+                          <div 
+                            key={member.id} 
+                            className="p-3 border rounded-md cursor-pointer transition-colors hover:bg-gray-100"
+                            onClick={() => {
+                              setSelectedTeamMember({ id: member.id, name: member.name });
+                              setIsTeamMemberDialogOpen(false);
+                              setTeamMemberSearchTerm("");
+                              setIsDialogOpen(true);
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                <Users className="h-5 w-5 text-gray-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{member.name}</p>
+                                <p className="text-sm opacity-70">{member.role.charAt(0).toUpperCase() + member.role.slice(1)}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        ))
+                    )}
+                    
+                    {teamMemberSearchTerm && !teamMembers.some(member => 
+                      member.name.toLowerCase().includes(teamMemberSearchTerm)
+                    ) && (
+                      <div className="text-center py-4 text-gray-500">
+                        Nenhum membro encontrado com esse nome.
+                      </div>
                     )}
                   </div>
                 </div>
                 
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsTeamMemberDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setIsTeamMemberDialogOpen(false);
+                    setTeamMemberSearchTerm("");
+                  }}>
                     Cancelar
                   </Button>
                   <Button 
@@ -1309,6 +1351,7 @@ const AgendaPage = () => {
                     onClick={() => {
                       setSelectedTeamMember(null);
                       setIsTeamMemberDialogOpen(false);
+                      setTeamMemberSearchTerm("");
                       setIsDialogOpen(true);
                     }}
                   >

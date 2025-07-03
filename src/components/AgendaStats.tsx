@@ -506,8 +506,7 @@ const AgendaStats: React.FC = () => {
                   <p className="text-sm text-gray-500 mb-1">Eventos da Semana</p>
                   <h3 className="text-2xl font-bold text-gray-800">{summary.agendamentosSemana}</h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    {format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - 
-                    {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})}
+                    {format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})}
                   </p>
                   <p className="text-xs text-gray-600 mt-1 italic">
                     Eventos com início nesta semana
@@ -753,8 +752,7 @@ const AgendaStats: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg">Agenda da Semana</CardTitle>
             <CardDescription>
-              Eventos agendados para esta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - 
-              {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
+              Eventos agendados para esta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
             </CardDescription>
           </CardHeader>
           <CardContent>

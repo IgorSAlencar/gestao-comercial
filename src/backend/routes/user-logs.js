@@ -42,6 +42,8 @@ router.get('/', authenticateToken, async (req, res) => {
       endDate,
       actionType,
       status,
+      coordinatorId,
+      managerId,
       page = 1,
       limit = 50
     } = req.query;
@@ -52,9 +54,19 @@ router.get('/', authenticateToken, async (req, res) => {
         l.*,
         u.name as user_name,
         u.funcional as user_funcional,
-        u.role as user_role
+        u.role as user_role,
+        coord.name as coordinator_name,
+        coord.funcional as coordinator_funcional,
+        mgr.name as manager_name,
+        mgr.funcional as manager_funcional
       FROM teste..USER_LOGS l
       JOIN teste..users u ON l.USER_ID = u.id
+      LEFT JOIN teste..hierarchy h_coord ON u.id = h_coord.subordinate_id 
+        AND h_coord.superior_id IN (SELECT id FROM teste..users WHERE role = 'coordenador')
+      LEFT JOIN teste..users coord ON h_coord.superior_id = coord.id
+      LEFT JOIN teste..hierarchy h_mgr ON COALESCE(coord.id, u.id) = h_mgr.subordinate_id 
+        AND h_mgr.superior_id IN (SELECT id FROM teste..users WHERE role = 'gerente')
+      LEFT JOIN teste..users mgr ON h_mgr.superior_id = mgr.id
       WHERE 1=1
     `;
     
@@ -84,6 +96,16 @@ router.get('/', authenticateToken, async (req, res) => {
     if (status) {
       query += ' AND l.STATUS = @status';
       queryParams.push(['status', sql.NVarChar, status]);
+    }
+
+    if (coordinatorId) {
+      query += ' AND coord.id = @coordinatorId';
+      queryParams.push(['coordinatorId', sql.UniqueIdentifier, coordinatorId]);
+    }
+
+    if (managerId) {
+      query += ' AND mgr.id = @managerId';
+      queryParams.push(['managerId', sql.UniqueIdentifier, managerId]);
     }
 
     // Adicionar ordenação e paginação
@@ -118,24 +140,73 @@ router.get('/', authenticateToken, async (req, res) => {
       status: log.STATUS,
       userName: log.user_name,
       userFuncional: log.user_funcional,
-      userRole: log.user_role
+      userRole: log.user_role,
+      coordinatorName: log.coordinator_name,
+      coordinatorFuncional: log.coordinator_funcional,
+      managerName: log.manager_name,
+      managerFuncional: log.manager_funcional
     }));
 
     // Buscar contagem total para paginação
-    const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) as total FROM')
-                           .replace(/ORDER BY.*$/, '');
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM teste..USER_LOGS l
+      JOIN teste..users u ON l.USER_ID = u.id
+      LEFT JOIN teste..hierarchy h_coord ON u.id = h_coord.subordinate_id 
+        AND h_coord.superior_id IN (SELECT id FROM teste..users WHERE role = 'coordenador')
+      LEFT JOIN teste..users coord ON h_coord.superior_id = coord.id
+      LEFT JOIN teste..hierarchy h_mgr ON COALESCE(coord.id, u.id) = h_mgr.subordinate_id 
+        AND h_mgr.superior_id IN (SELECT id FROM teste..users WHERE role = 'gerente')
+      LEFT JOIN teste..users mgr ON h_mgr.superior_id = mgr.id
+      WHERE 1=1
+    `;
+    
+    // Adicionar os mesmos filtros da query principal (exceto paginação)
+    if (userId) {
+      countQuery += ' AND l.USER_ID = @userId';
+    }
+
+    if (startDate) {
+      countQuery += ' AND l.TIMESTAMP >= @startDate';
+    }
+
+    if (endDate) {
+      countQuery += ' AND l.TIMESTAMP <= @endDate';
+    }
+
+    if (actionType) {
+      countQuery += ' AND l.ACTION_TYPE = @actionType';
+    }
+
+    if (status) {
+      countQuery += ' AND l.STATUS = @status';
+    }
+
+    if (coordinatorId) {
+      countQuery += ' AND coord.id = @coordinatorId';
+    }
+
+    if (managerId) {
+      countQuery += ' AND mgr.id = @managerId';
+    }
+
     const countRequest = pool.request();
+    // Adicionar apenas os parâmetros de filtro (não os de paginação)
     queryParams.forEach(([param, type, value]) => {
-      countRequest.input(param, type, value);
+      if (param !== 'offset' && param !== 'limit') {
+        countRequest.input(param, type, value);
+      }
     });
+    
     const countResult = await countRequest.query(countQuery);
+    const total = countResult.recordset[0].total;
 
     res.json({
       logs: formattedLogs,
-      total: countResult.recordset[0].total,
+      total: total,
       page: parseInt(page),
       limit: parseInt(limit),
-      totalPages: Math.ceil(countResult.recordset[0].total / limit)
+      totalPages: Math.ceil(total / parseInt(limit))
     });
   } catch (error) {
     console.error('Erro ao buscar logs:', error);

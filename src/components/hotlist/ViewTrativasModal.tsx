@@ -9,6 +9,7 @@ import { Calendar, User, Clock, FileText, Edit, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { TratativaModal } from './TratativaModal';
+import { cn } from '@/lib/utils';
 
 interface ViewTrativasModalProps {
   isOpen: boolean;
@@ -83,7 +84,10 @@ export function ViewTrativasModal({ isOpen, onClose, onSuccess, hotlistItem }: V
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className={cn(
+          "sm:max-w-[800px]",
+          tratativas.length > 0 ? "max-h-[80vh] overflow-y-auto" : "overflow-visible"
+        )}>
           <DialogHeader className="border-b border-gray-100 pb-4">
             <DialogTitle className="flex items-center gap-3 text-xl">
               <div className="p-2 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg">
@@ -109,38 +113,38 @@ export function ViewTrativasModal({ isOpen, onClose, onSuccess, hotlistItem }: V
                 </div>
               </div>
             ) : tratativas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 px-6">
-                <div className="relative mb-6">
+              <div className="flex flex-col items-center justify-center py-8 px-6">
+                <div className="relative mb-4">
                   {/* Círculo de fundo decorativo */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full w-24 h-24 -z-10"></div>
-                  <div className="flex items-center justify-center w-24 h-24">
-                    <FileText className="h-10 w-10 text-gray-400" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full w-20 h-20 -z-10"></div>
+                  <div className="flex items-center justify-center w-20 h-20">
+                    <FileText className="h-8 w-8 text-gray-400" />
                   </div>
                 </div>
                 
                 <div className="text-center max-w-md">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
                     Histórico em Branco
                   </h3>
-                  <p className="text-gray-600 mb-6 leading-relaxed">
-                    Este lead ainda não possui tratativas registradas. 
+                  <p className="text-gray-600 mb-4 leading-relaxed">
+                    Este lead ainda não possui tratativas registradas.
                     <br />
                     <span className="text-sm text-gray-500">
                       Adicione a primeira tratativa para começar o acompanhamento.
                     </span>
                   </p>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     <Button 
                       onClick={handleAddTratativa} 
-                      size="lg"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-8 py-3 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-0.5"
+                      size="default"
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-6 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
                     >
-                      <Plus className="h-5 w-5 mr-2" />
+                      <Plus className="h-4 w-4 mr-2" />
                       Adicionar primeira tratativa
                     </Button>
                     
-                    <p className="text-xs text-gray-400 mt-3">
+                    <p className="text-xs text-gray-400 mt-2">
                       💡 Registre visitas, contatos e resultados para manter o histórico atualizado
                     </p>
                   </div>
@@ -172,8 +176,13 @@ export function ViewTrativasModal({ isOpen, onClose, onSuccess, hotlistItem }: V
                               {tratativa.user_name}
                             </div>
                             <div className="flex items-center gap-2 text-sm text-gray-500">
-                              <Clock className="h-4 w-4" />
-                              {format(new Date(tratativa.data_tratativa), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            <Clock className="h-4 w-4" />
+                              {(() => {
+                                const date = new Date(tratativa.data_tratativa);
+                                // Ajustar para horário local brasileiro
+                                const localDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+                                return format(localDate, 'dd/MM/yyyy HH:mm', { locale: ptBR });
+                              })()}
                             </div>
                           </div>
                         </div>

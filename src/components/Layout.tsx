@@ -68,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const adminItems = [
     {
       title: "Equipe Comercial",
-      icon: <Network className="h-5 w-5" />,
+      icon: <Users className="h-5 w-5" />,
       path: "/equipe",
     }
   ];

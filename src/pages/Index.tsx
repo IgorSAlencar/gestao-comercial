@@ -386,7 +386,7 @@ const Index = () => {
                 </div>
                 <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                   <AlertCircle className="h-4 w-4" />
-                  {totalLeadsPendentes} leads pendentes
+                  {totalLeadsPendentes.toLocaleString('pt-BR')} leads pendentes
                 </div>
               </div>
             </div>

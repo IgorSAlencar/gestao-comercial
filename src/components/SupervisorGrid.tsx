@@ -118,12 +118,12 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
                 <div className="p-6">
                   {/* Cabeçalho com informações do supervisor */}
                   <div className="flex items-center mb-6">
-                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center mr-4 shadow-inner">
+                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-amber-100 to-amber-200 flex items-center justify-center mr-4 shadow-inner flex-shrink-0">
                       <UserIcon className="h-7 w-7 text-amber-600" />
                     </div>
-                    <div>
-                      <h3 className="font-medium text-lg text-gray-900">{supervisor.name}</h3>
-                      <p className="text-sm text-gray-500">{supervisor.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-medium text-lg text-gray-900 truncate">{supervisor.name}</h3>
+                      <p className="text-sm text-gray-500 truncate">{supervisor.email}</p>
                     </div>
                   </div>
 
@@ -290,12 +290,12 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
                   <tr key={supervisor.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center mr-3">
+                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center mr-3 flex-shrink-0">
                           <UserIcon className="h-4 w-4 text-amber-600" />
                         </div>
-                        <div>
-                          <div className="font-medium text-sm">{supervisor.name}</div>
-                          <div className="text-xs text-gray-500">{supervisor.email}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm truncate max-w-[200px]">{supervisor.name}</div>
+                          <div className="text-xs text-gray-500 truncate max-w-[200px]">{supervisor.email}</div>
                         </div>
                       </div>
                     </td>
