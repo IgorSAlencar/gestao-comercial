@@ -28,12 +28,13 @@ const createUserLog = async (userId, actionType, ipAddress, userAgent, details, 
 
 // Rota para buscar logs (requer autenticação e permissão de admin)
 router.get('/', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin' && req.user.role !== 'gerente') {
+  if (req.user.role !== 'admin' && req.user.role !== 'gerente' && req.user.role !== 'coordenador') {
     return res.status(403).json({ message: 'Acesso não autorizado' });
   }
 
   try {
     const pool = await poolConnect;
+    const { id: currentUserId, role: currentUserRole } = req.user;
     
     // Parâmetros de filtro
     const {
@@ -72,7 +73,26 @@ router.get('/', authenticateToken, async (req, res) => {
     
     const queryParams = [];
 
-    // Adicionar filtros
+    // Aplicar filtros hierárquicos baseados no nível do usuário
+    if (currentUserRole === 'gerente') {
+      // Gerente só vê logs de usuários da sua hierarquia
+      query += ` AND (
+        mgr.id = @currentUserId OR
+        (coord.id = @currentUserId AND u.role = 'supervisor') OR
+        (u.id = @currentUserId)
+      )`;
+      queryParams.push(['currentUserId', sql.UniqueIdentifier, currentUserId]);
+    } else if (currentUserRole === 'coordenador') {
+      // Coordenador só vê logs de usuários da sua hierarquia
+      query += ` AND (
+        coord.id = @currentUserId OR
+        (u.id = @currentUserId)
+      )`;
+      queryParams.push(['currentUserId', sql.UniqueIdentifier, currentUserId]);
+    }
+    // Admin não tem restrição - vê todos os logs
+
+    // Adicionar filtros adicionais
     if (userId) {
       query += ' AND l.USER_ID = @userId';
       queryParams.push(['userId', sql.UniqueIdentifier, userId]);
@@ -160,6 +180,20 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN teste..users mgr ON h_mgr.superior_id = mgr.id
       WHERE 1=1
     `;
+    
+    // Aplicar os mesmos filtros hierárquicos para a contagem
+    if (currentUserRole === 'gerente') {
+      countQuery += ` AND (
+        mgr.id = @currentUserId OR
+        (coord.id = @currentUserId AND u.role = 'supervisor') OR
+        (u.id = @currentUserId)
+      )`;
+    } else if (currentUserRole === 'coordenador') {
+      countQuery += ` AND (
+        coord.id = @currentUserId OR
+        (u.id = @currentUserId)
+      )`;
+    }
     
     // Adicionar os mesmos filtros da query principal (exceto paginação)
     if (userId) {

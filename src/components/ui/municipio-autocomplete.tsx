@@ -152,7 +152,30 @@ export function MunicipioAutocomplete({ value, onChange }: MunicipioAutocomplete
   };
 
   return (
+    
     <div className="flex gap-2">
+      <div className="w-[80px]">
+        <Select
+          value={value.uf}
+          onValueChange={handleUfChange}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="UF" />
+          </SelectTrigger>
+          <SelectContent>
+            <div className="max-h-[300px] overflow-auto">
+              {estados.map((estado) => (
+                <SelectItem
+                  key={estado.sigla}
+                  value={estado.sigla}
+                >
+                  {estado.sigla}
+                </SelectItem>
+              ))}
+            </div>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="flex-1 relative" ref={dropdownRef}>
         <div className="relative">
           <Input
@@ -238,28 +261,7 @@ export function MunicipioAutocomplete({ value, onChange }: MunicipioAutocomplete
         )}
       </div>
 
-      <div className="w-[80px]">
-        <Select
-          value={value.uf}
-          onValueChange={handleUfChange}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="UF" />
-          </SelectTrigger>
-          <SelectContent>
-            <div className="max-h-[300px] overflow-auto">
-              {estados.map((estado) => (
-                <SelectItem
-                  key={estado.sigla}
-                  value={estado.sigla}
-                >
-                  {estado.sigla}
-                </SelectItem>
-              ))}
-            </div>
-          </SelectContent>
-        </Select>
-      </div>
+      
     </div>
   );
 } 

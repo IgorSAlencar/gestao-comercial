@@ -24,7 +24,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { API_CONFIG } from "@/config/api.config";
-import { ChevronLeft, ChevronRight, User, Clock, Activity } from "lucide-react";
+import { ChevronLeft, ChevronRight, User, Clock, Activity, Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 
 interface UserLog {
   id: string;
@@ -72,7 +73,7 @@ const UserLogs: React.FC = () => {
 
   // Verificar permissão e redirecionar se não autorizado
   useEffect(() => {
-    if (!isAdmin && !isManager) {
+    if (!isAdmin && !isManager && user?.role !== 'coordenador') {
       toast({
         title: "Acesso Negado",
         description: "Você não tem permissão para acessar esta página.",
@@ -81,12 +82,15 @@ const UserLogs: React.FC = () => {
       navigate("/");
       return;
     }
-  }, [isAdmin, isManager, navigate, toast]);
+  }, [isAdmin, isManager, user?.role, navigate, toast]);
 
   // Se não tiver permissão, não renderiza o conteúdo
-  if (!isAdmin && !isManager) {
+  if (!isAdmin && !isManager && user?.role !== 'coordenador') {
     return null;
   }
+
+  // Verificar se o usuário é coordenador
+  const isCoordinator = user?.role === 'coordenador';
 
   const fetchLogs = async () => {
     try {
@@ -154,24 +158,53 @@ const UserLogs: React.FC = () => {
       if (usersResponse.ok) {
         const allUsers = await usersResponse.json();
         
-        const coordinatorsList = allUsers
-          .filter((u: any) => u.role === 'coordenador')
-          .map((u: any) => ({ id: u.id, name: u.name }))
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        // Filtrar coordenadores e gerentes baseado no nível do usuário atual
+        let coordinatorsList = [];
+        let managersList = [];
+        let usersList = [];
+
+        if (isAdmin) {
+          // Admin vê todos os coordenadores e gerentes
+          coordinatorsList = allUsers
+            .filter((u: any) => u.role === 'coordenador')
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+            
+          managersList = allUsers
+            .filter((u: any) => u.role === 'gerente')
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+            
+          usersList = allUsers
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        } else if (isManager) {
+          // Gerente vê apenas seus subordinados
+          coordinatorsList = allUsers
+            .filter((u: any) => u.role === 'coordenador')
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+            
+          // Gerente não vê outros gerentes nos filtros
+          managersList = [{ id: user?.id || '', name: user?.name || 'Você' }];
           
-        const managersList = allUsers
-          .filter((u: any) => u.role === 'gerente')
-          .map((u: any) => ({ id: u.id, name: u.name }))
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          usersList = allUsers
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        } else if (isCoordinator) {
+          // Coordenador não vê filtros de gerente/coordenador
+          coordinatorsList = [];
+          managersList = [];
           
-        const usersList = allUsers
-          .map((u: any) => ({ id: u.id, name: u.name }))
-          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+          usersList = allUsers
+            .map((u: any) => ({ id: u.id, name: u.name }))
+            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        }
         
         setCoordinators(coordinatorsList);
         setManagers(managersList);
         setUsers(usersList);
-        setFilteredUsers(usersList); // Inicialmente todos os usuários
+        setFilteredUsers(usersList);
       }
     } catch (error) {
       console.error("Erro ao buscar coordenadores, gerentes e usuários:", error);
@@ -359,6 +392,128 @@ const UserLogs: React.FC = () => {
     }
   };
 
+  const exportToExcel = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      if (!token) throw new Error("Usuário não autenticado");
+
+      // Buscar todos os dados filtrados (sem paginação)
+      const queryParams = new URLSearchParams({
+        page: "1",
+        limit: "10000", // Limite alto para pegar todos os registros
+        ...filters,
+      });
+
+      const response = await fetch(
+        `${API_CONFIG.apiUrl}/user-logs?${queryParams}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Falha ao carregar logs para exportação");
+      }
+
+      const data = await response.json();
+      const allLogs = data.logs || [];
+
+      // Formatar dados para Excel
+      const dadosParaExportar = allLogs.map((log: UserLog) => ({
+        'Data': (() => {
+          try {
+            const date = new Date(log.timestamp);
+            const localDate = new Date(date.getTime() + (date.getTimezoneOffset() * 60000));
+            return format(localDate, 'dd/MM/yyyy HH:mm', { locale: ptBR });
+          } catch {
+            return 'Data inválida';
+          }
+        })(),
+        'Usuário': log.userName || 'N/A',
+        'Funcional': log.userFuncional || 'N/A',
+        'Perfil': log.userRole || 'N/A',
+        ...(isAdmin && { 'Gerente': log.managerName || 'N/A' }),
+        ...(isAdmin && { 'Funcional Gerente': log.managerFuncional || 'N/A' }),
+        ...((isAdmin || isManager) && { 'Coordenador': log.coordinatorName || 'N/A' }),
+        ...((isAdmin || isManager) && { 'Funcional Coordenador': log.coordinatorFuncional || 'N/A' }),
+        'Ação': getActionTypeLabel(log.actionType),
+        'Status': getStatusLabel(log.status),
+        'IP': log.ipAddress || 'N/A',
+        'User Agent': log.userAgent || 'N/A',
+        'Detalhes': log.details || 'N/A'
+      }));
+
+      // Criar planilha
+      const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+      
+      // Configurar largura das colunas
+      const cols = [
+        { wch: 18 }, // Data
+        { wch: 25 }, // Usuário
+        { wch: 15 }, // Funcional
+        { wch: 12 }, // Perfil
+        ...(isAdmin ? [{ wch: 25 }, { wch: 15 }] : []), // Gerente e Funcional Gerente
+        ...((isAdmin || isManager) ? [{ wch: 25 }, { wch: 15 }] : []), // Coordenador e Funcional Coordenador
+        { wch: 20 }, // Ação
+        { wch: 12 }, // Status
+        { wch: 15 }, // IP
+        { wch: 30 }, // User Agent
+        { wch: 30 }  // Detalhes
+      ];
+      ws['!cols'] = cols;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Logs de Usuários");
+      
+      // Nome do arquivo com data e hora
+      const now = new Date();
+      const dateStr = format(now, 'yyyy-MM-dd_HH-mm-ss', { locale: ptBR });
+      const fileName = `Logs_Usuarios_${dateStr}.xlsx`;
+      
+      // Gerar o arquivo como buffer
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      
+      // Criar blob com tipo MIME correto
+      const blob = new Blob([excelBuffer], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      
+      // Criar URL temporária
+      const url = window.URL.createObjectURL(blob);
+      
+      // Criar elemento de link temporário
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.style.display = 'none';
+      
+      // Adicionar ao DOM, clicar e remover
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpar URL temporária
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Sucesso",
+        description: `Logs exportados com sucesso! (${allLogs.length} registros)`,
+      });
+    } catch (error) {
+      console.error("Erro ao exportar logs:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível exportar os logs",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -366,141 +521,180 @@ const UserLogs: React.FC = () => {
           <CardTitle className="flex items-center gap-3">
             <Activity className="h-6 w-6 text-blue-600" />
             Logs de Usuários
+            {isCoordinator && (
+              <span className="text-sm font-normal text-gray-600">
+                (Seus subordinados)
+              </span>
+            )}
+            {isManager && !isAdmin && (
+              <span className="text-sm font-normal text-gray-600">
+                (Sua equipe)
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {/* Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
-            <div>
-              <Label htmlFor="startDate">Data Inicial</Label>
-              <Input
-                type="date"
-                id="startDate"
-                value={filters.startDate}
-                onChange={(e) => handleFilterChange("startDate", e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="endDate">Data Final</Label>
-              <Input
-                type="date"
-                id="endDate"
-                value={filters.endDate}
-                onChange={(e) => handleFilterChange("endDate", e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="actionType">Tipo de Ação</Label>
-              <Select
-                value={filters.actionType}
-                onValueChange={(value) => handleFilterChange("actionType", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
-                  <SelectItem value="LOGIN">Login</SelectItem>
-                  <SelectItem value="LOGOUT">Logout</SelectItem>
-                  <SelectItem value="LOGIN_FAILED">Tentativa de Login</SelectItem>
-                  <SelectItem value="PASSWORD_CHANGE">Alteração de Senha</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={filters.status}
-                onValueChange={(value) => handleFilterChange("status", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
-                  <SelectItem value="SUCCESS">Sucesso</SelectItem>
-                  <SelectItem value="FAILURE">Falha</SelectItem>
-                  <SelectItem value="WARNING">Alerta</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="managerId">Gerente</Label>
-              <Select
-                value={filters.managerId}
-                onValueChange={(value) => handleFilterChange("managerId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
-                  {managers.map((mgr) => (
-                    <SelectItem key={mgr.id} value={mgr.id}>
-                      {mgr.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-4 mb-6">
+            {/* Primeira linha de filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <Label htmlFor="startDate">Data Inicial</Label>
+                <Input
+                  type="date"
+                  id="startDate"
+                  value={filters.startDate}
+                  onChange={(e) => handleFilterChange("startDate", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endDate">Data Final</Label>
+                <Input
+                  type="date"
+                  id="endDate"
+                  value={filters.endDate}
+                  onChange={(e) => handleFilterChange("endDate", e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="actionType">Tipo de Ação</Label>
+                <Select
+                  value={filters.actionType}
+                  onValueChange={(value) => handleFilterChange("actionType", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="LOGIN">Login</SelectItem>
+                    <SelectItem value="LOGOUT">Logout</SelectItem>
+                    <SelectItem value="LOGIN_FAILED">Tentativa de Login</SelectItem>
+                    <SelectItem value="PASSWORD_CHANGE">Alteração de Senha</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select
+                  value={filters.status}
+                  onValueChange={(value) => handleFilterChange("status", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    <SelectItem value="SUCCESS">Sucesso</SelectItem>
+                    <SelectItem value="FAILURE">Falha</SelectItem>
+                    <SelectItem value="WARNING">Alerta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="coordinatorId">Coordenador</Label>
-              <Select
-                value={filters.coordinatorId}
-                onValueChange={(value) => handleFilterChange("coordinatorId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Todos</SelectItem>
-                  {coordinators.map((coord) => (
-                    <SelectItem key={coord.id} value={coord.id}>
-                      {coord.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="userId">Usuário</Label>
-              <Select
-                value={filters.userId}
-                onValueChange={(value) => handleFilterChange("userId", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="">Todos</SelectItem>
-                  {filteredUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button
-                onClick={() => {
-                  setFilters({
-                    userId: "",
-                    startDate: "",
-                    endDate: "",
-                    actionType: "",
-                    status: "",
-                    coordinatorId: "",
-                    managerId: "",
-                  });
-                  setCurrentPage(1);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Limpar Filtros
-              </Button>
+            {/* Segunda linha de filtros */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Mostrar filtro de gerente apenas para admin */}
+              {isAdmin ? (
+                <div>
+                  <Label htmlFor="managerId">Gerente</Label>
+                  <Select
+                    value={filters.managerId}
+                    onValueChange={(value) => handleFilterChange("managerId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos</SelectItem>
+                      {managers.map((mgr) => (
+                        <SelectItem key={mgr.id} value={mgr.id}>
+                          {mgr.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div></div>
+              )}
+
+              {/* Mostrar filtro de coordenador apenas para admin e gerente */}
+              {(isAdmin || isManager) ? (
+                <div>
+                  <Label htmlFor="coordinatorId">Coordenador</Label>
+                  <Select
+                    value={filters.coordinatorId}
+                    onValueChange={(value) => handleFilterChange("coordinatorId", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos</SelectItem>
+                      {coordinators.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div></div>
+              )}
+              
+              <div>
+                <Label htmlFor="userId">Usuário</Label>
+                <Select
+                  value={filters.userId}
+                  onValueChange={(value) => handleFilterChange("userId", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <SelectItem value="">Todos</SelectItem>
+                    {filteredUsers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Botões de ação */}
+              <div className="flex items-end gap-2">
+                <Button
+                  onClick={() => {
+                    setFilters({
+                      userId: "",
+                      startDate: "",
+                      endDate: "",
+                      actionType: "",
+                      status: "",
+                      coordinatorId: "",
+                      managerId: "",
+                    });
+                    setCurrentPage(1);
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Limpar Filtros
+                </Button>
+                <Button
+                  onClick={exportToExcel}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={loading}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {loading ? "Exportando..." : "Excel"}
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -522,16 +716,22 @@ const UserLogs: React.FC = () => {
                       Usuário
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="flex items-center gap-1">
-                      Gerente
-                    </div>
-                  </TableHead>
-                  <TableHead>
-                    <div className="flex items-center gap-1">
-                      Coordenador
-                    </div>
-                  </TableHead>
+                  {/* Mostrar coluna de gerente apenas para admin */}
+                  {isAdmin && (
+                    <TableHead>
+                      <div className="flex items-center gap-1">
+                        Gerente
+                      </div>
+                    </TableHead>
+                  )}
+                  {/* Mostrar coluna de coordenador apenas para admin e gerente */}
+                  {(isAdmin || isManager) && (
+                    <TableHead>
+                      <div className="flex items-center gap-1">
+                        Coordenador
+                      </div>
+                    </TableHead>
+                  )}
                   <TableHead className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       Ação
@@ -547,7 +747,7 @@ const UserLogs: React.FC = () => {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={isAdmin ? 6 : isManager ? 5 : 4} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
                         Carregando logs...
@@ -556,7 +756,7 @@ const UserLogs: React.FC = () => {
                   </TableRow>
                 ) : logs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={isAdmin ? 6 : isManager ? 5 : 4} className="text-center py-8">
                       <div className="text-gray-500">
                         <Activity className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                         Nenhum log encontrado
@@ -573,26 +773,32 @@ const UserLogs: React.FC = () => {
                         <div className="font-medium">{log.userName}</div>
                         <div className="text-xs text-gray-500">{log.userFuncional}</div>
                       </TableCell>
-                      <TableCell>
-                        {log.managerName ? (
-                          <div>
-                            <div className="font-medium">{log.managerName}</div>
-                            <div className="text-xs text-gray-500">{log.managerFuncional}</div>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400">N/A</div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {log.coordinatorName ? (
-                          <div>
-                            <div className="font-medium">{log.coordinatorName}</div>
-                            <div className="text-xs text-gray-500">{log.coordinatorFuncional}</div>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400">N/A</div>
-                        )}
-                      </TableCell>
+                      {/* Mostrar coluna de gerente apenas para admin */}
+                      {isAdmin && (
+                        <TableCell>
+                          {log.managerName ? (
+                            <div>
+                              <div className="font-medium">{log.managerName}</div>
+                              <div className="text-xs text-gray-500">{log.managerFuncional}</div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-400">N/A</div>
+                          )}
+                        </TableCell>
+                      )}
+                      {/* Mostrar coluna de coordenador apenas para admin e gerente */}
+                      {(isAdmin || isManager) && (
+                        <TableCell>
+                          {log.coordinatorName ? (
+                            <div>
+                              <div className="font-medium">{log.coordinatorName}</div>
+                              <div className="text-xs text-gray-500">{log.coordinatorFuncional}</div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-400">N/A</div>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">
                           <div className="p-1 bg-gray-50 rounded">

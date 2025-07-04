@@ -48,6 +48,8 @@ import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { useSearchParams } from 'react-router-dom';
 import { API_CONFIG } from "@/config/api.config";
 import { eventCategoryApi, EventCategory } from "@/services/api";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const AgendaPage = () => {
   const [searchParams] = useSearchParams();
@@ -1543,9 +1545,31 @@ const AgendaPage = () => {
                 </div>
 
                 {novoEvento.informar_agencia_pa && (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="agencia_pa_number">Número da Agência/PA</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="agencia_pa_number">Código da {novoEvento.is_pa ? 'PA' : 'Agência'}</Label>
+                    <div className="flex gap-3">
+                      <ToggleGroup 
+                        type="single" 
+                        className="bg-slate-100 rounded-lg h-10"
+                        value={novoEvento.is_pa ? "pa" : "ag"}
+                        onValueChange={(value) => 
+                          setNovoEvento({ ...novoEvento, is_pa: value === "pa" })
+                        }
+                      >
+                        <ToggleGroupItem 
+                          value="ag" 
+                          className="text-xs font-medium px-3 h-8 data-[state=on]:bg-bradesco-blue data-[state=on]:text-white transition-colors"
+                        >
+                          AG
+                        </ToggleGroupItem>
+                        <ToggleGroupItem 
+                          value="pa" 
+                          className="text-xs font-medium px-3 h-8 data-[state=on]:bg-bradesco-blue data-[state=on]:text-white transition-colors"
+                        >
+                          PA
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+
                       <Input
                         id="agencia_pa_number"
                         type="text"
@@ -1553,23 +1577,8 @@ const AgendaPage = () => {
                         onChange={(e) =>
                           setNovoEvento({ ...novoEvento, agencia_pa_number: e.target.value })
                         }
-                        placeholder="Ex: 12345"
+                        placeholder="Ex: 1234"
                       />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="is_pa"
-                        checked={novoEvento.is_pa || false}
-                        onChange={(e) =>
-                          setNovoEvento({ ...novoEvento, is_pa: e.target.checked })
-                        }
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <Label htmlFor="is_pa" className="text-sm text-gray-700">
-                        Marque se for um PA
-                      </Label>
                     </div>
                   </div>
                 )}

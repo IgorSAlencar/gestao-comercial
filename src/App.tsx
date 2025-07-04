@@ -12,6 +12,7 @@ import AgendaPage from "@/pages/Agenda";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
 import Hotlist from "@/pages/Hotlist";
+import Correspondentes from "@/pages/Correspondentes";
 import Equipe from "@/pages/Equipe";
 import UserLogs from "@/pages/UserLogs";
 
@@ -63,6 +64,14 @@ const App = () => (
               element={
                 <PrivateRoute>
                   <Layout><Hotlist /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/correspondentes" 
+              element={
+                <PrivateRoute>
+                  <Layout><Correspondentes /></Layout>
                 </PrivateRoute>
               } 
             />

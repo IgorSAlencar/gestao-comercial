@@ -59,25 +59,29 @@ const HotlistFilters: React.FC<HotlistFiltersProps> = ({ dados, onFilter, onExpo
     }
   });
 
-  // Extrair opções únicas dos dados
+  // Extrair opções únicas dos dados e filtrar valores vazios
   const uniqueOptions = {
-    diretoriasRegionais: Array.from(new Set(dados.map(d => d.DIRETORIA_REGIONAL))).sort(),
-    gerenciasRegionais: Array.from(new Set(dados.map(d => d.GERENCIA_REGIONAL))).sort(),
+    diretoriasRegionais: Array.from(new Set(dados.map(d => d.DIRETORIA_REGIONAL).filter(Boolean))).sort(),
+    gerenciasRegionais: Array.from(new Set(dados.map(d => d.GERENCIA_REGIONAL).filter(Boolean))).sort(),
     // Gerência Área - Por enquanto vazio pois não existe na tabela
     gerenciasArea: [],
     // Coordenador - Por enquanto vazio pois precisaria consultar hierarquia
     coordenadores: [],
-    // Supervisores únicos (corrigindo duplicação)
+    // Supervisores únicos (corrigindo duplicação e removendo vazios)
     supervisores: Array.from(
-      new Map(dados.map(d => [d.supervisor_id, { id: d.supervisor_id, name: d.supervisor_name }])).values()
+      new Map(
+        dados
+          .filter(d => d.supervisor_id && d.supervisor_name)
+          .map(d => [d.supervisor_id, { id: d.supervisor_id, name: d.supervisor_name }])
+      ).values()
     ).sort((a, b) => a.name.localeCompare(b.name)),
     agenciasPas: Array.from(new Set([
-      ...dados.map(d => d.AGENCIA),
-      ...dados.map(d => d.PA)
+      ...dados.map(d => d.AGENCIA).filter(Boolean),
+      ...dados.map(d => d.PA).filter(Boolean)
     ])).sort(),
-    situacoes: Array.from(new Set(dados.map(d => d.situacao))),
-    mercados: Array.from(new Set(dados.map(d => d.MERCADO))).sort(),
-    pracasPresenca: Array.from(new Set(dados.map(d => d.PRACA_PRESENCA))).sort()
+    situacoes: Array.from(new Set(dados.map(d => d.situacao).filter(Boolean))),
+    mercados: Array.from(new Set(dados.map(d => d.MERCADO).filter(Boolean))).sort(),
+    pracasPresenca: Array.from(new Set(dados.map(d => d.PRACA_PRESENCA).filter(Boolean))).sort()
   };
 
   const getStatusLabel = (status: string) => {

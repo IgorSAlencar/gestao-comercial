@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   Flame,
   Users,
-  Network
+  Network,
+  Building2
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: Flame,
       label: "HotList",
       href: "/hotlist",
+    },
+    {
+      icon: Building2,
+      label: "Correspondentes",
+      href: "/correspondentes",
     },
     {
       icon: Network,

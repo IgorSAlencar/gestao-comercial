@@ -90,26 +90,28 @@ router.patch('/:itemId', authenticateToken, async (req, res) => {
     const { id: userId, role: userRole } = req.user;
     const { situacao } = req.body;
 
-    // Verificar permissão
-    const permissionCheck = await pool.request()
-      .input('itemId', sql.UniqueIdentifier, itemId)
-      .input('userId', sql.UniqueIdentifier, userId)
-      .query(`
-        SELECT 
-          CASE WHEN h.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
-          CASE WHEN hier.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
-        FROM TESTE..HOTLIST h
-        LEFT JOIN TESTE..hierarchy hier ON hier.subordinate_id = h.supervisor_id AND hier.superior_id = @userId
-        WHERE h.id = @itemId
-      `);
+    // Verificar permissão - Admin pode atualizar qualquer item
+    if (userRole !== 'admin') {
+      const permissionCheck = await pool.request()
+        .input('itemId', sql.UniqueIdentifier, itemId)
+        .input('userId', sql.UniqueIdentifier, userId)
+        .query(`
+          SELECT 
+            CASE WHEN h.supervisor_id = @userId THEN 1 ELSE 0 END as is_owner,
+            CASE WHEN hier.superior_id IS NOT NULL THEN 1 ELSE 0 END as is_superior
+          FROM TESTE..HOTLIST h
+          LEFT JOIN TESTE..hierarchy hier ON hier.subordinate_id = h.supervisor_id AND hier.superior_id = @userId
+          WHERE h.id = @itemId
+        `);
 
-    if (permissionCheck.recordset.length === 0) {
-      return res.status(404).json({ message: 'Item não encontrado' });
-    }
+      if (permissionCheck.recordset.length === 0) {
+        return res.status(404).json({ message: 'Item não encontrado' });
+      }
 
-    const itemPermission = permissionCheck.recordset[0];
-    if (!itemPermission.is_owner && !itemPermission.is_superior && userRole !== 'admin') {
-      return res.status(403).json({ message: 'Sem permissão para atualizar este item' });
+      const itemPermission = permissionCheck.recordset[0];
+      if (!itemPermission.is_owner && !itemPermission.is_superior) {
+        return res.status(403).json({ message: 'Sem permissão para atualizar este item' });
+      }
     }
 
     // Atualizar o item
@@ -142,28 +144,30 @@ router.post('/tratativa', authenticateToken, async (req, res) => {
       motivo_nao_efetivacao,
       situacao 
     } = req.body;
-    const { id: userId } = req.user;
+    const { id: userId, role: userRole } = req.user;
 
-    // Verificar permissão
-    const permissionCheck = await pool.request()
-      .input('hotlist_id', sql.UniqueIdentifier, hotlist_id)
-      .input('userId', sql.UniqueIdentifier, userId)
-      .query(`
-        SELECT 
-          CASE 
-            WHEN h.supervisor_id = @userId THEN 1
-            WHEN EXISTS (
-              SELECT 1 FROM TESTE..hierarchy 
-              WHERE superior_id = @userId AND subordinate_id = h.supervisor_id
-            ) THEN 1
-            ELSE 0
-          END as has_permission
-        FROM TESTE..HOTLIST h
-        WHERE h.id = @hotlist_id
-      `);
+    // Verificar permissão - Admin pode registrar tratativas para qualquer item
+    if (userRole !== 'admin') {
+      const permissionCheck = await pool.request()
+        .input('hotlist_id', sql.UniqueIdentifier, hotlist_id)
+        .input('userId', sql.UniqueIdentifier, userId)
+        .query(`
+          SELECT 
+            CASE 
+              WHEN h.supervisor_id = @userId THEN 1
+              WHEN EXISTS (
+                SELECT 1 FROM TESTE..hierarchy 
+                WHERE superior_id = @userId AND subordinate_id = h.supervisor_id
+              ) THEN 1
+              ELSE 0
+            END as has_permission
+          FROM TESTE..HOTLIST h
+          WHERE h.id = @hotlist_id
+        `);
 
-    if (!permissionCheck.recordset[0]?.has_permission) {
-      return res.status(403).json({ message: 'Sem permissão para registrar tratativa neste item' });
+      if (!permissionCheck.recordset[0]?.has_permission) {
+        return res.status(403).json({ message: 'Sem permissão para registrar tratativa neste item' });
+      }
     }
 
     // Iniciar transação
@@ -243,28 +247,30 @@ router.get('/:itemId/tratativas', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
     const { itemId } = req.params;
-    const { id: userId } = req.user;
+    const { id: userId, role: userRole } = req.user;
 
-    // Verificar permissão
-    const permissionCheck = await pool.request()
-      .input('itemId', sql.UniqueIdentifier, itemId)
-      .input('userId', sql.UniqueIdentifier, userId)
-      .query(`
-        SELECT 
-          CASE 
-            WHEN h.supervisor_id = @userId THEN 1
-            WHEN EXISTS (
-              SELECT 1 FROM TESTE..hierarchy 
-              WHERE superior_id = @userId AND subordinate_id = h.supervisor_id
-            ) THEN 1
-            ELSE 0
-          END as has_permission
-        FROM TESTE..HOTLIST h
-        WHERE h.id = @itemId
-      `);
+    // Verificar permissão - Admin pode ver todas as tratativas
+    if (userRole !== 'admin') {
+      const permissionCheck = await pool.request()
+        .input('itemId', sql.UniqueIdentifier, itemId)
+        .input('userId', sql.UniqueIdentifier, userId)
+        .query(`
+          SELECT 
+            CASE 
+              WHEN h.supervisor_id = @userId THEN 1
+              WHEN EXISTS (
+                SELECT 1 FROM TESTE..hierarchy 
+                WHERE superior_id = @userId AND subordinate_id = h.supervisor_id
+              ) THEN 1
+              ELSE 0
+            END as has_permission
+          FROM TESTE..HOTLIST h
+          WHERE h.id = @itemId
+        `);
 
-    if (!permissionCheck.recordset[0]?.has_permission) {
-      return res.status(403).json({ message: 'Sem permissão para ver tratativas deste item' });
+      if (!permissionCheck.recordset[0]?.has_permission) {
+        return res.status(403).json({ message: 'Sem permissão para ver tratativas deste item' });
+      }
     }
 
     const result = await pool.request()
