@@ -1105,22 +1105,22 @@ const AgendaPage = () => {
     setCategoriesError(null);
     
     try {
-      console.log('[Agenda] Iniciando busca de categorias da API...');
+      //console.log('[Agenda] Iniciando busca de categorias da API...');
       const categories = await eventCategoryApi.getCategories();
-      console.log('[Agenda] Categorias carregadas da API com sucesso:', categories);
+      //console.log('[Agenda]  sucesso:', categories);
       setEventCategories(categories);
       setErrorNotificationShown(false);
     } catch (error) {
-      console.error('[Agenda] Erro ao buscar categorias da API, usando categorias padrão:', error);
+      //console.error('[Agenda] Erro ao buscar categorias da API, usando categorias padrão:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setCategoriesError(errorMessage);
       
       // Usar categorias padrão como fallback
       setEventCategories(defaultCategories);
-      console.log('[Agenda] Usando categorias padrão como fallback');
+      //console.log('[Agenda] Usando categorias padrão como fallback');
       
       // Não mostrar toast de erro, apenas log
-      console.warn('[Agenda] API de categorias indisponível, usando dados padrão');
+      //console.warn('[Agenda] API de categorias indisponível, usando dados padrão');
     } finally {
       setIsLoadingCategories(false);
     }

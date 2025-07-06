@@ -80,12 +80,12 @@ const AgendaStats: React.FC = () => {
     queryKey: ['eventCategories-stats'],
     queryFn: async () => {
       try {
-        console.log('[AgendaStats] Buscando categorias de eventos...');
+        //console.log('[AgendaStats] Buscando categorias de eventos...');
         const categories = await eventCategoryApi.getCategories();
-        console.log('[AgendaStats] Categorias carregadas:', categories);
+        //console.log('[AgendaStats] Categorias carregadas:', categories);
         return categories;
       } catch (error) {
-        console.error('[AgendaStats] Erro ao buscar categorias, usando categorias padrão:', error);
+        //console.error('[AgendaStats] Erro ao buscar categorias, usando categorias padrão:', error);
         // Fallback para categorias padrão
         return [
           { id: 1, name: "Prospecção", description: "Eventos de prospecção" },
@@ -138,12 +138,12 @@ const AgendaStats: React.FC = () => {
         const dataInicio = format(primeiroDiaMes, 'yyyy-MM-dd');
         const dataFim = format(ultimoDiaMes, 'yyyy-MM-dd');
         
-        console.log(`[AgendaStats] Buscando eventos apenas do mês atual: ${dataInicio} até ${dataFim}`);
+        //console.log(`[AgendaStats] Buscando eventos apenas do mês atual: ${dataInicio} até ${dataFim}`);
         
         // Usar a mesma API que o Equipe.tsx usa para consultar eventos
         return await eventApi.getEvents(dataInicio, dataFim);
       } catch (error) {
-        console.error("[AgendaStats] Erro ao buscar eventos para estatísticas:", error);
+        //console.error("[AgendaStats] Erro ao buscar eventos para estatísticas:", error);
         return [];
       }
     },
@@ -155,8 +155,8 @@ const AgendaStats: React.FC = () => {
   useEffect(() => {
     if (supervisors.length > 0 && eventCategories.length > 0) {
       try {
-        console.log(`[AgendaStats] Processando ${events.length} eventos para ${supervisors.length} supervisores`);
-        console.log(`[AgendaStats] Categorias disponíveis:`, eventCategories.map(c => c.name));
+        //console.log(`[AgendaStats] Processando ${events.length} eventos para ${supervisors.length} supervisores`);
+        //console.log(`[AgendaStats] Categorias disponíveis:`, eventCategories.map(c => c.name));
         
         // Mapear os IDs dos supervisores para facilitar a busca
         const supervisorIds = new Set(supervisors.map(s => s.id));
@@ -181,12 +181,12 @@ const AgendaStats: React.FC = () => {
         });
         
         // Mostrar no console para fins de depuração
-        console.log('[AgendaStats] Eventos por supervisor:');
+        //console.log('[AgendaStats] Eventos por supervisor:');
         Object.entries(eventosPorSupervisor).forEach(([supervisorId, eventos]) => {
           const supervisor = supervisors.find(s => s.id === supervisorId);
-          console.log(`- ${supervisor?.name || supervisorId}: ${eventos.length} eventos`);
+          //console.log(`- ${supervisor?.name || supervisorId}: ${eventos.length} eventos`);
         });
-        console.log(`[AgendaStats] Total de eventos do mês: ${totalEventosMes}`);
+          //
         
         // Data atual para cálculos
         const hoje = new Date();

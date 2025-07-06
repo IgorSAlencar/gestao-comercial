@@ -83,6 +83,7 @@ const Hotlist: React.FC = () => {
   const [showGerencial, setShowGerencial] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
   const [viewTrativasModalOpen, setViewTrativasModalOpen] = useState(false);
+  const [cardAtivo, setCardAtivo] = useState<string>('all');
   // Novo estado para armazenar os totais originais
   const [totais, setTotais] = useState({
     total: 0,
@@ -215,11 +216,14 @@ const Hotlist: React.FC = () => {
     setDadosFiltrados(filtrados);
     // Resetar para a primeira página quando aplicar filtros
     setCurrentPage(1);
+    // Resetar card ativo
+    setCardAtivo('all');
   };
 
   const limparFiltros = () => {
     form.reset();
     setDadosFiltrados(dados);
+    setCardAtivo('all');
   };
 
   const exportarParaExcel = () => {
@@ -265,6 +269,7 @@ const Hotlist: React.FC = () => {
   });
 
   const handleCardClick = (situacao: string) => {
+    setCardAtivo(situacao);
     if (situacao === 'all') {
       setDadosFiltrados(dados);
     } else {
@@ -328,6 +333,7 @@ const Hotlist: React.FC = () => {
     setDadosFiltrados(filtrados);
     setSelectedSupervisor(supervisorId);
     setCurrentPage(1);
+    setCardAtivo('all');
     toast({
       title: "Filtro aplicado",
       description: `Exibindo leads do supervisor selecionado`,
@@ -338,6 +344,7 @@ const Hotlist: React.FC = () => {
     setDadosFiltrados(dados);
     setSelectedSupervisor(null);
     setCurrentPage(1);
+    setCardAtivo('all');
     toast({
       title: "Filtro removido",
       description: "Exibindo todos os leads",
@@ -577,81 +584,81 @@ const Hotlist: React.FC = () => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <Card 
-                className="bg-gradient-to-br from-blue-50 to-blue-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+                className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-blue-300"
                 onClick={() => handleCardClick('all')}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-semibold text-blue-900">Total de Leads</CardTitle>
-                    <div className="p-2 bg-blue-200 rounded-lg">
-                      <Activity className="h-5 w-5 text-blue-700" />
+                    <CardTitle className="text-lg font-semibold text-gray-900">Total de Leads</CardTitle>
+                    <div className={`p-2 rounded-full ${cardAtivo === 'all' ? 'bg-bradesco-blue' : 'bg-blue-50 border border-blue-100'}`}>
+                      <Activity className={`h-5 w-5 ${cardAtivo === 'all' ? 'text-white' : 'text-blue-600'}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mt-2">
-                    <p className="text-3xl font-bold text-blue-900">{formatarNumero(totais.total)}</p>
-                    <p className="text-sm text-blue-700 mt-1">Leads ativos no sistema</p>
+                    <p className="text-3xl font-bold text-bradesco-blue">{formatarNumero(totais.total)}</p>
+                    <p className="text-sm text-gray-500 mt-1">Leads ativos no sistema</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card 
-                className="bg-gradient-to-br from-green-50 to-green-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+                className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-blue-300"
                 onClick={() => handleCardClick('tratada')}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-semibold text-green-900">Leads Tratadas</CardTitle>
-                    <div className="p-2 bg-green-200 rounded-lg">
-                      <CheckCircle className="h-5 w-5 text-green-700" />
+                    <CardTitle className="text-lg font-semibold text-gray-900">Leads Tratadas</CardTitle>
+                    <div className={`p-2 rounded-full ${cardAtivo === 'tratada' ? 'bg-bradesco-blue' : 'bg-blue-50 border border-blue-100'}`}>
+                      <CheckCircle className={`h-5 w-5 ${cardAtivo === 'tratada' ? 'text-white' : 'text-blue-600'}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mt-2">
-                    <p className="text-3xl font-bold text-green-900">{formatarNumero(totais.tratadas)}</p>
-                    <p className="text-sm text-green-700 mt-1">Leads já processados</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatarNumero(totais.tratadas)}</p>
+                    <p className="text-sm text-gray-600 mt-1">Leads já processados</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card 
-                className="bg-gradient-to-br from-amber-50 to-amber-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+                className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-blue-300"
                 onClick={() => handleCardClick('pendente')}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-semibold text-amber-900">Leads Pendentes</CardTitle>
-                    <div className="p-2 bg-amber-200 rounded-lg">
-                      <AlertCircle className="h-5 w-5 text-amber-700" />
+                    <CardTitle className="text-lg font-semibold text-gray-900">Leads Pendentes</CardTitle>
+                    <div className={`p-2 rounded-full ${cardAtivo === 'pendente' ? 'bg-bradesco-blue' : 'bg-blue-50 border border-blue-100'}`}>
+                      <AlertCircle className={`h-5 w-5 ${cardAtivo === 'pendente' ? 'text-white' : 'text-blue-600'}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mt-2">
-                    <p className="text-3xl font-bold text-amber-900">{formatarNumero(totais.pendentes)}</p>
-                    <p className="text-sm text-amber-700 mt-1">Aguardando tratativa</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatarNumero(totais.pendentes)}</p>
+                    <p className="text-sm text-gray-600 mt-1">Aguardando tratativa</p>
                   </div>
                 </CardContent>
               </Card>
 
               <Card 
-                className="bg-gradient-to-br from-purple-50 to-purple-100 border-none shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer"
+                className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-green-300"
                 onClick={() => handleCardClick('prospectada')}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-semibold text-purple-900">Leads Prospectadas</CardTitle>
-                    <div className="p-2 bg-purple-200 rounded-lg">
-                      <TrendingUp className="h-5 w-5 text-purple-700" />
+                    <CardTitle className="text-lg font-semibold text-gray-900">Leads Prospectadas</CardTitle>
+                    <div className={`p-2 rounded-full ${cardAtivo === 'prospectada' ? 'bg-green-600' : 'bg-green-50 border border-green-100'}`}>
+                      <TrendingUp className={`h-5 w-5 ${cardAtivo === 'prospectada' ? 'text-white' : 'text-green-600'}`} />
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mt-2">
-                    <p className="text-3xl font-bold text-purple-900">{formatarNumero(totais.prospectadas)}</p>
-                    <p className="text-sm text-purple-700 mt-1">Em prospecção</p>
+                    <p className="text-3xl font-bold text-gray-900">{formatarNumero(totais.prospectadas)}</p>
+                    <p className="text-sm text-gray-600 mt-1">Em prospecção</p>
                   </div>
                 </CardContent>
               </Card>
