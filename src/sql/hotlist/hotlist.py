@@ -9,12 +9,12 @@ fake = Faker('pt_BR')
 Faker.seed(42)
 random.seed(42)
 
-num_linhas = 20
+num_linhas = 50
 supervisor_id = '8ABD1646-FEC3-4AD3-B130-5D4A961365DB'
 
-situacoes = ['pendente', 'realizar', 'tratada', 'bloqueada']
-mercados = ['Mercado', 'Padaria', 'Açougue', 'Lanchonete']
-presencas = ['SIM', 'NAO']
+situacoes = ['pendente', 'prospectada', 'tratada']
+mercados = ['SIM', 'NÃO']
+presencas = ['SIM', 'NÃO']
 diretorias = ['DR São Paulo', 'DR Rio de Janeiro', 'DR Sul', 'DR Nordeste']
 gerencias = ['GR Norte', 'GR Sul', 'GR Central']
 agencias = [f'{i:04d}' for i in range(1, 51)]
@@ -29,7 +29,7 @@ for _ in range(num_linhas):
         supervisor_id,
         fake.cnpj(),
         f"{random.choice(mercados)} {fake.first_name()}",
-        f"{fake.city()} - {fake.estado_sigla()}",
+        f"{fake.city()}/{fake.state_abbr()}", # Usando cidade real do Brasil
         random.choice(agencias),
         random.choice(mercados),
         random.choice(presencas),

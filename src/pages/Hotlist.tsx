@@ -91,6 +91,8 @@ const Hotlist: React.FC = () => {
     pendentes: 0,
     prospectadas: 0
   });
+  // Novo estado para controlar quais itens têm tratativas
+  const [itensTratativas, setItensTratativas] = useState<Set<string>>(new Set());
 
   const form = useForm<FiltrosHotList>({
     defaultValues: {
@@ -135,6 +137,20 @@ const Hotlist: React.FC = () => {
             };
           });
         setSupervisores(uniqueSupervisors);
+
+        // Verificar quais itens têm tratativas
+        const itensTratadasSet = new Set<string>();
+        await Promise.all(hotListData.map(async (item) => {
+          try {
+            const tratativas = await hotListApi.getTratativas(item.id);
+            if (tratativas.length > 0) {
+              itensTratadasSet.add(item.id);
+            }
+          } catch (error) {
+            console.error('Erro ao verificar tratativas:', error);
+          }
+        }));
+        setItensTratativas(itensTratadasSet);
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
         toast({
@@ -302,6 +318,20 @@ const Hotlist: React.FC = () => {
       pendentes: hotListData.filter(d => d.situacao === 'pendente').length,
       prospectadas: hotListData.filter(d => d.situacao === 'prospectada').length
     });
+
+    // Atualizar o estado de tratativas
+    const itensTratadasSet = new Set<string>();
+    await Promise.all(hotListData.map(async (item) => {
+      try {
+        const tratativas = await hotListApi.getTratativas(item.id);
+        if (tratativas.length > 0) {
+          itensTratadasSet.add(item.id);
+        }
+      } catch (error) {
+        console.error('Erro ao verificar tratativas:', error);
+      }
+    }));
+    setItensTratativas(itensTratadasSet);
   };
 
   // Obter os dados da página atual
@@ -795,9 +825,9 @@ const Hotlist: React.FC = () => {
                                 <Button 
                                   variant="outline" 
                                   size="icon" 
-                                  title={loja.situacao === 'tratada' ? "Ver tratativas" : "Nenhuma tratativa registrada"}
+                                  title={itensTratativas.has(loja.id) ? "Ver tratativas" : "Nenhuma tratativa registrada"}
                                   className={
-                                    loja.situacao === 'tratada' 
+                                    itensTratativas.has(loja.id)
                                       ? "bg-purple-50 border-purple-200 hover:bg-purple-100" 
                                       : "bg-gray-50 border-gray-200 hover:bg-gray-100"
                                   }
@@ -806,7 +836,7 @@ const Hotlist: React.FC = () => {
                                   <Eye 
                                     size={16} 
                                     className={
-                                      loja.situacao === 'tratada' 
+                                      itensTratativas.has(loja.id)
                                         ? "text-purple-600" 
                                         : "text-gray-400"
                                     } 

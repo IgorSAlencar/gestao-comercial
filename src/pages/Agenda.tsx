@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2 } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2, CheckCircle, XCircle, Calendar as CalendarReagendIcon, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,16 +19,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { DateRange } from "react-day-picker";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,7 +67,17 @@ const AgendaPage = () => {
   
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>();
   const [calendarOpen, setCalendarOpen] = useState<"start" | "end" | null>(null);
-    const [dateError, setDateError] = useState<string>("");
+  const [dateError, setDateError] = useState<string>("");
+  
+  // Estados para o novo fluxo de tratativa
+  const [tratativaStep, setTratativaStep] = useState<'pergunta-inicial' | 'tratativa' | 'reagendamento'>('pergunta-inicial');
+  const [visitaRealizada, setVisitaRealizada] = useState<boolean | null>(null);
+  const [desejaReagendar, setDesejaReagendar] = useState<boolean | null>(null);
+  const [novaDataReagendamento, setNovaDataReagendamento] = useState<Date | null>(null);
+  const [novaDataFimReagendamento, setNovaDataFimReagendamento] = useState<Date | null>(null);
+  const [selectedRangeReagendamento, setSelectedRangeReagendamento] = useState<DateRange | undefined>();
+  const [calendarReagendamentoOpen, setCalendarReagendamentoOpen] = useState<"start" | "end" | null>(null);
+  const [dateReagendamentoError, setDateReagendamentoError] = useState<string>("");
   
   // Categorias padrão como fallback
   const defaultCategories: EventCategory[] = [
@@ -313,14 +314,26 @@ const AgendaPage = () => {
 
   const createEventMutation = useMutation({
     mutationFn: eventApi.createEvent,
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast({
-        title: "Evento adicionado",
-        description: "O evento foi adicionado à agenda com sucesso!",
-      });
-      setIsDialogOpen(false);
-      resetForm();
+      
+      // Verifica se é um reagendamento (só se o modal de parecer estiver aberto)
+      if (isParecerDialogOpen && tratativaStep === 'reagendamento') {
+        toast({
+          title: "Evento reagendado",
+          description: "O evento foi reagendado com sucesso!",
+        });
+        setIsParecerDialogOpen(false);
+        // O reset será feito pelo onOpenChange do Dialog
+      } else {
+        // Evento novo sendo criado
+        toast({
+          title: "Evento adicionado",
+          description: "O evento foi adicionado à agenda com sucesso!",
+        });
+        setIsDialogOpen(false);
+        resetForm();
+      }
     },
     onError: (error: Error) => {
       console.error("Erro ao criar evento:", error);
@@ -365,15 +378,25 @@ const AgendaPage = () => {
       eventApi.updateEventFeedback(eventId, tratativa),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
-      toast({
-        title: "Parecer adicionado",
-        description: "O parecer foi adicionado ao evento com sucesso!",
-      });
+      
+      // Verifica se é uma marcação de "não realizada" ou parecer normal
+      if (tratativaStep === 'reagendamento' && !desejaReagendar) {
+        toast({
+          title: "Visita registrada",
+          description: "A visita foi marcada como não realizada.",
+        });
+      } else {
+        toast({
+          title: "Parecer adicionado",
+          description: "O parecer foi adicionado ao evento com sucesso!",
+        });
+      }
+      
       setIsParecerDialogOpen(false);
-      setCurrentEventId(null);
-      setParecerText("");
+      // O reset será feito pelo onOpenChange do Dialog
     },
     onError: (error: Error) => {
+      console.error('Erro no updateFeedbackMutation:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao adicionar parecer",
@@ -575,25 +598,184 @@ const AgendaPage = () => {
     }
   };
 
+  // Função para resetar o estado da tratativa (mantém isProspeccaoMode e currentEventId durante o fluxo)
+  const resetTratativaState = () => {
+    setTratativaStep('pergunta-inicial');
+    setVisitaRealizada(null);
+    setDesejaReagendar(null);
+    setNovaDataReagendamento(null);
+    setNovaDataFimReagendamento(null);
+    setSelectedRangeReagendamento(undefined);
+    setCalendarReagendamentoOpen(null);
+    setDateReagendamentoError("");
+    setParecerText("");
+    // NÃO resetar currentEventId, currentEventType e isProspeccaoMode durante o fluxo
+    // setCurrentEventId(null);
+    // setCurrentEventType(null);
+    // setIsProspeccaoMode(false);
+    resetProspeccaoState();
+  };
+
   const handleAbrirParecerDialog = (id: string) => {
     const evento = eventos.find(evento => evento.id === id);
     if (evento) {
+
       setCurrentEventId(id);
       setCurrentEventType(evento.location || null);
+      setSelectedEvento(evento);
       
       // Verifica se é um evento de prospecção
       const isProspecao = evento.location === "Prospecção";
       setIsProspeccaoMode(isProspecao);
       
-      // Se for evento de prospecção, busca os dados da nova tabela
-      if (isProspecao) {
-        loadTratativasProspecao(id);
+      // Reset do estado
+      resetTratativaState();
+      
+      // Se já existe tratativa, vai direto para a edição
+      if (evento.tratativa && evento.tratativa.trim() !== '') {
+
+        setTratativaStep('tratativa');
+        setVisitaRealizada(true); // Marca como realizada já que tem tratativa
+        
+        // Carrega os dados existentes
+        if (isProspecao) {
+          loadTratativasProspecao(id);
+        } else {
+          setParecerText(evento.tratativa);
+        }
       } else {
-        setParecerText(evento.tratativa || "");
+
+        setTratativaStep('pergunta-inicial');
       }
       
       setIsParecerDialogOpen(true);
+
     }
+  };
+
+  // Função para lidar com a resposta da pergunta inicial
+  const handleVisitaRealizadaResponse = (realizada: boolean) => {
+
+    setVisitaRealizada(realizada);
+    
+    if (realizada) {
+      // Se a visita foi realizada, vai para a etapa de tratativa
+      setTratativaStep('tratativa');
+      
+      // Se for evento de prospecção, carrega os dados específicos
+      if (isProspeccaoMode && currentEventId) {
+        loadTratativasProspecao(currentEventId);
+      } else if (selectedEvento) {
+        // Para eventos normais, carrega o parecer existente
+        setParecerText(selectedEvento.tratativa || "");
+      }
+    } else {
+      // Se a visita não foi realizada, pergunta se deseja reagendar
+      
+      setTratativaStep('reagendamento');
+    }
+  };
+
+  // Função para lidar com a resposta do reagendamento
+  const handleReagendamentoResponse = (reagendar: boolean) => {
+    setDesejaReagendar(reagendar);
+    
+    if (!reagendar) {
+      // Se não quer reagendar, apenas marca como não realizada
+
+      handleSalvarTratativaSemReagendamento();
+    }
+    // Se quer reagendar, o usuário continua na mesma etapa para selecionar a data
+  };
+
+  // Função para salvar tratativa sem reagendamento
+  const handleSalvarTratativaSemReagendamento = () => {
+    // Usar currentEventId primeiro, selectedEvento.id como fallback
+    const eventoId = currentEventId || selectedEvento?.id;
+    
+    if (!eventoId) {
+      console.error('Erro: Nenhum ID de evento disponível', { currentEventId, selectedEventoId: selectedEvento?.id });
+      toast({
+        title: "Erro",
+        description: "Não foi possível identificar o evento. Tente novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const tratativaNaoRealizada = "Visita não realizada.";
+
+    
+    updateFeedbackMutation.mutate({ 
+      eventId: eventoId, 
+      tratativa: tratativaNaoRealizada 
+    });
+  };
+
+  // Função para reagendar evento
+  const handleReagendarEvento = () => {
+    if (!currentEventId || !selectedEvento || !novaDataReagendamento || !novaDataFimReagendamento) {
+      toast({
+        title: "Erro",
+        description: "Por favor, selecione a nova data para reagendamento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Dados do novo evento (cópia do evento atual)
+    const novoEventoData = {
+      titulo: selectedEvento.titulo,
+      descricao: selectedEvento.descricao,
+      dataInicio: novaDataReagendamento,
+      dataFim: novaDataFimReagendamento,
+      tipo: selectedEvento.tipo,
+      location: selectedEvento.location || "",
+      subcategory: selectedEvento.subcategory || "",
+      other_description: selectedEvento.other_description || "",
+      informar_agencia_pa: selectedEvento.informar_agencia_pa || false,
+      agencia_pa_number: selectedEvento.agencia_pa_number || "",
+      is_pa: selectedEvento.is_pa || false,
+      municipio: selectedEvento.municipio || "",
+      uf: selectedEvento.uf || "",
+      supervisorId: selectedEvento.supervisorId,
+      createdById: user?.id,
+      createdByName: user?.name
+    };
+
+    // Cria o novo evento
+    createEventMutation.mutate(novoEventoData);
+
+    // Marca o evento atual como reagendado
+    const tratativaReagendada = `Reagendada para ${format(novaDataReagendamento, "dd/MM/yyyy", { locale: ptBR })}`;
+    updateFeedbackMutation.mutate({ 
+      eventId: currentEventId, 
+      tratativa: tratativaReagendada 
+    });
+  };
+
+  // Função para lidar com seleção de data do reagendamento
+  const handleReagendamentoDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+
+    const selectedDate = new Date(date);
+
+    if (calendarReagendamentoOpen === "start") {
+      if (novaDataFimReagendamento && selectedDate > novaDataFimReagendamento) {
+        setDateReagendamentoError("A data final deve ser igual ou posterior à data inicial");
+        return;
+      }
+      setNovaDataReagendamento(selectedDate);
+      setDateReagendamentoError("");
+    } else if (calendarReagendamentoOpen === "end") {
+      if (novaDataReagendamento && selectedDate < novaDataReagendamento) {
+        setDateReagendamentoError("A data final não pode ser anterior à data inicial");
+        return;
+      }
+      setNovaDataFimReagendamento(selectedDate);
+      setDateReagendamentoError("");
+    }
+    setCalendarReagendamentoOpen(null);
   };
 
   // Função auxiliar para resetar o estado da prospecção
@@ -689,9 +871,7 @@ const AgendaPage = () => {
         description: "Os CNPJs visitados foram registrados com sucesso!",
       });
       setIsParecerDialogOpen(false);
-      setParecerText("");
-      setCnpjValues([]);
-      setCnpjProspectStatus([]);
+      // O reset será feito pelo onOpenChange do Dialog
     },
     onError: (error: Error) => {
       toast({
@@ -2042,209 +2222,406 @@ const AgendaPage = () => {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isParecerDialogOpen} onOpenChange={setIsParecerDialogOpen}>
+      <Dialog open={isParecerDialogOpen} onOpenChange={(open) => {
+        setIsParecerDialogOpen(open);
+        if (!open) {
+          // Reset completo ao fechar o modal
+          setTratativaStep('pergunta-inicial');
+          setVisitaRealizada(null);
+          setDesejaReagendar(null);
+          setNovaDataReagendamento(null);
+          setNovaDataFimReagendamento(null);
+          setSelectedRangeReagendamento(undefined);
+          setCalendarReagendamentoOpen(null);
+          setDateReagendamentoError("");
+          setParecerText("");
+          setCurrentEventId(null);
+          setCurrentEventType(null);
+          setIsProspeccaoMode(false);
+          resetProspeccaoState();
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isProspeccaoMode 
-                ? "Adicionar Parecer de Prospecção" 
-                : "Adicionar Parecer/Tratativa"}
+              {tratativaStep === 'pergunta-inicial' && "Status da Visita"}
+              {tratativaStep === 'tratativa' && (
+                selectedEvento?.tratativa && selectedEvento.tratativa.trim() !== '' 
+                  ? (isProspeccaoMode ? "Editar Parecer de Prospecção" : "Editar Parecer/Tratativa")
+                  : (isProspeccaoMode ? "Parecer de Prospecção" : "Parecer/Tratativa")
+              )}
+              {tratativaStep === 'reagendamento' && "Reagendamento"}
             </DialogTitle>
+            {tratativaStep === 'pergunta-inicial' && (
+              <DialogDescription>
+                A visita agendada para <strong>{selectedEvento?.titulo}</strong> pôde ser realizada?
+              </DialogDescription>
+            )}
+            {tratativaStep === 'tratativa' && selectedEvento?.tratativa && selectedEvento.tratativa.trim() !== '' && (
+              <DialogDescription>
+                Editando a tratativa existente para <strong>{selectedEvento?.titulo}</strong>
+              </DialogDescription>
+            )}
           </DialogHeader>
           
-          {isProspeccaoMode && (
-            <div className="space-y-4 pt-4 pb-2">
-              <div className="space-y-2">
-                <Label htmlFor="numCnpjs" className="text-sm font-medium block">
-                  Quantas empresas foram visitadas?
-                </Label>
-                <div className="flex items-center">
-                  <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
-                    <button
-                      type="button"
-                      className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-r focus:outline-none transition-colors"
-                      onClick={() => {
-                        if (numCnpjs > 1) {
-                          const newNum = numCnpjs - 1;
-                          setNumCnpjs(newNum);
-                          // Remove o último CNPJ
-                          setCnpjValues(prev => prev.slice(0, newNum));
-                        }
-                      }}
-                      disabled={numCnpjs <= 1}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                      </svg>
-                    </button>
-                    
-                    <input
-                      id="numCnpjs"
-                      type="number"
-                      inputMode="numeric"
-                      min="1"
-                      max="20"
-                      value={numCnpjs}
-                      onFocus={e => e.target.select()}
-                      onChange={(e) => {
-                        const rawValue = e.target.value;
-                        let num = parseInt(rawValue);
-                        
-                        // Garantir que é um número entre 1 e 20
-                        if (isNaN(num) || num < 1) num = 1;
-                        if (num > 20) num = 20;
-                        
-                        setNumCnpjs(num);
-                        
-                        // Ajusta o array de CNPJs e status
-                        const newCnpjValues = [...cnpjValues];
-                        const newCnpjStatus = [...cnpjProspectStatus];
-                        if (num > newCnpjValues.length) {
-                          // Adiciona novos campos vazios
-                          while (newCnpjValues.length < num) {
-                            newCnpjValues.push('');
-                            newCnpjStatus.push(false);
-                          }
-                        } else if (num < newCnpjValues.length) {
-                          // Remove campos excedentes
-                          newCnpjValues.length = num;
-                          newCnpjStatus.length = num;
-                        }
-                        setCnpjValues(newCnpjValues);
-                        setCnpjProspectStatus(newCnpjStatus);
-                      }}
-                      className="w-14 border-0 text-center focus:ring-0 focus:outline-none"
-                    />
-                    
-                    <button
-                      type="button"
-                      className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-l focus:outline-none transition-colors"
-                      onClick={() => {
-                        if (numCnpjs < 20) {
-                          const newNum = numCnpjs + 1;
-                          setNumCnpjs(newNum);
-                          // Adiciona um CNPJ vazio
-                          setCnpjValues(prev => [...prev, '']);
-                        }
-                      }}
-                      disabled={numCnpjs >= 20}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                      </svg>
-                    </button>
-                  </div>
-                  
-                  <span className="ml-3 text-gray-600">
-                    {numCnpjs} {numCnpjs === 1 ? 'empresa' : 'empresas'}
-                  </span>
+          {/* Etapa 1: Pergunta inicial - ESCOLHA UMA DAS OPÇÕES ABAIXO */}
+          
+          {/* OPÇÃO 1: Cards Elegantes (ATUAL) */}
+          {tratativaStep === 'pergunta-inicial' && (
+            <div className="py-8">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-bradesco-blue to-blue-600 rounded-full flex items-center justify-center">
+                  <CalendarIcon className="h-8 w-8 text-white" />
                 </div>
+                <h3 className="text-xl font-semibold text-gray-800 mb-2">Status da Visita</h3>
+                <p className="text-gray-600">
+                  Como foi o resultado da visita agendada para <span className="font-medium text-bradesco-blue">{selectedEvento?.titulo}</span>?
+                </p>
               </div>
               
-                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-2">
-                 <h3 className="text-sm font-medium mb-3 text-blue-800 flex items-center">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5 text-blue-600">
-                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                     <circle cx="9" cy="7" r="4"></circle>
-                     <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-                     <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                   </svg>
-                   Informe os CNPJs das empresas visitadas:
-                 </h3>
-                
-                <div className="space-y-3">
-                  {Array.from({ length: numCnpjs }).map((_, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <div className="w-7 h-7 flex items-center justify-center bg-bradesco-blue rounded-full text-white text-xs font-medium shadow-sm">
-                        {index + 1}
-                      </div>
-                      <Input
-                        placeholder="XX.XXX.XXX/XXXX-XX"
-                        value={cnpjValues[index] || ''}
-                        onChange={(e) => handleCnpjChange(index, e.target.value)}
-                        className={`flex-1 ${
-                          cnpjValues[index] && !isValidCnpj(cnpjValues[index]) 
-                            ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
-                            : ''
-                        }`}
-                      />
-                      <Button
-                        type="button"
-                        variant={cnpjProspectStatus[index] ? "default" : "outline"}
-                        className={`min-w-[120px] ${
-                          cnpjProspectStatus[index] 
-                            ? 'bg-green-600 hover:bg-green-700' 
-                            : 'hover:bg-red-50 hover:text-red-600'
-                        }`}
-                        onClick={() => handleProspectStatusChange(index)}
-                      >
-                        Prospectado: {cnpjProspectStatus[index] ? 'Sim' : 'Não'}
-                      </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                {/* Card: Visita Realizada */}
+                <div 
+                  onClick={() => handleVisitaRealizadaResponse(true)}
+                  className="group cursor-pointer bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 hover:border-green-400 rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105"
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center group-hover:bg-green-600 transition-colors">
+                      <CheckCircle className="h-6 w-6 text-white" />
                     </div>
-                  ))}
+                    <div>
+                      <h4 className="font-semibold text-green-700 text-lg">Visita Realizada</h4>
+                      <p className="text-sm text-green-600 mt-1">
+                        Visita realizada com sucesso
+                      </p>
+                    </div>
+                    <div className="text-xs text-green-500 font-medium">
+                      Clique para adicionar parecer →
+                    </div>
+                  </div>
                 </div>
-                
-                                 {cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) && (
-                  <div className="flex items-center text-sm text-red-500 mt-3 bg-red-50 p-2 rounded border border-red-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    Um ou mais CNPJs estão incompletos ou inválidos.
+
+                {/* Card: Visita Não Realizada */}
+                <div 
+                  onClick={() => handleVisitaRealizadaResponse(false)}
+                  className="group cursor-pointer bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-200 hover:border-red-400 rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105"
+                >
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center group-hover:bg-red-600 transition-colors">
+                      <XCircle className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-red-700 text-lg">Visita Não Realizada</h4>
+                      <p className="text-sm text-red-600 mt-1">
+                        A visita não pôde ser concluída
+                      </p>
+                    </div>
+                    <div className="text-xs text-red-500 font-medium">
+                      Clique para opções de reagendamento →
+                    </div>
                   </div>
-                )}
-                
-                {cnpjValues.filter(cnpj => cnpj).length === 0 && (
-                  <div className="flex items-center text-sm text-amber-600 mt-3 bg-amber-50 p-2 rounded border border-amber-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1.5">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <line x1="12" y1="8" x2="12" y2="12"></line>
-                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                    </svg>
-                    Informe pelo menos um CNPJ para continuar.
-                  </div>
-                )}
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-xs text-gray-500">
+                  💡 Dica: Se a visita foi parcialmente realizada, selecione "Realizada" e adicione detalhes no parecer
+                </p>
               </div>
             </div>
           )}
-          
-          <div className="py-4">
-            <Label htmlFor="parecer" className="text-sm font-medium mb-2 block">
-              {isProspeccaoMode 
-                ? "Informações adicionais sobre a prospecção (opcional):" 
-                : "Parecer / Tratativa:"}
-            </Label>
-            <Textarea
-              id="parecer"
-              className="min-h-[120px]"
-              placeholder={
-                isProspeccaoMode 
-                  ? "Detalhes adicionais sobre as visitas realizadas..."
-                  : "Digite seu parecer ou tratativa sobre este evento..."
-              }
-              value={parecerText}
-              onChange={(e) => setParecerText(e.target.value)}
-            />
-          </div>
+
+          {/* Etapa 2: Tratativa normal */}
+          {tratativaStep === 'tratativa' && (
+            <div className="space-y-4">
+              {isProspeccaoMode && (
+                <div className="space-y-4 pt-4 pb-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="numCnpjs" className="text-sm font-medium block">
+                      Quantas empresas foram visitadas?
+                    </Label>
+                    <div className="flex items-center">
+                      <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
+                        <button
+                          type="button"
+                          className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-r focus:outline-none transition-colors"
+                          onClick={() => {
+                            if (numCnpjs > 1) {
+                              const newNum = numCnpjs - 1;
+                              setNumCnpjs(newNum);
+                              setCnpjValues(prev => prev.slice(0, newNum));
+                            }
+                          }}
+                          disabled={numCnpjs <= 1}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                        </button>
+                        
+                        <input
+                          id="numCnpjs"
+                          type="number"
+                          inputMode="numeric"
+                          min="1"
+                          max="20"
+                          value={numCnpjs}
+                          onFocus={e => e.target.select()}
+                          onChange={(e) => {
+                            const rawValue = e.target.value;
+                            let num = parseInt(rawValue);
+                            
+                            if (isNaN(num) || num < 1) num = 1;
+                            if (num > 20) num = 20;
+                            
+                            setNumCnpjs(num);
+                            
+                            const newCnpjValues = [...cnpjValues];
+                            const newCnpjStatus = [...cnpjProspectStatus];
+                            if (num > newCnpjValues.length) {
+                              while (newCnpjValues.length < num) {
+                                newCnpjValues.push('');
+                                newCnpjStatus.push(false);
+                              }
+                            } else if (num < newCnpjValues.length) {
+                              newCnpjValues.length = num;
+                              newCnpjStatus.length = num;
+                            }
+                            setCnpjValues(newCnpjValues);
+                            setCnpjProspectStatus(newCnpjStatus);
+                          }}
+                          className="w-14 border-0 text-center focus:ring-0 focus:outline-none"
+                        />
+                        
+                        <button
+                          type="button"
+                          className="px-3 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border-l focus:outline-none transition-colors"
+                          onClick={() => {
+                            if (numCnpjs < 20) {
+                              const newNum = numCnpjs + 1;
+                              setNumCnpjs(newNum);
+                              setCnpjValues(prev => [...prev, '']);
+                            }
+                          }}
+                          disabled={numCnpjs >= 20}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      <span className="ml-3 text-gray-600">
+                        {numCnpjs} {numCnpjs === 1 ? 'empresa' : 'empresas'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 mt-2">
+                    <h3 className="text-sm font-medium mb-3 text-blue-800 flex items-center">
+                      <Building2 className="mr-1.5 text-blue-600 h-4 w-4" />
+                      Informe os CNPJs das empresas visitadas:
+                    </h3>
+                    
+                    <div className="space-y-3">
+                      {Array.from({ length: numCnpjs }).map((_, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <div className="w-7 h-7 flex items-center justify-center bg-bradesco-blue rounded-full text-white text-xs font-medium shadow-sm">
+                            {index + 1}
+                          </div>
+                          <Input
+                            placeholder="XX.XXX.XXX/XXXX-XX"
+                            value={cnpjValues[index] || ''}
+                            onChange={(e) => handleCnpjChange(index, e.target.value)}
+                            className={`flex-1 ${
+                              cnpjValues[index] && !isValidCnpj(cnpjValues[index]) 
+                                ? 'border-red-300 focus:border-red-500 focus:ring-red-500' 
+                                : ''
+                            }`}
+                          />
+                          <Button
+                            type="button"
+                            variant={cnpjProspectStatus[index] ? "default" : "outline"}
+                            className={`min-w-[120px] ${
+                              cnpjProspectStatus[index] 
+                                ? 'bg-green-600 hover:bg-green-700' 
+                                : 'hover:bg-red-50 hover:text-red-600'
+                            }`}
+                            onClick={() => handleProspectStatusChange(index)}
+                          >
+                            Prospectado: {cnpjProspectStatus[index] ? 'Sim' : 'Não'}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) && (
+                      <div className="flex items-center text-sm text-red-500 mt-3 bg-red-50 p-2 rounded border border-red-200">
+                        <AlertCircle className="mr-1.5 h-4 w-4" />
+                        Um ou mais CNPJs estão incompletos ou inválidos.
+                      </div>
+                    )}
+                    
+                    {cnpjValues.filter(cnpj => cnpj).length === 0 && (
+                      <div className="flex items-center text-sm text-amber-600 mt-3 bg-amber-50 p-2 rounded border border-amber-200">
+                        <AlertCircle className="mr-1.5 h-4 w-4" />
+                        Informe pelo menos um CNPJ para continuar.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <div className="py-4">
+                <Label htmlFor="parecer" className="text-sm font-medium mb-2 block">
+                  {isProspeccaoMode 
+                    ? "Informações adicionais sobre a prospecção (opcional):" 
+                    : "Parecer / Tratativa:"}
+                </Label>
+                <Textarea
+                  id="parecer"
+                  className="min-h-[120px]"
+                  placeholder={
+                    isProspeccaoMode 
+                      ? "Detalhes adicionais sobre as visitas realizadas..."
+                      : "Digite seu parecer ou tratativa sobre este evento..."
+                  }
+                  value={parecerText}
+                  onChange={(e) => setParecerText(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Etapa 3: Reagendamento */}
+          {tratativaStep === 'reagendamento' && (
+            <div className="space-y-6 py-4">
+              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                <div className="flex items-center space-x-2 mb-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                  <span className="font-medium text-amber-800">Visita não realizada</span>
+                </div>
+                <p className="text-sm text-amber-700">
+                  Como a visita não pôde ser realizada, você pode reagendá-la para uma nova data.
+                </p>
+              </div>
+
+              <div className="text-center">
+                <p className="text-lg font-medium text-gray-700 mb-4">
+                  Deseja reagendar esta visita?
+                </p>
+                
+                <div className="flex justify-center space-x-4 mb-6">
+                  <Button
+                    onClick={() => handleReagendamentoResponse(true)}
+                    className="bg-bradesco-blue hover:bg-blue-700 text-white px-8 py-3"
+                  >
+                    <CalendarReagendIcon className="h-5 w-5 mr-2" />
+                    Sim, reagendar
+                  </Button>
+                  <Button
+                    onClick={() => handleReagendamentoResponse(false)}
+                    variant="outline"
+                    className="px-8 py-3"
+                  >
+                    <XCircle className="h-5 w-5 mr-2" />
+                    Não, apenas registrar
+                  </Button>
+                </div>
+              </div>
+
+              {desejaReagendar && (
+                <div className="space-y-4 border-t pt-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Nova data para reagendamento</Label>
+                    <div className="flex space-x-4">
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={novaDataReagendamento ? format(novaDataReagendamento, "dd/MM/yyyy") : ""}
+                          onClick={() => setCalendarReagendamentoOpen("start")}
+                          readOnly
+                          placeholder="Data inicial"
+                          className="cursor-pointer"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={novaDataFimReagendamento ? format(novaDataFimReagendamento, "dd/MM/yyyy") : ""}
+                          onClick={() => setCalendarReagendamentoOpen("end")}
+                          readOnly
+                          placeholder="Data final"
+                          className="cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    {dateReagendamentoError && (
+                      <p className="text-sm text-red-500">{dateReagendamentoError}</p>
+                    )}
+                  </div>
+                  
+                  {calendarReagendamentoOpen && (
+                    <div className="bg-white border rounded-md shadow-md p-4">
+                      <Calendar
+                        mode="range"
+                        selected={selectedRangeReagendamento}
+                        onSelect={(range) => {
+                          setSelectedRangeReagendamento(range);
+                          if (range?.from) {
+                            setNovaDataReagendamento(range.from);
+                            setNovaDataFimReagendamento(range.to || range.from);
+                          }
+                          if (range?.from && range?.to) {
+                            setCalendarReagendamentoOpen(null);
+                          }
+                        }}
+                        className="rounded-md border"
+                        locale={ptBR}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsParecerDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsParecerDialogOpen(false);
+              // O reset será feito pelo onOpenChange do Dialog
+            }}>
               Cancelar
             </Button>
-            <Button 
-              onClick={handleSalvarParecer} 
-              className="bg-bradesco-blue"
-              disabled={isProspeccaoMode && (cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) || cnpjValues.filter(cnpj => cnpj).length === 0)}
-            >
-              Salvar Parecer
-            </Button>
+            
+            {tratativaStep === 'tratativa' && (
+              <Button 
+                onClick={handleSalvarParecer} 
+                className="bg-bradesco-blue"
+                disabled={isProspeccaoMode && (cnpjValues.some(cnpj => cnpj && !isValidCnpj(cnpj)) || cnpjValues.filter(cnpj => cnpj).length === 0)}
+              >
+                {selectedEvento?.tratativa && selectedEvento.tratativa.trim() !== '' 
+                  ? "Atualizar Parecer" 
+                  : "Salvar Parecer"}
+              </Button>
+            )}
+            
+            {tratativaStep === 'reagendamento' && desejaReagendar && (
+              <Button 
+                onClick={handleReagendarEvento} 
+                className="bg-bradesco-blue"
+                disabled={!novaDataReagendamento || !novaDataFimReagendamento}
+              >
+                Confirmar Reagendamento
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 };
+
 
 export default AgendaPage;

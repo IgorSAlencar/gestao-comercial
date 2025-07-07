@@ -18,7 +18,7 @@ CREATE TABLE TESTE..TRATADAS_HOTLIST (
     motivo_sem_perfil TEXT NULL,
     aceitou_proposta BIT NULL,
     motivo_nao_efetivacao TEXT NULL,
-    situacao VARCHAR(10) NOT NULL, -- 'tratada' ou 'pendente'
+    situacao VARCHAR(11) NOT NULL, -- 'tratada' ou 'pendente' ou 'prospectada'
     data_tratativa DATETIME DEFAULT GETDATE(),
     FOREIGN KEY (hotlist_id) REFERENCES TESTE..HOTLIST(id),
     FOREIGN KEY (user_id) REFERENCES TESTE..users(id)
