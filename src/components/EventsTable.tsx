@@ -69,7 +69,7 @@ interface EventsTableProps {
   isManagerView?: boolean;
 }
 
-type SortField = 'titulo' | 'dataInicio' | 'dataFim' | 'location' | 'subcategory';
+type SortField = 'titulo' | 'dataInicio' | 'dataFim' | 'location' | 'subcategory' | 'supervisorName' | 'status';
 type SortOrder = 'asc' | 'desc';
 
 const EventsTable = ({
@@ -179,7 +179,7 @@ const EventsTable = ({
   });
 
   const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ChevronsUpDown className="h-4 w-4" />;
+    if (sortField !== field) return null;
     return sortOrder === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
   };
 
@@ -487,16 +487,16 @@ const EventsTable = ({
         </div>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
+      <div className="rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[22%] py-3">
+              <TableHead className="w-[25%] py-3">
                 <div className="flex w-full">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 hover:bg-gray-100"
                     onClick={() => handleSort('titulo')}
                   >
                     Título
@@ -504,12 +504,12 @@ const EventsTable = ({
                   </Button>
                 </div>
               </TableHead>
-              <TableHead className="w-[22%] text-center py-3">
+              <TableHead className="w-[20%] text-center py-3">
                 <div className="flex justify-center w-full">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 hover:bg-gray-100"
                     onClick={() => handleSort('dataInicio')}
                   >
                     Data
@@ -517,12 +517,12 @@ const EventsTable = ({
                   </Button>
                 </div>
               </TableHead>
-              <TableHead className="w-[26%] text-center py-3">
+              <TableHead className="w-[25%] text-center py-3">
                 <div className="flex justify-center w-full">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex items-center gap-1"
+                    className="flex items-center gap-1 hover:bg-gray-100"
                     onClick={() => handleSort('location')}
                   >
                     Local
@@ -531,12 +531,32 @@ const EventsTable = ({
                 </div>
               </TableHead>
               {isManagerView && (
-                <TableHead className="w-[10%] text-center py-3">
-                  <div className="flex justify-center w-full">Supervisor</div>
+                <TableHead className="w-[12%] text-center py-3">
+                  <div className="flex justify-center w-full">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 hover:bg-gray-100"
+                      onClick={() => handleSort('supervisorName')}
+                    >
+                      Supervisor
+                      {getSortIcon('supervisorName')}
+                    </Button>
+                  </div>
                 </TableHead>
               )}
-              <TableHead className="w-[10%] text-center py-3">
-                <div className="flex justify-center w-full">Status</div>
+              <TableHead className="w-[8%] text-center py-3">
+                <div className="flex justify-center w-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1 hover:bg-gray-100"
+                    onClick={() => handleSort('status')}
+                  >
+                    Status
+                    {getSortIcon('status')}
+                  </Button>
+                </div>
               </TableHead>
               <TableHead className="w-[10%] text-right py-3">
                 <div className="flex justify-end w-full">Ações</div>
@@ -558,7 +578,7 @@ const EventsTable = ({
                 const status = getEventStatus(event);
                 return (
                   <TableRow key={event.id}>
-                    <TableCell className="font-medium w-[22%] align-middle py-3">
+                    <TableCell className="font-medium w-[25%] align-middle py-3">
                       <div className="truncate">
                         {event.titulo}
                         {event.subcategory && (
@@ -566,7 +586,7 @@ const EventsTable = ({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-center w-[22%] align-middle py-3">
+                    <TableCell className="text-center w-[20%] align-middle py-3">
                       <div className="flex items-center gap-1.5 justify-center">
                         <CalendarIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
                         <span>
@@ -581,7 +601,7 @@ const EventsTable = ({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center w-[26%] align-middle py-3">
+                    <TableCell className="text-center w-[25%] align-middle py-3">
                       <div className="flex flex-col items-center justify-center">
                         <span className="truncate max-w-full">{event.location || "-"}</span>
                         {event.municipio && event.uf && (
@@ -592,7 +612,7 @@ const EventsTable = ({
                       </div>
                     </TableCell>
                     {isManagerView && (
-                      <TableCell className="text-center w-[10%] align-middle py-3">
+                      <TableCell className="text-center w-[12%] align-middle py-3">
                         <div className="flex flex-col items-center justify-center">
                           <span>{event.supervisorName || "-"}</span>
                           {event.createdById && event.createdById !== event.supervisorId && event.createdByName && (
@@ -603,7 +623,7 @@ const EventsTable = ({
                         </div>
                       </TableCell>
                     )}
-                    <TableCell className="text-center w-[10%] align-middle py-3">
+                    <TableCell className="text-center w-[8%] align-middle py-3">
                       <div className="flex justify-center">
                         <TableStatus status={status} />
                       </div>

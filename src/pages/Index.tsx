@@ -495,43 +495,45 @@ const Index = () => {
   // Mostrar loading inicial até que os dados sejam carregados
   if (loading && !dataLoadedSuccessfully) {
     return (
-      <div className="container mx-auto pb-12 space-y-6">
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="relative mb-6">
-            <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
-              <Loader2 className="h-8 w-8 text-white animate-spin" />
-            </div>
-            <div className="absolute -top-2 -right-2 h-6 w-6 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-              <Flame className="h-3 w-3 text-white animate-pulse" />
-            </div>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando dados...</h2>
-          <p className="text-gray-600 text-center mb-4">
-            Aguarde enquanto carregamos suas informações comerciais
-          </p>
-          {retryCount > 0 && (
-            <p className="text-amber-600 text-sm">
-              Tentativa {retryCount + 1} de 3...
-            </p>
-          )}
-          {loadingError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4 max-w-md">
-              <div className="flex items-center gap-2 text-red-700">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{loadingError}</span>
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="container mx-auto pb-12 space-y-6">
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative mb-6">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
               </div>
-              {retryCount >= 2 && (
-                <Button 
-                  onClick={recarregarDados}
-                  className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white"
-                  size="sm"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Recarregar
-                </Button>
-              )}
+              <div className="absolute -top-2 -right-2 h-6 w-6 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center">
+                <Flame className="h-3 w-3 text-white animate-pulse" />
+              </div>
             </div>
-          )}
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando dados...</h2>
+            <p className="text-gray-600 text-center mb-4">
+              Aguarde enquanto carregamos suas informações comerciais
+            </p>
+            {retryCount > 0 && (
+              <p className="text-amber-600 text-sm">
+                Tentativa {retryCount + 1} de 3...
+              </p>
+            )}
+            {loadingError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4 max-w-md">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">{loadingError}</span>
+                </div>
+                {retryCount >= 2 && (
+                  <Button 
+                    onClick={recarregarDados}
+                    className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white"
+                    size="sm"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Recarregar
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -548,16 +550,7 @@ const Index = () => {
           {format(new Date(), "'Hoje é' EEEE, d 'de' MMMM", {locale: ptBR})}
         </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={recarregarDados}
-            disabled={loading}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+
         </div>
       </div>
 
@@ -636,7 +629,7 @@ const Index = () => {
               <h3 className="text-2xl font-bold text-orange-800">HotList</h3>
               <div className="flex flex-col gap-2 mt-2">
                 <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {totalLeadsUsuario} leads ativos
+                  {totalLeadsUsuario.toLocaleString('pt-BR')} leads ativos
                 </div>
                 <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                   <AlertCircle className="h-4 w-4" />
@@ -710,56 +703,77 @@ const Index = () => {
                   <div className="pt-4 border-t border-slate-200">
                     {/* Seções de eventos */}
                     <div className="space-y-6">
-                      {/* Eventos de Hoje */}
-                      {eventosHoje.filter(eventoHoje).length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
-                            <div className="p-1 rounded-md bg-blue-100">
-                              <Calendar className="h-4 w-4 text-blue-600" />
+                      {(() => {
+                        // Lógica de priorização para evitar duplicação
+                        // 1. Prioridade máxima: Pendentes de Parecer
+                        const eventosPendentesDeParcer = eventosHoje.filter(e => eventoPassado(e) && !temTratativa(e));
+                        const idsPendentes = new Set(eventosPendentesDeParcer.map(e => e.id));
+                        
+                        // 2. Segunda prioridade: Eventos de Hoje (excluindo os já em pendentes)
+                        const eventosDeHoje = eventosHoje.filter(e => eventoHoje(e) && !idsPendentes.has(e.id));
+                        const idsHoje = new Set(eventosDeHoje.map(e => e.id));
+                        
+                        // 3. Terceira prioridade: Eventos da Semana (excluindo os já categorizados)
+                        const eventosDaSemana = eventosHoje.filter(e => 
+                          eventoDestaSemana(e) && !eventoHoje(e) && !eventoPassado(e) && 
+                          !idsPendentes.has(e.id) && !idsHoje.has(e.id)
+                        );
+                        
+                        return (
+                          <>
+                            {/* Eventos Pendentes de Parecer - PRIORIDADE MÁXIMA */}
+                            {eventosPendentesDeParcer.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                                  <div className="p-1 rounded-md bg-rose-100">
+                                    <AlertTriangle className="h-4 w-4 text-rose-600" />
+                                  </div>
+                                  Pendentes de Parecer ({eventosPendentesDeParcer.length})
+                                </h3>
+                                <div className="space-y-3">
+                                  {eventosPendentesDeParcer.map((evento) => (
+                                    <EventoCard key={evento.id} evento={evento} />
+                                  ))}
                                 </div>
-                            Eventos de Hoje
-                          </h3>
-                          <div className="space-y-3">
-                            {eventosHoje.filter(eventoHoje).map((evento) => (
-                              <EventoCard key={evento.id} evento={evento} />
-                            ))}
-                                </div>
-                              </div>
-                      )}
-
-                      {/* Eventos Pendentes de Parecer */}
-                      {eventosHoje.filter(e => eventoPassado(e) && !temTratativa(e)).length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
-                            <div className="p-1 rounded-md bg-rose-100">
-                              <AlertTriangle className="h-4 w-4 text-rose-600" />
-                            </div>
-                            Pendentes de Parecer
-                          </h3>
-                          <div className="space-y-3">
-                            {eventosHoje.filter(e => eventoPassado(e) && !temTratativa(e)).map((evento) => (
-                              <EventoCard key={evento.id} evento={evento} />
-                            ))}
-                          </div>
                               </div>
                             )}
 
-                      {/* Eventos da Semana */}
-                      {eventosHoje.filter(e => eventoDestaSemana(e) && !eventoHoje(e) && !eventoPassado(e)).length > 0 && (
-                        <div className="space-y-3">
-                          <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
-                            <div className="p-1 rounded-md bg-emerald-100">
-                              <CalendarDays className="h-4 w-4 text-emerald-600" />
+                            {/* Eventos de Hoje - SEGUNDA PRIORIDADE */}
+                            {eventosDeHoje.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                                  <div className="p-1 rounded-md bg-blue-100">
+                                    <Calendar className="h-4 w-4 text-blue-600" />
+                                  </div>
+                                  Eventos de Hoje ({eventosDeHoje.length})
+                                </h3>
+                                <div className="space-y-3">
+                                  {eventosDeHoje.map((evento) => (
+                                    <EventoCard key={evento.id} evento={evento} />
+                                  ))}
+                                </div>
                               </div>
-                            Próximos Eventos da Semana
-                          </h3>
-                          <div className="space-y-3">
-                            {eventosHoje.filter(e => eventoDestaSemana(e) && !eventoHoje(e) && !eventoPassado(e)).map((evento) => (
-                              <EventoCard key={evento.id} evento={evento} />
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                            )}
+
+                            {/* Eventos da Semana - TERCEIRA PRIORIDADE */}
+                            {eventosDaSemana.length > 0 && (
+                              <div className="space-y-3">
+                                <h3 className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                                  <div className="p-1 rounded-md bg-emerald-100">
+                                    <CalendarDays className="h-4 w-4 text-emerald-600" />
+                                  </div>
+                                  Próximos Eventos da Semana ({eventosDaSemana.length})
+                                </h3>
+                                <div className="space-y-3">
+                                  {eventosDaSemana.map((evento) => (
+                                    <EventoCard key={evento.id} evento={evento} />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 ) : (

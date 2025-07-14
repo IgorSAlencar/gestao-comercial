@@ -45,7 +45,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 const AgendaPage = () => {
   const [searchParams] = useSearchParams();
   const [date, setDate] = useState<Date>(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<Event | null>(null);
   const [isTeamMemberDialogOpen, setIsTeamMemberDialogOpen] = useState(false);

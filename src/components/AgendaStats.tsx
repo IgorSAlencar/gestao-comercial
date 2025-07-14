@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Calendar, 
   Users, 
@@ -15,7 +16,9 @@ import {
   Plus,
   Search,
   PieChart,
-  X
+  X,
+  ChevronLeft,
+  Filter
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/AuthContext";
@@ -74,6 +77,9 @@ const AgendaStats: React.FC = () => {
   const navigate = useNavigate();
   const [showSupervisoresSemAgenda, setShowSupervisoresSemAgenda] = useState(false);
   const [showSupervisorGrid, setShowSupervisorGrid] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [selectedSupervisorFilter, setSelectedSupervisorFilter] = useState<string>("all");
+  const EVENTS_PER_PAGE = 5;
 
   // Buscar categorias de eventos da API
   const { data: eventCategories = [], isLoading: isLoadingCategories } = useQuery({
@@ -150,6 +156,11 @@ const AgendaStats: React.FC = () => {
     enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
     retry: 1,
   });
+
+  // Reset da página quando os eventos mudam ou filtro muda
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [summary.proximosAgendamentos.length, selectedSupervisorFilter]);
 
   // Calcular estatísticas quando os dados estiverem disponíveis
   useEffect(() => {
@@ -322,9 +333,8 @@ const AgendaStats: React.FC = () => {
           }
         });
         
-        // Ordenar eventos da semana por data e limitar a 5
+        // Ordenar eventos da semana por data
         todosEventosFuturos.sort((a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime());
-        todosEventosFuturos = todosEventosFuturos.slice(0, 5);
         
         // Contar supervisores sem eventos futuros
         const supervisoresSemEventoFuturo = supervisors.filter(
@@ -361,6 +371,14 @@ const AgendaStats: React.FC = () => {
 
   // Verificar se está carregando
   const isLoading = isLoadingSupervisors || isLoadingEvents;
+
+  // Filtrar eventos da semana baseado no supervisor selecionado
+  const filteredProximosAgendamentos = React.useMemo(() => {
+    if (selectedSupervisorFilter === "all") {
+      return summary.proximosAgendamentos;
+    }
+    return summary.proximosAgendamentos.filter(evento => evento.supervisorId === selectedSupervisorFilter);
+  }, [summary.proximosAgendamentos, selectedSupervisorFilter]);
 
   // Organizar eventos por supervisor
   const eventosPorSupervisor = React.useMemo(() => {
@@ -682,7 +700,7 @@ const AgendaStats: React.FC = () => {
       
       {/* Categorias de Eventos */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="border-2 border-gray-100">
+        <Card className="border-2 border-gray-100 h-fit">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <PieChart className="h-5 w-5 mr-2 text-blue-600" />
@@ -692,9 +710,9 @@ const AgendaStats: React.FC = () => {
               Distribuição de eventos por categoria no mês atual
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             {isLoading || isLoadingCategories ? (
-              <div className="space-y-3">
+              <div className="space-y-3 min-h-[120px]">
                 {[1, 2, 3, 4].map(i => (
                   <div key={i} className="flex justify-between items-center mb-2">
                     <Skeleton className="h-5 w-28" />
@@ -737,27 +755,93 @@ const AgendaStats: React.FC = () => {
                 })}
                 
                 {Object.values(summary.categoriasDinamicas).reduce((a, b) => a + b, 0) === 0 && (
-                  <div className="text-center py-3 text-gray-500">
+                  <div className="text-center py-6 text-gray-500">
                     Não há eventos cadastrados neste mês
                   </div>
                 )}
               </div>
             )}
             
+            {/* Botão Ver todos os eventos */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <Button 
+                variant="outline" 
+                className="w-full border-dashed border-blue-200 hover:bg-blue-50"
+                onClick={() => navigate('/agenda')}
+              >
+                Ver todos os eventos
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
         
         {/* Agenda da Semana */}
-        <Card className="border-2 border-gray-100">
+        <Card className="border-2 border-gray-100 h-fit">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Agenda da Semana</CardTitle>
+            <CardTitle className="text-lg flex items-center">
+              <CalendarDays className="h-5 w-5 mr-2 text-green-600" />
+              Agenda da Semana
+            </CardTitle>
             <CardDescription>
               Eventos agendados para esta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
             </CardDescription>
-          </CardHeader>
-          <CardContent>
+            <div className="flex items-center justify-between mt-2">
+              {/* Filtro por supervisor */}
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-gray-500" />
+                <Select value={selectedSupervisorFilter} onValueChange={setSelectedSupervisorFilter}>
+                  <SelectTrigger className="w-40 h-8 text-xs">
+                    <SelectValue placeholder="Filtrar por..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os supervisores</SelectItem>
+                    {supervisors.map(supervisor => (
+                      <SelectItem key={supervisor.id} value={supervisor.id}>
+                        {supervisor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Controles de paginação */}
+              {filteredProximosAgendamentos.length > EVENTS_PER_PAGE && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500 font-normal">
+                    {Math.min((currentPage * EVENTS_PER_PAGE) + 1, filteredProximosAgendamentos.length)}-{Math.min((currentPage + 1) * EVENTS_PER_PAGE, filteredProximosAgendamentos.length)} de {filteredProximosAgendamentos.length}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                      disabled={currentPage === 0}
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredProximosAgendamentos.length / EVENTS_PER_PAGE) - 1, prev + 1))}
+                      disabled={(currentPage + 1) * EVENTS_PER_PAGE >= filteredProximosAgendamentos.length}
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+                          </div>
+            </CardHeader>
+            
+            {/* Linha divisória para separar filtros do conteúdo */}
+            <div className="border-t border-gray-100 mx-6"></div>
+            
+            <CardContent className="pb-4 pt-4">
             {isLoading ? (
-              <div className="space-y-4">
+              <div className="space-y-4 min-h-[120px]">
                 {[1, 2, 3].map(i => (
                   <div key={i} className="flex justify-between border-b pb-3">
                     <div className="space-y-2">
@@ -768,70 +852,77 @@ const AgendaStats: React.FC = () => {
                   </div>
                 ))}
               </div>
-            ) : summary.proximosAgendamentos.length > 0 ? (
+            ) : filteredProximosAgendamentos.length > 0 ? (
               <div className="space-y-4">
-                {summary.proximosAgendamentos.map(evento => (
-                  <div key={evento.id} className="flex justify-between items-start border-b pb-3">
-                    <div>
-                      <h4 className="font-medium">{evento.titulo}</h4>
-                      <div className="text-sm text-gray-500 flex items-center">
-                        <Users className="h-3 w-3 mr-1" />
-                        <span>{evento.supervisorName}</span>
-                        <span className="mx-1">•</span>
-                        <MapPin className="h-3 w-3 mr-1" />
-                        <span>{evento.municipio}, {evento.uf}</span>
+                {filteredProximosAgendamentos
+                  .slice(currentPage * EVENTS_PER_PAGE, (currentPage + 1) * EVENTS_PER_PAGE)
+                  .map(evento => (
+                  <div key={evento.id} className="border-b pb-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1 min-w-0 mr-3">
+                        <h4 className="font-medium text-sm truncate mb-1" title={evento.titulo}>
+                          {evento.titulo}
+                        </h4>
+                        <div className="text-xs text-gray-500 flex items-center">
+                          <Users className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span className="truncate" title={evento.supervisorName}>
+                            {evento.supervisorName}
+                          </span>
+                          <span className="mx-1">•</span>
+                          <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                          <span className="truncate" title={`${evento.municipio}, ${evento.uf}`}>
+                            {evento.municipio}, {evento.uf}
+                          </span>
+                        </div>
                       </div>
-                      {/* Adicionando indicador de categoria */}
-                      <div className="mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          eventCategories.find(c => c.name === evento.location)
-                            ? eventCategories.findIndex(c => c.name === evento.location) % 6 === 0 ? "bg-blue-100 text-blue-800" :
-                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 1 ? "bg-green-100 text-green-800" :
-                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 2 ? "bg-amber-100 text-amber-800" :
-                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 3 ? "bg-purple-100 text-purple-800" :
-                              eventCategories.findIndex(c => c.name === evento.location) % 6 === 4 ? "bg-red-100 text-red-800" :
-                              "bg-gray-100 text-gray-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}>
-                          {evento.location || "Evento"}
-                        </span>
+                      <div className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-md flex-shrink-0 flex items-center">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {format(new Date(evento.dataInicio), "dd/MM", {locale: ptBR})}
                       </div>
                     </div>
-                    <div className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
-                      <Clock className="h-3 w-3 inline-block mr-1" />
-                      {format(new Date(evento.dataInicio), "dd/MM/yyyy", {locale: ptBR})}
+                    {/* Badge de categoria com largura completa */}
+                    <div className="flex">
+                      <span className={`text-xs px-2 py-1 rounded-full inline-block font-medium ${
+                        eventCategories.find(c => c.name === evento.location)
+                          ? eventCategories.findIndex(c => c.name === evento.location) % 6 === 0 ? "bg-blue-100 text-blue-800" :
+                            eventCategories.findIndex(c => c.name === evento.location) % 6 === 1 ? "bg-green-100 text-green-800" :
+                            eventCategories.findIndex(c => c.name === evento.location) % 6 === 2 ? "bg-amber-100 text-amber-800" :
+                            eventCategories.findIndex(c => c.name === evento.location) % 6 === 3 ? "bg-purple-100 text-purple-800" :
+                            eventCategories.findIndex(c => c.name === evento.location) % 6 === 4 ? "bg-red-100 text-red-800" :
+                            "bg-gray-100 text-gray-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}>
+                        {evento.location || "Evento"}
+                      </span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-6 text-gray-500">
-                Não há agendamentos para esta semana
+                {selectedSupervisorFilter === "all" 
+                  ? "Não há agendamentos para esta semana"
+                  : `Não há agendamentos para ${supervisors.find(s => s.id === selectedSupervisorFilter)?.name || "este supervisor"} nesta semana`
+                }
               </div>
             )}
+            
+            {/* Botão Ver todos os agendamentos */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <Button 
+                variant="outline" 
+                className="w-full border-dashed border-green-200 hover:bg-green-50"
+                onClick={() => navigate('/agenda')}
+              >
+                Ver todos os agendamentos
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Botões de ação alinhados horizontalmente */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Button 
-          variant="outline" 
-          className="w-full border-dashed border-blue-200 hover:bg-blue-50"
-          onClick={() => navigate('/agenda')}
-        >
-          Ver todos os eventos
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
-        <Button 
-          variant="outline" 
-          className="w-full border-dashed border-green-200 hover:bg-green-50"
-          onClick={() => navigate('/agenda')}
-        >
-          Ver todos os agendamentos
-          <ChevronRight className="ml-2 h-4 w-4" />
-        </Button>
-      </div>
+
 
       {/* Modal de Supervisores */}
       <SupervisorGridDialog 

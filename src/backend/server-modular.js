@@ -51,7 +51,6 @@ app.get('/api/health', async (req, res) => {
           FROM INFORMATION_SCHEMA.TABLES 
           WHERE TABLE_SCHEMA = 'teste' AND TABLE_NAME IN (
             'HOTLIST',
-            'PROSPECT_VISITAS',
             'TRATATIVAS_PROSPECAO',
             'OPORTUNIDADES_CONTAS'
           )

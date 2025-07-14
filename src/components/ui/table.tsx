@@ -1,15 +1,16 @@
 import React from "react"
 import { cn } from "@/lib/utils"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, ChevronUp, ChevronDown } from "lucide-react"
+import { Button } from "./button"
 
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  <div className="w-full">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("w-full table-fixed caption-bottom text-sm", className)}
       {...props}
     />
   </div>
@@ -66,19 +67,43 @@ const TableRow = React.forwardRef<
 ))
 TableRow.displayName = "TableRow"
 
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
-      className
-    )}
-    {...props}
-  />
-))
+interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
+  onSort?: () => void;
+  sortField?: string;
+  currentSortField?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
+  ({ className, children, onSort, sortField, currentSortField, sortOrder, ...props }, ref) => {
+    const getSortIcon = () => {
+      if (sortField !== currentSortField) return null;
+      return sortOrder === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
+    };
+
+    return (
+      <th
+        ref={ref}
+        className={cn(
+          "h-12 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
+          onSort ? "p-0 cursor-pointer hover:bg-gray-100" : "px-4",
+          className
+        )}
+        onClick={onSort}
+        {...props}
+      >
+        {onSort ? (
+          <div className="flex items-center gap-1 px-4 py-3 h-full w-full">
+            {children}
+            {getSortIcon()}
+          </div>
+        ) : (
+          children
+        )}
+      </th>
+    )
+  }
+)
 TableHead.displayName = "TableHead"
 
 const TableCell = React.forwardRef<
@@ -107,54 +132,38 @@ TableCaption.displayName = "TableCaption"
 
 // Componente de status para a tabela
 interface TableStatusProps {
-  status: 'pendente' | 'realizar' | 'tratada' | 'bloqueada';
+  status: string;
   label?: string;
 }
 
 const TableStatus = ({ status, label }: TableStatusProps) => {
   const statusConfig = {
     pendente: {
-      bgColor: "bg-amber-100",
-      textColor: "text-amber-800",
-      borderColor: "border-amber-200",
-      icon: "hourglass",
-      text: label || "Pendente de tratativa"
+      color: 'bg-red-100 text-red-800',
+      text: 'Pendente'
     },
     realizar: {
-      bgColor: "bg-blue-100",
-      textColor: "text-blue-800",
-      borderColor: "border-blue-200",
-      icon: "clock",
-      text: label || "Visita a realizar"
+      color: 'bg-blue-100 text-blue-800',
+      text: 'A Realizar'
     },
     tratada: {
-      bgColor: "bg-green-100",
-      textColor: "text-green-800",
-      borderColor: "border-green-200",
-      icon: "check",
-      text: label || "Visita tratada"
+      color: 'bg-green-100 text-green-800',
+      text: 'Tratada'
     },
     bloqueada: {
-      bgColor: "bg-red-100",
-      textColor: "text-red-800",
-      borderColor: "border-red-200",
-      icon: "alert-circle",
-      text: label || "Bloqueada"
+      color: 'bg-gray-100 text-gray-800',
+      text: 'Bloqueada'
     }
   };
 
   const config = statusConfig[status];
 
   return (
-    <div className={`inline-flex items-center gap-0.5 px-2 py-1 rounded-full ${config.bgColor} ${config.textColor} ${config.borderColor} border text-xs font-medium ${status === 'pendente' ? 'w-[160px]' : 'w-[120px]'} justify-center whitespace-nowrap`}>
-      {status === 'bloqueada' ? (
-        <AlertCircle className="h-3 w-3 mr-1" />
-      ) : (
-        <span className="relative flex h-1.5 w-1.5">
-          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${config.textColor}`}></span>
-        </span>
-      )}
-      <span className="truncate">{config.text}</span>
+    <div className={cn(
+      "flex items-center justify-center px-3 py-1 rounded-full text-sm font-medium w-24",
+      config.color
+    )}>
+      {label || config.text}
     </div>
   );
 };
@@ -164,9 +173,9 @@ export {
   TableHeader,
   TableBody,
   TableFooter,
-  TableHead,
   TableRow,
+  TableHead,
   TableCell,
   TableCaption,
-  TableStatus
+  TableStatus,
 }
