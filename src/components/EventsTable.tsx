@@ -306,6 +306,7 @@ const EventsTable = ({
     const dadosParaExportar = sortedEvents.map(event => ({
       'Título': event.titulo,
       'Subcategoria': event.subcategory || '',
+      'Descrição/Motivo': event.other_description || '',
       'Data Início': format(new Date(event.dataInicio), "dd/MM/yyyy", { locale: ptBR }),
       'Data Fim': format(new Date(event.dataFim), "dd/MM/yyyy", { locale: ptBR }),
       'Local': event.location || '',
@@ -583,6 +584,11 @@ const EventsTable = ({
                         {event.titulo}
                         {event.subcategory && (
                           <div className="text-xs text-gray-500 mt-1 truncate">{event.subcategory}</div>
+                        )}
+                        {event.other_description && (
+                          <div className="text-xs text-gray-600 mt-1 truncate">
+                            <span className="font-medium">Motivo:</span> {event.other_description}
+                          </div>
                         )}
                       </div>
                     </TableCell>

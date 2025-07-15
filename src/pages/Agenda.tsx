@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2, CheckCircle, XCircle, Calendar as CalendarReagendIcon, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Plus, Trash2, MessageSquare, Filter, Users, ListFilter, PanelsTopLeft, UserPlus, RefreshCw, Search, X, Building2, CheckCircle, XCircle, Calendar as CalendarReagendIcon, AlertCircle, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -78,6 +78,12 @@ const AgendaPage = () => {
   const [selectedRangeReagendamento, setSelectedRangeReagendamento] = useState<DateRange | undefined>();
   const [calendarReagendamentoOpen, setCalendarReagendamentoOpen] = useState<"start" | "end" | null>(null);
   const [dateReagendamentoError, setDateReagendamentoError] = useState<string>("");
+  
+  // Estado para controlar a expansão das tratativas nos cards
+  const [expandedTratativas, setExpandedTratativas] = useState<Set<string>>(new Set());
+  
+  // Estado para controlar a expansão das descrições nos cards
+  const [expandedDescricoes, setExpandedDescricoes] = useState<Set<string>>(new Set());
   
   // Categorias padrão como fallback
   const defaultCategories: EventCategory[] = [
@@ -444,6 +450,34 @@ const AgendaPage = () => {
     setSelectedTeamMember(null);
   };
 
+  // Função para inicializar o formulário com a data selecionada no calendário
+  const initializeFormWithSelectedDate = () => {
+    const selectedCalendarDate = selectedDate || date || new Date();
+    
+    setNovoEvento({
+      titulo: "",
+      descricao: "",
+      dataInicio: selectedCalendarDate,
+      dataFim: selectedCalendarDate,
+      tipo: "visita",
+      location: "",
+      subcategory: "",
+      other_description: "",
+      informar_agencia_pa: false,
+      agencia_pa_number: "",
+      is_pa: false,
+      municipio: "",
+      uf: ""
+    });
+    
+    setSelectedRange({
+      from: selectedCalendarDate,
+      to: selectedCalendarDate,
+    });
+    
+    setEditingEvent(null);
+  };
+
   // Helper para normalizar UUID
   const normalizeUUID = (uuid: string | undefined | null): string | null => {
     if (!uuid) return null;
@@ -491,7 +525,7 @@ const AgendaPage = () => {
     }
     
     // Validar campo de descrição para "Outros"
-    if (novoEvento.location === "Outros" && !novoEvento.other_description) {
+    if (novoEvento.location === "Outros" && (!novoEvento.other_description || novoEvento.other_description.trim() === '')) {
       toast({
         title: "Campo obrigatório",
         description: "A descrição é obrigatória quando a ocorrência é 'Outros'",
@@ -1311,10 +1345,71 @@ const AgendaPage = () => {
     loadCategories();
   }, [user?.id]);
 
+  // Auto-resize dos textareas quando o conteúdo muda
+  useEffect(() => {
+    const resizeTextarea = (id: string, maxHeight: number) => {
+      const textarea = document.getElementById(id) as HTMLTextAreaElement;
+      if (textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+      }
+    };
+
+    // Resize para o campo de descrição no modal de evento
+    if (isDialogOpen && novoEvento.other_description) {
+      setTimeout(() => resizeTextarea('other_description', 200), 100);
+    }
+
+    // Resize para o campo de parecer no modal de tratativa
+    if (isParecerDialogOpen && parecerText) {
+      setTimeout(() => resizeTextarea('parecer', 300), 100);
+    }
+  }, [isDialogOpen, novoEvento.other_description, isParecerDialogOpen, parecerText]);
+
   // Função auxiliar para obter subcategorias de uma categoria
   const getSubcategories = (categoryName: string) => {
     const category = eventCategories.find(c => c.name === categoryName);
     return category?.subcategories || [];
+  };
+
+  // Funções para controlar a expansão das tratativas
+  const toggleTratativaExpansion = (eventId: string) => {
+    setExpandedTratativas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  const isTratativaExpanded = (eventId: string) => {
+    return expandedTratativas.has(eventId);
+  };
+
+  // Funções para controlar a expansão das descrições
+  const toggleDescricaoExpansion = (eventId: string) => {
+    setExpandedDescricoes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  const isDescricaoExpanded = (eventId: string) => {
+    return expandedDescricoes.has(eventId);
+  };
+
+  // Função para truncar texto
+  const truncateText = (text: string, maxLength: number = 100) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -1495,6 +1590,7 @@ const AgendaPage = () => {
                               setSelectedTeamMember({ id: member.id, name: member.name });
                               setIsTeamMemberDialogOpen(false);
                               setTeamMemberSearchTerm("");
+                              initializeFormWithSelectedDate();
                               setIsDialogOpen(true);
                             }}
                           >
@@ -1534,6 +1630,7 @@ const AgendaPage = () => {
                       setSelectedTeamMember(null);
                       setIsTeamMemberDialogOpen(false);
                       setTeamMemberSearchTerm("");
+                      initializeFormWithSelectedDate();
                       setIsDialogOpen(true);
                     }}
                   >
@@ -1545,7 +1642,12 @@ const AgendaPage = () => {
           ) : (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-bradesco-blue">
+                <Button 
+                  className="bg-bradesco-blue"
+                  onClick={() => {
+                    initializeFormWithSelectedDate();
+                  }}
+                >
                   <Plus className="h-4 w-4 mr-2" /> Novo Evento
                 </Button>
               </DialogTrigger>
@@ -1693,19 +1795,65 @@ const AgendaPage = () => {
                   </div>
                 )}
 
-                {novoEvento.location === "Outros" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="other_description">Descreva o Evento</Label>
-                    <Input
+                <div className="space-y-2">
+                  <Label htmlFor="other_description" className="text-sm font-medium">
+                    Descrição / Motivo da Visita
+                    {novoEvento.location === "Outros" && (
+                      <span className="text-red-500 ml-1">*</span>
+                    )}
+                  </Label>
+                  <div className="relative">
+                    <Textarea
                       id="other_description"
-                      value={novoEvento.other_description}
+                      value={novoEvento.other_description || ""}
                       onChange={(e) =>
                         setNovoEvento({ ...novoEvento, other_description: e.target.value })
                       }
-                      placeholder="Descreva a ocorrência"
+                      placeholder={novoEvento.location === "Outros" ? "Descreva detalhadamente a ocorrência..." : "Informe o motivo da visita, objetivos, contexto ou observações relevantes..."}
+                      className="min-h-[80px] resize-none transition-all duration-200 focus:ring-2 focus:ring-bradesco-blue focus:border-bradesco-blue"
+                      style={{
+                        height: 'auto',
+                        minHeight: '80px',
+                        maxHeight: '200px',
+                        overflow: 'auto'
+                      }}
+                      onInput={(e) => {
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.height = 'auto';
+                        target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          handleSalvarEvento();
+                        }
+                      }}
                     />
+                    {novoEvento.other_description && (
+                      <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+                        {novoEvento.other_description.length} caracteres
+                      </div>
+                    )}
                   </div>
-                )}
+                  {novoEvento.location === "Outros" && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                        Campo obrigatório - Descreva detalhadamente a ocorrência
+                      </p>
+
+                    </div>
+                  )}
+                  {novoEvento.location !== "Outros" && (
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-500 flex items-center gap-1">
+                        <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                        Campo opcional - Ajuda na organização e contexto da visita
+                      </p>
+
+                    </div>
+                  )}
+                </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
@@ -2066,8 +2214,42 @@ const AgendaPage = () => {
                               </div>
                             )}
                             
+                            {evento.other_description && (
+                              <div className="mt-3">
+                                <div className="border-t border-gray-200 pt-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <MessageSquare className="h-4 w-4 text-gray-600" />
+                                      <span className="text-sm font-medium text-gray-700">Descrição:</span>
+                                    </div>
+                                    {evento.other_description.length > 100 && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => toggleDescricaoExpansion(evento.id)}
+                                        className="h-6 w-6 p-0 hover:bg-gray-100"
+                                        title={isDescricaoExpanded(evento.id) ? "Recolher descrição" : "Ver descrição completa"}
+                                      >
+                                        {isDescricaoExpanded(evento.id) ? (
+                                          <ChevronUp className="h-3 w-3 text-gray-600" />
+                                        ) : (
+                                          <ChevronDown className="h-3 w-3 text-gray-600" />
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 leading-relaxed mt-1">
+                                    {evento.other_description.length > 100 && !isDescricaoExpanded(evento.id) 
+                                      ? truncateText(evento.other_description, 100)
+                                      : evento.other_description
+                                    }
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                            
                             {(isManager || isCoordinator || isAdmin) && evento.supervisorName && (
-                              <div className="mt-1 text-xs font-medium text-bradesco-blue flex items-center gap-1">
+                              <div className="mt-3 text-xs font-medium text-bradesco-blue flex items-center gap-1">
                                 <Users className="h-3 w-3" />
                                 {evento.supervisorName}
                               </div>
@@ -2081,8 +2263,53 @@ const AgendaPage = () => {
                               </div>
                             )}
                             
-                            {evento.tratativa && (
-                              <div className="mt-3 p-3 bg-gray-50 rounded-md">
+                            {/* Indicador de Status da Tratativa */}
+                            <div className="mt-3 flex items-center gap-2">
+                              {evento.tratativa && evento.tratativa.trim() !== '' ? (
+                                <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-2 rounded-full border border-green-200 shadow-sm">
+                                  <CheckCircle className="h-4 w-4" />
+                                  <span className="text-sm font-medium">Evento tratado</span>
+                                  <div className="flex items-center gap-1 ml-2">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => toggleTratativaExpansion(evento.id)}
+                                      className="h-6 w-6 p-0 hover:bg-green-100 rounded-full"
+                                      title={isTratativaExpanded(evento.id) ? "Recolher tratativa" : "Ver tratativa"}
+                                    >
+                                      {isTratativaExpanded(evento.id) ? (
+                                        <ChevronUp className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleAbrirParecerDialog(evento.id)}
+                                      className="h-6 w-6 p-0 hover:bg-green-100 rounded-full"
+                                      title="Editar tratativa"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div 
+                                  className="flex items-center gap-2 bg-amber-50 text-amber-700 px-3 py-2 rounded-full border border-amber-200 cursor-pointer hover:bg-amber-100 transition-all duration-200 shadow-sm hover:shadow-md relative overflow-hidden"
+                                  onClick={() => handleAbrirParecerDialog(evento.id)}
+                                  title="Clique para adicionar tratativa"
+                                >
+                                  <AlertCircle className="h-4 w-4" />
+                                  <span className="text-sm font-medium">Pendente de tratativa</span>
+                                  <Plus className="h-3 w-3 ml-1" />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Tratativa expandida */}
+                            {evento.tratativa && isTratativaExpanded(evento.id) && (
+                              <div className="mt-3 p-3 bg-gray-50 rounded-md border border-gray-200">
                                 <div className="flex items-center justify-between mb-2">
                                   <p className="text-sm font-medium text-gray-700">Parecer / Tratativa:</p>
                                   {evento.location === "Prospecção" && (
@@ -2174,11 +2401,11 @@ const AgendaPage = () => {
                               size="sm"
                               onClick={() => handleAbrirParecerDialog(evento.id)}
                               className="h-8 w-8 p-0 hover:bg-gray-100 group relative"
-                              title="Adicionar parecer"
+                              title={evento.tratativa && evento.tratativa.trim() !== '' ? "Editar parecer" : "Adicionar parecer"}
                             >
-                              <MessageSquare className="h-4 w-4" />
+                              <MessageSquare className={`h-4 w-4 ${evento.tratativa && evento.tratativa.trim() !== '' ? 'text-green-600' : 'text-gray-500'}`} />
                               <span className="absolute left-auto right-full mr-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                Adicionar parecer
+                                {evento.tratativa && evento.tratativa.trim() !== '' ? "Editar parecer" : "Adicionar parecer"}
                               </span>
                             </Button>
                             <Button 
@@ -2479,17 +2706,50 @@ const AgendaPage = () => {
                     ? "Informações adicionais sobre a prospecção (opcional):" 
                     : "Parecer / Tratativa:"}
                 </Label>
-                <Textarea
-                  id="parecer"
-                  className="min-h-[120px]"
-                  placeholder={
-                    isProspeccaoMode 
-                      ? "Detalhes adicionais sobre as visitas realizadas..."
-                      : "Digite seu parecer ou tratativa sobre este evento..."
-                  }
-                  value={parecerText}
-                  onChange={(e) => setParecerText(e.target.value)}
-                />
+                <div className="relative">
+                  <Textarea
+                    id="parecer"
+                    className="min-h-[120px] resize-none transition-all duration-200 focus:ring-2 focus:ring-bradesco-blue focus:border-bradesco-blue"
+                    placeholder={
+                      isProspeccaoMode 
+                        ? "Detalhes adicionais sobre as visitas realizadas, observações importantes, resultados obtidos..."
+                        : "Digite seu parecer ou tratativa sobre este evento, incluindo resultados, próximos passos e observações relevantes..."
+                    }
+                    value={parecerText}
+                    onChange={(e) => setParecerText(e.target.value)}
+                    style={{
+                      height: 'auto',
+                      minHeight: '120px',
+                      maxHeight: '300px',
+                      overflow: 'auto'
+                    }}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = Math.min(target.scrollHeight, 300) + 'px';
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleSalvarParecer();
+                      }
+                    }}
+                  />
+                  {parecerText && (
+                    <div className="absolute bottom-2 right-2 text-xs text-gray-400 bg-white/80 px-1 rounded">
+                      {parecerText.length} caracteres
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-gray-500 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-green-500 rounded-full"></span>
+                    {isProspeccaoMode 
+                      ? "Adicione informações que possam ajudar em futuras ações de prospecção" 
+                      : "Registre detalhes importantes sobre a visita para acompanhamento futuro"}
+                  </p>
+
+                </div>
               </div>
             </div>
           )}

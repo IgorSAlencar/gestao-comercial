@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/AuthContext";
-import { eventApi, Event, userApi, eventCategoryApi } from "@/services/api";
+import { eventApi, Event, userApi, eventCategoryApi, User } from "@/services/api";
 import { format, isToday, isPast, isFuture, isThisWeek, isThisMonth, addDays, subDays, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
@@ -78,7 +78,12 @@ const AgendaStats: React.FC = () => {
   const [showSupervisoresSemAgenda, setShowSupervisoresSemAgenda] = useState(false);
   const [showSupervisorGrid, setShowSupervisorGrid] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  
+  // Estados para filtros hierárquicos
+  const [selectedGerenteFilter, setSelectedGerenteFilter] = useState<string>("all");
+  const [selectedCoordenadorFilter, setSelectedCoordenadorFilter] = useState<string>("all");
   const [selectedSupervisorFilter, setSelectedSupervisorFilter] = useState<string>("all");
+  
   const EVENTS_PER_PAGE = 5;
 
   // Buscar categorias de eventos da API
@@ -105,9 +110,54 @@ const AgendaStats: React.FC = () => {
     staleTime: 5 * 60 * 1000, // 5 minutos
   });
 
+  // Buscar gerentes (apenas para admin)
+  const { data: gerentes = [], isLoading: isLoadingGerentes } = useQuery({
+    queryKey: ['gerentes-stats'],
+    queryFn: async () => {
+      if (isAdmin) {
+        try {
+          return await userApi.getUsersByRole("gerente");
+        } catch (error) {
+          console.error("Erro ao buscar gerentes:", error);
+          return [];
+        }
+      }
+      return [];
+    },
+    enabled: isAdmin,
+  });
+
+  // Buscar coordenadores (baseado no gerente selecionado)
+  const { data: coordenadores = [], isLoading: isLoadingCoordenadores } = useQuery({
+    queryKey: ['coordenadores-stats', selectedGerenteFilter],
+    queryFn: async () => {
+      if (isAdmin && selectedGerenteFilter !== "all") {
+        try {
+          const subordinados = await userApi.getSubordinates(selectedGerenteFilter);
+          return subordinados.filter(user => user.role === "coordenador");
+        } catch (error) {
+          console.error("Erro ao buscar coordenadores:", error);
+          return [];
+        }
+      } else if (isAdmin && selectedGerenteFilter === "all") {
+        try {
+          return await userApi.getUsersByRole("coordenador");
+        } catch (error) {
+          console.error("Erro ao buscar coordenadores:", error);
+          return [];
+        }
+      } else if (isCoordinator) {
+        // Se o usuário for coordenador, não precisa buscar outros coordenadores
+        return [];
+      }
+      return [];
+    },
+    enabled: isAdmin || isCoordinator,
+  });
+
   // Buscar supervisores para a estatística
   const { data: supervisors = [], isLoading: isLoadingSupervisors } = useQuery({
-    queryKey: ['supervisors-stats', user?.id],
+    queryKey: ['supervisors-stats', user?.id, selectedGerenteFilter, selectedCoordenadorFilter],
     queryFn: async () => {
       if (isManager || isCoordinator) {
         try {
@@ -120,7 +170,27 @@ const AgendaStats: React.FC = () => {
         }
       } else if (isAdmin) {
         try {
-          return await userApi.getUsersByRole("supervisor");
+          if (selectedCoordenadorFilter !== "all") {
+            // Buscar supervisores do coordenador selecionado
+            const subordinados = await userApi.getSubordinates(selectedCoordenadorFilter);
+            return subordinados.filter(user => user.role === "supervisor");
+          } else if (selectedGerenteFilter !== "all") {
+            // Buscar todos os supervisores do gerente selecionado
+            const coordenadores = await userApi.getSubordinates(selectedGerenteFilter);
+            const coordenadoresIds = coordenadores
+              .filter(user => user.role === "coordenador")
+              .map(user => user.id);
+            
+            const supervisoresList: User[] = [];
+            for (const coordenadorId of coordenadoresIds) {
+              const supervisoresDoCoord = await userApi.getSubordinates(coordenadorId);
+              supervisoresList.push(...supervisoresDoCoord.filter(user => user.role === "supervisor"));
+            }
+            return supervisoresList;
+          } else {
+            // Buscar todos os supervisores
+            return await userApi.getUsersByRole("supervisor");
+          }
         } catch (error) {
           console.error("Erro ao buscar supervisores:", error);
           return [];
@@ -130,6 +200,20 @@ const AgendaStats: React.FC = () => {
     },
     enabled: !!(user?.id && (isManager || isCoordinator || isAdmin)),
   });
+
+  // Resetar filtros subordinados quando filtro superior muda
+  useEffect(() => {
+    if (selectedGerenteFilter === "all") {
+      setSelectedCoordenadorFilter("all");
+      setSelectedSupervisorFilter("all");
+    }
+  }, [selectedGerenteFilter]);
+
+  useEffect(() => {
+    if (selectedCoordenadorFilter === "all") {
+      setSelectedSupervisorFilter("all");
+    }
+  }, [selectedCoordenadorFilter]);
 
   // Buscar eventos para o cálculo das estatísticas
   const { data: events = [], isLoading: isLoadingEvents, isError: isErrorEvents } = useQuery({
@@ -157,10 +241,10 @@ const AgendaStats: React.FC = () => {
     retry: 1,
   });
 
-  // Reset da página quando os eventos mudam ou filtro muda
+  // Reset da página quando os eventos mudam ou filtros mudam
   useEffect(() => {
     setCurrentPage(0);
-  }, [summary.proximosAgendamentos.length, selectedSupervisorFilter]);
+  }, [summary.proximosAgendamentos.length, selectedSupervisorFilter, selectedCoordenadorFilter, selectedGerenteFilter]);
 
   // Calcular estatísticas quando os dados estiverem disponíveis
   useEffect(() => {
@@ -372,13 +456,37 @@ const AgendaStats: React.FC = () => {
   // Verificar se está carregando
   const isLoading = isLoadingSupervisors || isLoadingEvents;
 
-  // Filtrar eventos da semana baseado no supervisor selecionado
+  // Filtrar eventos da semana baseado nos filtros hierárquicos
   const filteredProximosAgendamentos = React.useMemo(() => {
-    if (selectedSupervisorFilter === "all") {
-      return summary.proximosAgendamentos;
+    let eventos = summary.proximosAgendamentos;
+
+    // Se há filtro específico de supervisor, usar apenas ele
+    if (selectedSupervisorFilter !== "all") {
+      return eventos.filter(evento => evento.supervisorId === selectedSupervisorFilter);
     }
-    return summary.proximosAgendamentos.filter(evento => evento.supervisorId === selectedSupervisorFilter);
-  }, [summary.proximosAgendamentos, selectedSupervisorFilter]);
+
+    // Para admin, aplicar filtros hierárquicos se não há supervisor específico
+    if (isAdmin) {
+      // Se há coordenador selecionado, pegar eventos de todos seus supervisores
+      if (selectedCoordenadorFilter !== "all") {
+        const supervisoresDoCoord = supervisors.map(s => s.id);
+        return eventos.filter(evento => 
+          evento.supervisorId && supervisoresDoCoord.includes(evento.supervisorId)
+        );
+      }
+      
+      // Se há gerente selecionado, pegar eventos de todos supervisores do gerente
+      if (selectedGerenteFilter !== "all") {
+        const supervisoresDoGerente = supervisors.map(s => s.id);
+        return eventos.filter(evento => 
+          evento.supervisorId && supervisoresDoGerente.includes(evento.supervisorId)
+        );
+      }
+    }
+
+    // Caso padrão: retornar todos os eventos
+    return eventos;
+  }, [summary.proximosAgendamentos, selectedSupervisorFilter, selectedCoordenadorFilter, selectedGerenteFilter, supervisors, isAdmin]);
 
   // Organizar eventos por supervisor
   const eventosPorSupervisor = React.useMemo(() => {
@@ -787,15 +895,63 @@ const AgendaStats: React.FC = () => {
               Eventos agendados para esta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
             </CardDescription>
             <div className="flex items-center justify-between mt-2">
-              {/* Filtro por supervisor */}
-              <div className="flex items-center gap-2">
+              {/* Filtros hierárquicos */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <Filter className="h-4 w-4 text-gray-500" />
+                
+                {/* Filtro de Gerente (apenas para Admin) */}
+                {isAdmin && (
+                  <Select value={selectedGerenteFilter} onValueChange={setSelectedGerenteFilter}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue placeholder="Gerente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os gerentes</SelectItem>
+                      {gerentes.map(gerente => (
+                        <SelectItem key={gerente.id} value={gerente.id}>
+                          {gerente.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Filtro de Coordenador (apenas para Admin) */}
+                {isAdmin && (
+                  <Select value={selectedCoordenadorFilter} onValueChange={setSelectedCoordenadorFilter}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue placeholder="Coordenador..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {selectedGerenteFilter === "all" ? "Todos os coordenadores" : "Coordenadores do gerente"}
+                      </SelectItem>
+                      {coordenadores.map(coordenador => (
+                        <SelectItem key={coordenador.id} value={coordenador.id}>
+                          {coordenador.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Filtro de Supervisor */}
                 <Select value={selectedSupervisorFilter} onValueChange={setSelectedSupervisorFilter}>
                   <SelectTrigger className="w-40 h-8 text-xs">
-                    <SelectValue placeholder="Filtrar por..." />
+                    <SelectValue placeholder="Supervisor..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os supervisores</SelectItem>
+                    <SelectItem value="all">
+                      {isAdmin 
+                        ? (selectedCoordenadorFilter !== "all" 
+                            ? "Supervisores do coordenador"
+                            : selectedGerenteFilter !== "all" 
+                              ? "Supervisores do gerente"
+                              : "Todos os supervisores"
+                          )
+                        : "Todos os supervisores"
+                      }
+                    </SelectItem>
                     {supervisors.map(supervisor => (
                       <SelectItem key={supervisor.id} value={supervisor.id}>
                         {supervisor.name}
@@ -900,10 +1056,24 @@ const AgendaStats: React.FC = () => {
               </div>
             ) : (
               <div className="text-center py-6 text-gray-500">
-                {selectedSupervisorFilter === "all" 
-                  ? "Não há agendamentos para esta semana"
-                  : `Não há agendamentos para ${supervisors.find(s => s.id === selectedSupervisorFilter)?.name || "este supervisor"} nesta semana`
-                }
+                {(() => {
+                  if (selectedSupervisorFilter !== "all") {
+                    const supervisor = supervisors.find(s => s.id === selectedSupervisorFilter);
+                    return `Não há agendamentos para ${supervisor?.name || "este supervisor"} nesta semana`;
+                  }
+                  
+                  if (isAdmin && selectedCoordenadorFilter !== "all") {
+                    const coordenador = coordenadores.find(c => c.id === selectedCoordenadorFilter);
+                    return `Não há agendamentos para a equipe de ${coordenador?.name || "este coordenador"} nesta semana`;
+                  }
+                  
+                  if (isAdmin && selectedGerenteFilter !== "all") {
+                    const gerente = gerentes.find(g => g.id === selectedGerenteFilter);
+                    return `Não há agendamentos para a equipe de ${gerente?.name || "este gerente"} nesta semana`;
+                  }
+                  
+                  return "Não há agendamentos para esta semana";
+                })()}
               </div>
             )}
             
