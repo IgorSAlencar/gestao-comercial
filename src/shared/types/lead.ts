@@ -37,6 +37,8 @@ export interface DadosLoja {
   dataBloqueio?: Date;
   dataInauguracao: Date;
   agencia: string;
+  codAgRelacionamento: string;
+  agRelacionamento: string;
   telefoneLoja: string;
   nomeContato: string;
   gerenciaRegional: string;

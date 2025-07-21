@@ -185,7 +185,7 @@ app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {
-  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.0.11' : config.server.host}:${PORT}`;
+  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.0.13' : config.server.host}:${PORT}`;
   console.log(`Server running on port ${PORT}`);
   console.log(`Server accessible at ${serverUrl}`);
 }); 

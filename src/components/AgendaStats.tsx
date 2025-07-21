@@ -18,7 +18,10 @@ import {
   PieChart,
   X,
   ChevronLeft,
-  Filter
+  Filter,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/context/AuthContext";
@@ -83,6 +86,9 @@ const AgendaStats: React.FC = () => {
   const [selectedGerenteFilter, setSelectedGerenteFilter] = useState<string>("all");
   const [selectedCoordenadorFilter, setSelectedCoordenadorFilter] = useState<string>("all");
   const [selectedSupervisorFilter, setSelectedSupervisorFilter] = useState<string>("all");
+  
+  // Estado para controlar a expansão das descrições dos eventos
+  const [expandedDescricoes, setExpandedDescricoes] = useState<Set<string>>(new Set());
   
   const EVENTS_PER_PAGE = 5;
 
@@ -514,9 +520,27 @@ const AgendaStats: React.FC = () => {
     }
   };
 
-  // Função para navegar para o relatório de um supervisor
-  const handleViewRelatorio = (supervisorId: string) => {
-    navigate(`/relatorios?supervisor=${supervisorId}`);
+  // Funções para controlar a expansão das descrições
+  const toggleDescricaoExpansion = (eventId: string) => {
+    setExpandedDescricoes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
+  const isDescricaoExpanded = (eventId: string) => {
+    return expandedDescricoes.has(eventId);
+  };
+
+  // Função para truncar texto
+  const truncateText = (text: string, maxLength: number = 80) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
   };
 
   return (
@@ -894,23 +918,32 @@ const AgendaStats: React.FC = () => {
             <CardDescription>
               Eventos agendados para esta semana ({format(startOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})} - {format(endOfWeek(new Date(), {weekStartsOn: 1}), "dd/MM", {locale: ptBR})})
             </CardDescription>
-            <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center justify-between mt-4">
               {/* Filtros hierárquicos */}
               <div className="flex items-center gap-2 flex-wrap">
-                <Filter className="h-4 w-4 text-gray-500" />
+                {(selectedGerenteFilter !== "all" || selectedCoordenadorFilter !== "all" || selectedSupervisorFilter !== "all") ? (
+                  <X 
+                    className="h-4 w-4 text-red-600 hover:text-red-700 cursor-pointer" 
+                    onClick={() => {
+                      setSelectedGerenteFilter("all");
+                      setSelectedCoordenadorFilter("all");
+                      setSelectedSupervisorFilter("all");
+                    }}
+                  />
+                ) : (
+                  <Filter className="h-4 w-4 text-gray-500" />
+                )}
                 
                 {/* Filtro de Gerente (apenas para Admin) */}
                 {isAdmin && (
                   <Select value={selectedGerenteFilter} onValueChange={setSelectedGerenteFilter}>
                     <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue placeholder="Gerente..." />
+                      <SelectValue placeholder="Gerente..."/>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os gerentes</SelectItem>
+                      <SelectItem value="all">Gerente</SelectItem>
                       {gerentes.map(gerente => (
-                        <SelectItem key={gerente.id} value={gerente.id}>
-                          {gerente.name}
-                        </SelectItem>
+                        <SelectItem key={gerente.id} value={gerente.id}>{gerente.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -920,16 +953,12 @@ const AgendaStats: React.FC = () => {
                 {isAdmin && (
                   <Select value={selectedCoordenadorFilter} onValueChange={setSelectedCoordenadorFilter}>
                     <SelectTrigger className="w-40 h-8 text-xs">
-                      <SelectValue placeholder="Coordenador..." />
+                      <SelectValue placeholder="Coordenador..."/>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">
-                        {selectedGerenteFilter === "all" ? "Todos os coordenadores" : "Coordenadores do gerente"}
-                      </SelectItem>
+                      <SelectItem value="all">{selectedGerenteFilter === "all" ? "Coordenador" : "Coordenador"}</SelectItem>
                       {coordenadores.map(coordenador => (
-                        <SelectItem key={coordenador.id} value={coordenador.id}>
-                          {coordenador.name}
-                        </SelectItem>
+                        <SelectItem key={coordenador.id} value={coordenador.id}>{coordenador.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -938,24 +967,18 @@ const AgendaStats: React.FC = () => {
                 {/* Filtro de Supervisor */}
                 <Select value={selectedSupervisorFilter} onValueChange={setSelectedSupervisorFilter}>
                   <SelectTrigger className="w-40 h-8 text-xs">
-                    <SelectValue placeholder="Supervisor..." />
+                    <SelectValue placeholder="Supervisor..."/>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">
-                      {isAdmin 
-                        ? (selectedCoordenadorFilter !== "all" 
-                            ? "Supervisores do coordenador"
-                            : selectedGerenteFilter !== "all" 
-                              ? "Supervisores do gerente"
-                              : "Todos os supervisores"
-                          )
-                        : "Todos os supervisores"
-                      }
-                    </SelectItem>
+                    <SelectItem value="all">{isAdmin 
+                      ? (selectedCoordenadorFilter !== "all" 
+                          ? "Gerente Comercial"
+                          : selectedGerenteFilter !== "all" 
+                            ? "Gerente Comercial"
+                            : "Gerente Comercial")
+                      : "Gerente Comercial"}</SelectItem>
                     {supervisors.map(supervisor => (
-                      <SelectItem key={supervisor.id} value={supervisor.id}>
-                        {supervisor.name}
-                      </SelectItem>
+                      <SelectItem key={supervisor.id} value={supervisor.id}>{supervisor.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -989,13 +1012,13 @@ const AgendaStats: React.FC = () => {
                   </div>
                 </div>
               )}
-                          </div>
-            </CardHeader>
-            
-            {/* Linha divisória para separar filtros do conteúdo */}
-            <div className="border-t border-gray-100 mx-6"></div>
-            
-            <CardContent className="pb-4 pt-4">
+            </div>
+          </CardHeader>
+          
+          {/* Linha divisória para separar filtros do conteúdo */}
+          <div className="border-t border-gray-100 mx-6"></div>
+          
+          <CardContent className="pb-4 pt-4">
             {isLoading ? (
               <div className="space-y-4 min-h-[120px]">
                 {[1, 2, 3].map(i => (
@@ -1037,7 +1060,7 @@ const AgendaStats: React.FC = () => {
                       </div>
                     </div>
                     {/* Badge de categoria com largura completa */}
-                    <div className="flex">
+                    <div className="flex justify-between items-center">
                       <span className={`text-xs px-2 py-1 rounded-full inline-block font-medium ${
                         eventCategories.find(c => c.name === evento.location)
                           ? eventCategories.findIndex(c => c.name === evento.location) % 6 === 0 ? "bg-blue-100 text-blue-800" :
@@ -1050,7 +1073,48 @@ const AgendaStats: React.FC = () => {
                       }`}>
                         {evento.location || "Evento"}
                       </span>
+                      
+                      {/* Botão para mostrar descrição */}
+                      {evento.other_description && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleDescricaoExpansion(evento.id)}
+                          className="h-6 w-6 p-0 hover:bg-gray-100 ml-2"
+                          title={isDescricaoExpanded(evento.id) ? "Ocultar descrição" : "Ver descrição"}
+                        >
+                          <MessageSquare className="h-3 w-3 text-gray-500" />
+                        </Button>
+                      )}
                     </div>
+                    
+                    {/* Descrição do evento - só aparece quando expandida */}
+                    {evento.other_description && isDescricaoExpanded(evento.id) && (
+                      <div className="mt-2">
+                        <div className="border-t border-gray-100 pt-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1">
+                              <MessageSquare className="h-3 w-3 text-gray-500" />
+                              <span className="text-xs font-medium text-gray-600">Descrição:</span>
+                            </div>
+                            {evento.other_description.length > 80 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => toggleDescricaoExpansion(evento.id)}
+                                className="h-5 w-5 p-0 hover:bg-gray-100"
+                                title="Ocultar descrição"
+                              >
+                                <ChevronUp className="h-2.5 w-2.5 text-gray-500" />
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-600 leading-relaxed">
+                            {evento.other_description}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1092,8 +1156,6 @@ const AgendaStats: React.FC = () => {
         </Card>
       </div>
 
-
-
       {/* Modal de Supervisores */}
       <SupervisorGridDialog 
         open={showSupervisorGrid}
@@ -1101,7 +1163,6 @@ const AgendaStats: React.FC = () => {
         supervisores={supervisors}
         eventos={eventosPorSupervisor}
         onViewAgenda={handleViewAgenda}
-        onViewRelatorio={handleViewRelatorio}
       />
     </div>
   );

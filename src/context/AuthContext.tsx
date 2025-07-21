@@ -176,6 +176,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { user: userData, token: authToken } = await authApi.login(funcional, password);
       
+      console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
+      
       setUser(userData);
       setToken(authToken);
       

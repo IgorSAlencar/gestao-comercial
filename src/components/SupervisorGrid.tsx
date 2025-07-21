@@ -6,12 +6,12 @@ import { isPast, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-f
 import {
   User as UserIcon,
   Users,
-  FileText,
   CalendarDays,
   Calendar,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Table
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
@@ -19,14 +19,12 @@ interface SupervisorGridProps {
   supervisores: User[];
   eventos: Record<string, Event[]>;
   onViewAgenda: (id: string) => void;
-  onViewRelatorio: (id: string) => void;
 }
 
 const SupervisorGrid: React.FC<SupervisorGridProps> = ({ 
   supervisores, 
   eventos, 
-  onViewAgenda, 
-  onViewRelatorio 
+  onViewAgenda
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
@@ -57,7 +55,7 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
             onClick={() => setViewMode('table')}
             className="h-8"
           >
-            <FileText className="h-4 w-4" />
+            <Table className="h-4 w-4" />
             <span className="ml-1">Tabela</span>
           </Button>
         </div>
@@ -185,22 +183,14 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
                   </div>
 
                   {/* Botões de ação */}
-                  <div className="flex gap-3">
+                  <div className="flex">
                     <Button 
                       variant="outline" 
                       onClick={() => onViewAgenda(supervisor.id)}
-                      className="flex-1 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-blue-50 border-blue-200"
+                      className="w-full bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-blue-50 border-blue-200"
                     >
                       <CalendarDays className="h-4 w-4 mr-2 text-blue-600" />
                       Agenda
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => onViewRelatorio(supervisor.id)}
-                      className="flex-1 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 border-gray-200"
-                    >
-                      <FileText className="h-4 w-4 mr-2 text-gray-600" />
-                      Relatório
                     </Button>
                   </div>
                 </div>
@@ -334,15 +324,6 @@ const SupervisorGrid: React.FC<SupervisorGridProps> = ({
                           title="Ver Agenda"
                         >
                           <CalendarDays className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => onViewRelatorio(supervisor.id)}
-                          className="h-8 w-8 p-0"
-                          title="Ver Relatório"
-                        >
-                          <FileText className="h-4 w-4" />
                         </Button>
                       </div>
                     </td>

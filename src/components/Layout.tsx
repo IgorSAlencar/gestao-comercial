@@ -41,7 +41,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: BarChart3,
       label: "Estratégia Comercial",
       href: "/estrategia-comercial",
-      roles: ["gerente", "coordenador", "admin"],
+      roles: ["supervisor", "gerente", "coordenador", "admin"],
     },
     {
       icon: Flame,

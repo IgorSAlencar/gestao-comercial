@@ -16,7 +16,7 @@ router.post('/login', async (req, res) => {
     const result = await pool.request()
       .input('funcional', sql.NVarChar, funcional)
       .input('password', sql.NVarChar, password)
-      .query('SELECT id, name, funcional, role, email FROM teste..users WHERE funcional = @funcional AND password = @password');
+      .query('SELECT id, name, funcional, role, email, chave FROM teste..users WHERE funcional = @funcional AND password = @password');
     
     if (result.recordset.length === 0) {
       // Log tentativa falha de login
@@ -66,7 +66,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         role: user.role,
         funcional: user.funcional,
-        email: user.email
+        email: user.email,
+        chave: user.chave
       },
       token
     });

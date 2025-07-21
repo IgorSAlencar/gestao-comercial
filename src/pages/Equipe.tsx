@@ -417,11 +417,6 @@ const Equipe: React.FC = () => {
     }
   };
 
-  // Função para navegar para o relatório
-  const navigateToRelatorio = (supervisorId: string) => {
-    navigate(`/relatorios?supervisor=${supervisorId}`);
-  };
-
   // Verificar permissão para acessar esta página
   if (!user || (user.role !== "gerente" && user.role !== "coordenador" && user.role !== "admin")) {
     return (
@@ -657,7 +652,6 @@ const Equipe: React.FC = () => {
                             supervisores={subordinatesMap[coordenador.id] || []}
                             eventos={eventosPorUsuario}
                             onViewAgenda={navigateToAgenda}
-                            onViewRelatorio={navigateToRelatorio}
                           />
                         )
                       )}
@@ -671,7 +665,6 @@ const Equipe: React.FC = () => {
                     supervisores={secondLevelUsers}
                     eventos={eventosPorUsuario}
                     onViewAgenda={navigateToAgenda}
-                    onViewRelatorio={navigateToRelatorio}
                   />
                 )}
               </div>
