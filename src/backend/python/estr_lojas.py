@@ -111,8 +111,44 @@ try:
     status_tablet_opcoes = ['RETIRADO', 'S/ TABLET', 'INSTALADO']
     tipo_posto_opcoes = ['TRADICIONAL']
     quadrantes = ['PRESENÇA', 'PA', 'AGÊNCIA']
-    situacoes = ['ATIVA', 'ENCERRADO', 'INOPERANTE', 'BLOQUEADO']
+    situacoes = ['ATIVA', 'BLOQUEADO', 'EM PROCESSO DE ENCERRAMENTO']
     
+    # Municípios e UFs para diversificar os dados
+    municipios_uf = [
+        # São Paulo
+        ('São Paulo', 'SP'), ('Campinas', 'SP'), ('Santos', 'SP'), ('Sorocaba', 'SP'), 
+        ('Ribeirão Preto', 'SP'), ('Osasco', 'SP'), ('Santo André', 'SP'), ('São Bernardo do Campo', 'SP'),
+        ('Guarulhos', 'SP'), ('Piracicaba', 'SP'), ('Jundiaí', 'SP'), ('Bauru', 'SP'),
+        
+        # Rio de Janeiro  
+        ('Rio de Janeiro', 'RJ'), ('Niterói', 'RJ'), ('Nova Iguaçu', 'RJ'), ('Duque de Caxias', 'RJ'),
+        ('Petrópolis', 'RJ'), ('Volta Redonda', 'RJ'), ('Campos dos Goytacazes', 'RJ'), ('Belford Roxo', 'RJ'),
+        
+        # Minas Gerais
+        ('Belo Horizonte', 'MG'), ('Uberlândia', 'MG'), ('Contagem', 'MG'), ('Juiz de Fora', 'MG'),
+        ('Betim', 'MG'), ('Montes Claros', 'MG'), ('Uberaba', 'MG'), ('Governador Valadares', 'MG'),
+        
+        # Bahia
+        ('Salvador', 'BA'), ('Feira de Santana', 'BA'), ('Vitória da Conquista', 'BA'), ('Camaçari', 'BA'),
+        ('Juazeiro', 'BA'), ('Lauro de Freitas', 'BA'), ('Ilhéus', 'BA'), ('Itabuna', 'BA'),
+        
+        # Paraná
+        ('Curitiba', 'PR'), ('Londrina', 'PR'), ('Maringá', 'PR'), ('Ponta Grossa', 'PR'),
+        ('Cascavel', 'PR'), ('São José dos Pinhais', 'PR'), ('Foz do Iguaçu', 'PR'), ('Colombo', 'PR'),
+        
+        # Rio Grande do Sul
+        ('Porto Alegre', 'RS'), ('Caxias do Sul', 'RS'), ('Pelotas', 'RS'), ('Canoas', 'RS'),
+        ('Santa Maria', 'RS'), ('Gravataí', 'RS'), ('Viamão', 'RS'), ('Novo Hamburgo', 'RS'),
+        
+        # Ceará
+        ('Fortaleza', 'CE'), ('Caucaia', 'CE'), ('Juazeiro do Norte', 'CE'), ('Maracanaú', 'CE'),
+        ('Sobral', 'CE'), ('Crato', 'CE'), ('Itapipoca', 'CE'), ('Maranguape', 'CE'),
+        
+        # Pernambuco
+        ('Recife', 'PE'), ('Jaboatão dos Guararapes', 'PE'), ('Olinda', 'PE'), ('Caruaru', 'PE'),
+        ('Petrolina', 'PE'), ('Paulista', 'PE'), ('Cabo de Santo Agostinho', 'PE'), ('Garanhuns', 'PE')
+    ]
+
     # Estrutura hierárquica organizacional consistente
     hierarquia_organizacional = {
         # Diretoria SP INTERIOR
@@ -249,6 +285,9 @@ try:
         supervisao_chave = hierarquia['supervisao_chave']
         supervisao_desc = hierarquia['supervisao_desc']
         
+        # Selecionar município e UF aleatório
+        municipio, uf = random.choice(municipios_uf)
+        
         dados.append((
             chave,
             fake.cnpj(),
@@ -278,8 +317,8 @@ try:
             1 if random.random() < 0.5 else 0,
             fake.address().replace("\n", " "),
             4100707,
-            'ALTO DO PIQUIRI',
-            'PR',
+            municipio,
+            uf,
             random.choice(quadrantes),
             cod_mult,
             fake.name(),

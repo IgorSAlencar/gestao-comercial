@@ -10,6 +10,7 @@ export interface User {
   role: "supervisor" | "coordenador" | "gerente" | "admin";
   email?: string;
   funcional: string;
+  chave?: number;
 }
 
 export interface Event {

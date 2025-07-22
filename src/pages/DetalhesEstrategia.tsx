@@ -60,6 +60,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Carlos Oliveira",
         dataCertificacao: new Date("2022-10-05"),
         situacaoTablet: "Instalado",
+        municipio: "São Paulo",
+        uf: "SP",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -91,6 +93,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Ana Pereira",
         dataCertificacao: new Date("2022-09-15"),
         situacaoTablet: "Instalado",
+        municipio: "São Paulo",
+        uf: "SP",
         produtosHabilitados: {
           consignado: true,
           microsseguro: false,
@@ -153,6 +157,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Paulo Mendes",
         dataCertificacao: new Date("2021-05-10"),
         situacaoTablet: "Instalado",
+        municipio: "Rio de Janeiro",
+        uf: "RJ",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -184,6 +190,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Marcos Vieira",
         dataCertificacao: new Date("2020-11-05"),
         situacaoTablet: "S.Tablet",
+        municipio: "Salvador",
+        uf: "BA",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -221,6 +229,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Carlos Oliveira",
         dataCertificacao: new Date("2022-10-05"),
         situacaoTablet: "Instalado",
+        municipio: "São Paulo",
+        uf: "SP",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -283,6 +293,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Roberto Costa",
         dataCertificacao: new Date("2022-11-20"),
         situacaoTablet: "Instalado",
+        municipio: "Campinas",
+        uf: "SP",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -315,6 +327,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Paulo Mendes",
         dataCertificacao: new Date("2021-05-10"),
         situacaoTablet: "Retirado",
+        municipio: "Rio de Janeiro",
+        uf: "RJ",
         produtosHabilitados: {
           consignado: false,
           microsseguro: false,
@@ -378,6 +392,8 @@ const dadosSimulados: Record<string, DadosEstrategia> = {
         multiplicadorResponsavel: "Camila Rocha",
         dataCertificacao: new Date("2022-07-15"),
         situacaoTablet: "Instalado",
+        municipio: "Belo Horizonte",
+        uf: "MG",
         produtosHabilitados: {
           consignado: true,
           microsseguro: true,
@@ -586,10 +602,12 @@ const DetalhesEstrategia: React.FC = () => {
       cnpj: "",
       nomeLoja: "",
       situacao: [],
-      agencia: "",
+      agencia: [],
       gerenciaRegional: [],
       diretoriaRegional: [],
-      tendencia: []
+      tendencia: [],
+      municipio: [],
+      uf: []
     }
   });
 
@@ -668,8 +686,8 @@ Entre em contato com o administrador se o problema persistir.`;
         titulo: getTituloEstrategia(produto),
         visaoGeral: getVisaoGeralEstrategia(produto),
         dadosAnaliticos: response.dadosAnaliticos || []
-      };
-      
+        };
+        
       setDados(estrategiaData);
       setDadosFiltrados(response.dadosAnaliticos || []);
       setConnectionStatus('connected');
@@ -753,9 +771,14 @@ Verifique:
 
       // Filtros de array
       if (values.situacao.length > 0 && !values.situacao.includes(loja.situacao)) return false;
+      if (Array.isArray(values.agencia) && values.agencia.length > 0 && !values.agencia.some(ag => 
+        loja.codAgRelacionamento.includes(ag) || loja.agRelacionamento.toLowerCase().includes(ag.toLowerCase())
+      )) return false;
       if (values.gerenciaRegional.length > 0 && !values.gerenciaRegional.includes(loja.gerenciaRegional)) return false;
       if (values.diretoriaRegional.length > 0 && !values.diretoriaRegional.includes(loja.diretoriaRegional)) return false;
       if (values.tendencia.length > 0 && !values.tendencia.includes(loja.tendencia)) return false;
+      if (Array.isArray(values.municipio) && values.municipio.length > 0 && !values.municipio.includes(loja.municipio || "")) return false;
+      if (Array.isArray(values.uf) && values.uf.length > 0 && !values.uf.includes(loja.uf || "")) return false;
       
       return true;
     });
@@ -770,10 +793,12 @@ Verifique:
       cnpj: "",
       nomeLoja: "",
       situacao: [],
-      agencia: "",
+      agencia: [],
       gerenciaRegional: [],
       diretoriaRegional: [],
-      tendencia: []
+      tendencia: [],
+      municipio: [],
+      uf: []
     });
     if (dados?.dadosAnaliticos) {
       setDadosFiltrados(dados.dadosAnaliticos);
@@ -808,14 +833,16 @@ Verifique:
       'Chave Loja': loja.chaveLoja,
       'CNPJ': loja.cnpj,
       'Nome Loja': loja.nomeLoja,
-      'Agência': loja.agencia,
+      'Agência': `${loja.codAgRelacionamento} - ${loja.agRelacionamento}`,
+      'Município': loja.municipio,
+      'UF': loja.uf,
       [mesesFormatados.M3]: loja.mesM3,
       [mesesFormatados.M2]: loja.mesM2,
       [mesesFormatados.M1]: loja.mesM1,
       [mesesFormatados.M0]: loja.mesM0,
       'Situação': loja.situacao,
-      'Últ. Contábil': formatDate(loja.dataUltTrxContabil),
-      'Últ. Negócio': formatDate(loja.dataUltTrxNegocio),
+      'Últ. Abertura de Conta': formatDate(loja.dataUltTrxContabil),
+      'Últ. Transação': formatDate(loja.dataUltTrxNegocio),
       'Tendência': loja.tendencia,
       'Gerência Regional': loja.gerenciaRegional,
       'Diretoria Regional': loja.diretoriaRegional
@@ -958,8 +985,8 @@ Verifique:
           <Button 
             variant="outline" 
             className={cn(
-              "justify-start text-left font-normal",
-              values?.length > 0 && "border-primary/50"
+              "justify-start text-left font-normal min-w-[140px] max-w-[200px]",
+              values?.length > 0 && "border-primary/50 bg-primary/5"
             )}
           >
             <span className="truncate">
@@ -969,11 +996,16 @@ Verifique:
             </span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[200px] p-0" align="start">
+        <PopoverContent className="w-[280px] p-0" align="start">
           <Command>
             <CommandInput placeholder={`Buscar ${title.toLowerCase()}...`} />
             <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
-            <CommandGroup>
+            <CommandGroup className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
+              {options.length > 10 && (
+                <div className="px-2 py-1.5 text-xs text-gray-500 bg-gray-50 border-b">
+                  {options.length} opções disponíveis • Use scroll para ver mais
+                </div>
+              )}
               {options.map((option: any) => {
                 const value = option[valueKey] || option;
                 const label = option[labelKey] || option;
@@ -988,6 +1020,7 @@ Verifique:
                       form.setValue(name, newValues);
                       aplicarFiltros(form.getValues());
                     }}
+                    className="cursor-pointer hover:bg-gray-50"
                   >
                     <div className={cn(
                       "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
@@ -995,11 +1028,16 @@ Verifique:
                     )}>
                       {values?.includes(value) && "✓"}
                     </div>
-                    {label}
+                    <span className="truncate">{label}</span>
                   </CommandItem>
                 );
               })}
             </CommandGroup>
+            {options.length > 10 && (
+              <div className="px-2 py-1.5 text-xs text-gray-400 bg-gray-50 border-t flex items-center justify-center">
+                <span>↕️ Use scroll para navegar</span>
+              </div>
+            )}
           </Command>
         </PopoverContent>
       </Popover>
@@ -1058,378 +1096,413 @@ Verifique:
                 cnpj: "",
                 nomeLoja: "",
                 situacao: [],
-                agencia: "",
+                agencia: [],
                 gerenciaRegional: [],
                 diretoriaRegional: [],
-                tendencia: []
+                tendencia: [],
+                municipio: [],
+                uf: []
               });
             }}
           />
 
-          <Tabs defaultValue="oportunidades">
-            <TabsList className="mb-4">
-              <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
-              <TabsTrigger value="acoes">Correspondentes Marcados</TabsTrigger>
-              {isManager && <TabsTrigger value="gerencial">Visão Gerencial</TabsTrigger>}
-            </TabsList>
+        <Tabs defaultValue="oportunidades">
+          <TabsList className="mb-4">
+            <TabsTrigger value="oportunidades">Oportunidades</TabsTrigger>
+            <TabsTrigger value="acoes">Correspondentes Marcados</TabsTrigger>
+            {isManager && <TabsTrigger value="gerencial">Visão Gerencial</TabsTrigger>}
+          </TabsList>
 
-            <TabsContent value="oportunidades">
-              {(produto === "abertura-conta" || produto === "credito" || produto === "seguro") && dados.dadosAnaliticos ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Quadro Analítico de Oportunidades</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="mb-6 bg-gray-50 rounded-lg p-4">
-                      <Form {...form}>
-                        <form onSubmit={form.handleSubmit(handleFilter)} className="space-y-4">
-                          <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
-                              <Search size={16} />
-                              Filtrar lojas
-                            </h3>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={exportarParaExcel}
-                              className="flex items-center gap-2"
-                            >
-                              <Download size={16} />
-                              Exportar Excel
-                            </Button>
-                          </div>
+          <TabsContent value="oportunidades">
+            {(produto === "abertura-conta" || produto === "credito" || produto === "seguro") && dados.dadosAnaliticos ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quadro Analítico de Oportunidades</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-6 bg-gray-50 rounded-lg p-4">
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(handleFilter)} className="space-y-4">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
+                            <Search size={16} />
+                            Filtrar lojas
+                          </h3>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={exportarParaExcel}
+                            className="flex items-center gap-2"
+                          >
+                            <Download size={16} />
+                            Exportar Excel
+                          </Button>
+                        </div>
 
-                            <FormField
-                              control={form.control}
-                            name="nomeLoja"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                  <Input 
-                                    placeholder="Buscar por Chave Loja, CNPJ ou Nome da Loja" 
-                                    {...field}
-                                    onChange={(e) => {
-                                      field.onChange(e);
-                                      aplicarFiltros(form.getValues());
-                                    }}
-                                  />
-                                  </FormControl>
-                                </FormItem>
-                              )}
-                            />
+                          <FormField
+                            control={form.control}
+                          name="nomeLoja"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormControl>
+                                <Input 
+                                  placeholder="Buscar por Chave Loja, CNPJ ou Nome da Loja" 
+                                  {...field}
+                                  onChange={(e) => {
+                                    field.onChange(e);
+                                    aplicarFiltros(form.getValues());
+                                  }}
+                                />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
 
-                          <div className="flex flex-wrap gap-2">
-                            <ComboboxFilter
-                              name="situacao"
-                              title="Situação"
-                              options={situacoes.map(s => ({
-                                value: s,
-                                label: s === "ativa" ? "Ativa" : 
-                                       s === "bloqueada" ? "Bloqueada" : 
-                                       "Em encerramento"
-                              }))}
-                              valueKey="value"
-                              labelKey="label"
-                            />
-                            <ComboboxFilter
-                              name="gerenciaRegional"
-                              title="Gerência Regional"
-                              options={gerenciasRegionais}
-                            />
-                            <ComboboxFilter
-                              name="diretoriaRegional"
-                              title="Diretoria Regional"
-                              options={diretoriasRegionais}
-                            />
-                            <ComboboxFilter
-                              name="tendencia"
-                              title="Tendência"
-                              options={["queda", "atencao", "estavel", "comecando"].map(t => ({
-                                value: t,
-                                label: t === "queda" ? "Queda" :
-                                       t === "atencao" ? "Atenção" :
-                                       t === "estavel" ? "Estável" :
-                                       "Começando"
-                              }))}
-                              valueKey="value"
-                              labelKey="label"
-                            />
-                          </div>
+                        <div className="flex flex-wrap gap-2">
+                          <ComboboxFilter
+                            name="situacao"
+                            title="Situação"
+                            options={situacoes.map(s => ({
+                              value: s,
+                              label: s === "ativa" ? "Ativa" : 
+                                     s === "bloqueada" ? "Bloqueada" : 
+                                     s === "em processo de encerramento" ? "Encerrando" :
+                                     s
+                            }))}
+                            valueKey="value"
+                            labelKey="label"
+                          />
+                          <ComboboxFilter
+                            name="gerenciaRegional"
+                            title="Gerência Regional"
+                            options={gerenciasRegionais}
+                          />
+                          <ComboboxFilter
+                            name="diretoriaRegional"
+                            title="Diretoria Regional"
+                            options={diretoriasRegionais}
+                          />
+                          <ComboboxFilter
+                            name="tendencia"
+                            title="Tendência"
+                            options={["queda", "atencao", "estavel", "comecando"].map(t => ({
+                              value: t,
+                              label: t === "queda" ? "Queda" :
+                                     t === "atencao" ? "Atenção" :
+                                     t === "estavel" ? "Estável" :
+                                     "Começando"
+                            }))}
+                            valueKey="value"
+                            labelKey="label"
+                          />
+                          <ComboboxFilter
+                            name="agencia"
+                            title="Agência"
+                            options={getOpcoesUnicas("agRelacionamento")}
+                          />
+                          <ComboboxFilter
+                            name="municipio"
+                            title="Município"
+                            options={getOpcoesUnicas("municipio")}
+                          />
+                          <ComboboxFilter
+                            name="uf"
+                            title="UF"
+                            options={getOpcoesUnicas("uf")}
+                          />
+                        </div>
 
-                          {Object.entries(form.getValues()).some(([_, value]) => 
-                            Array.isArray(value) ? value.length > 0 : !!value
-                          ) && (
-                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200">
-                            <Button 
-                              type="button" 
+                        {Object.entries(form.getValues()).some(([_, value]) => 
+                          Array.isArray(value) ? value.length > 0 : !!value
+                        ) && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <div className="flex items-start gap-2">
+                              <Button 
+                                type="button" 
                                 variant="ghost" 
                                 size="sm"
-                              onClick={limparFiltros}
-                            >
+                                onClick={limparFiltros}
+                                className="shrink-0"
+                              >
                                 Limpar filtros
-                            </Button>
-                              <div className="flex flex-wrap gap-1">
-                                {Object.entries(form.getValues()).map(([key, values]) => {
-                                  if (!Array.isArray(values) || values.length === 0) return null;
-                                  return values.map((value: string) => {
-                                    let label = value;
-                                    if (key === 'situacao') {
-                                      label = value === "ativa" ? "Ativa" : 
-                                             value === "bloqueada" ? "Bloqueada" : 
-                                             "Em encerramento";
-                                    } else if (key === 'tendencia') {
-                                      label = value === "queda" ? "Queda" :
-                                             value === "atencao" ? "Atenção" :
-                                             value === "estavel" ? "Estável" :
-                                             "Começando";
-                                    }
+                              </Button>
+                              <div className="flex-1">
+                                <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
+                                  {Object.entries(form.getValues()).map(([key, values]) => {
+                                    if (!Array.isArray(values) || values.length === 0) return null;
+                                    return values.map((value: string) => {
+                                      let label = value;
+                                      if (key === 'situacao') {
+                                        label = value === "ativa" ? "Ativa" : 
+                                               value === "bloqueada" ? "Bloqueada" : 
+                                               value === "em processo de encerramento" ? "Encerrando" :
+                                               value;
+                                      } else if (key === 'tendencia') {
+                                        label = value === "queda" ? "Queda" :
+                                               value === "atencao" ? "Atenção" :
+                                               value === "estavel" ? "Estável" :
+                                               "Começando";
+                                      }
 
-                                    return (
-                                      <Badge 
-                                        key={`${key}-${value}`}
-                                        variant="secondary"
-                                        className="cursor-pointer"
-                                        onClick={() => {
-                                          const currentValues = form.getValues(key as keyof FiltrosLoja) as string[];
-                                          form.setValue(
-                                            key as keyof FiltrosLoja, 
-                                            currentValues.filter(v => v !== value)
-                                          );
-                                          aplicarFiltros(form.getValues());
-                                        }}
-                                      >
-                                        {label} ×
-                                      </Badge>
-                                    );
-                                  });
-                                })}
-                          </div>
+                                      return (
+                                        <Badge 
+                                          key={`${key}-${value}`}
+                                          variant="secondary"
+                                          className="cursor-pointer hover:bg-red-100 hover:border-red-300 transition-colors shrink-0"
+                                          onClick={() => {
+                                            const currentValues = form.getValues(key as keyof FiltrosLoja) as string[];
+                                            form.setValue(
+                                              key as keyof FiltrosLoja, 
+                                              currentValues.filter(v => v !== value)
+                                            );
+                                            aplicarFiltros(form.getValues());
+                                          }}
+                                        >
+                                          <span className="truncate max-w-[150px]">{label}</span>
+                                          <span className="ml-1">×</span>
+                                        </Badge>
+                                      );
+                                    });
+                                  })}
+                                </div>
+                                {/* Contador de filtros se houver muitos */}
+                                {Object.values(form.getValues()).reduce((total, arr) => 
+                                  total + (Array.isArray(arr) ? arr.length : 0), 0
+                                ) > 5 && (
+                                  <div className="text-xs text-gray-500 mt-2">
+                                    {Object.values(form.getValues()).reduce((total, arr) => 
+                                      total + (Array.isArray(arr) ? arr.length : 0), 0
+                                    )} filtros aplicados • Clique em × para remover
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </form>
-                      </Form>
-                    </div>
+                          </div>
+                        )}
+                      </form>
+                    </Form>
+                  </div>
 
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead 
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead 
                               className="w-[180px] cursor-pointer hover:bg-gray-100" 
-                              onClick={() => handleOrdenacao('chaveLoja')}
-                            >
-                              <div className="flex items-center gap-1">
-                                Chave Loja
-                                {ordenacao.coluna === 'chaveLoja' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
-                            <TableHead 
+                            onClick={() => handleOrdenacao('chaveLoja')}
+                          >
+                            <div className="flex items-center gap-1">
+                              Chave Loja
+                              {ordenacao.coluna === 'chaveLoja' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
                               className="w-[250px] cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('nomeLoja')}
-                            >
-                              <div className="flex items-center gap-1">
-                                Nome Loja
-                                {ordenacao.coluna === 'nomeLoja' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
-                            <TableHead className="text-center" colSpan={4}>
-                              <div className="mb-1">Qtd. Contas</div>
-                              <div className="grid grid-cols-4 gap-2 text-xs font-normal">
-                                <div 
-                                  className="cursor-pointer hover:bg-gray-100"
-                                  onClick={() => handleOrdenacao('mesM3')}
-                                >
+                            onClick={() => handleOrdenacao('nomeLoja')}
+                          >
+                            <div className="flex items-center gap-1">
+                              Nome Loja
+                              {ordenacao.coluna === 'nomeLoja' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead className="text-center" colSpan={4}>
+                            <div className="mb-1">Qtd. Contas</div>
+                            <div className="grid grid-cols-4 gap-2 text-xs font-normal">
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM3')}
+                              >
                                   {mesesFormatados.M3} {ordenacao.coluna === 'mesM3' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
-                                </div>
-                                <div 
-                                  className="cursor-pointer hover:bg-gray-100"
-                                  onClick={() => handleOrdenacao('mesM2')}
-                                >
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM2')}
+                              >
                                   {mesesFormatados.M2} {ordenacao.coluna === 'mesM2' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
-                                </div>
-                                <div 
-                                  className="cursor-pointer hover:bg-gray-100"
-                                  onClick={() => handleOrdenacao('mesM1')}
-                                >
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM1')}
+                              >
                                   {mesesFormatados.M1} {ordenacao.coluna === 'mesM1' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
-                                </div>
-                                <div 
-                                  className="cursor-pointer hover:bg-gray-100"
-                                  onClick={() => handleOrdenacao('mesM0')}
-                                >
+                              </div>
+                              <div 
+                                className="cursor-pointer hover:bg-gray-100"
+                                onClick={() => handleOrdenacao('mesM0')}
+                              >
                                   {mesesFormatados.M0} {ordenacao.coluna === 'mesM0' && (ordenacao.direcao === 'asc' ? '↑' : '↓')}
-                                </div>
                               </div>
-                            </TableHead>
-                            <TableHead 
-                              className="w-[100px] text-center cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('situacao')}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                Situação
-                                {ordenacao.coluna === 'situacao' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
-                            <TableHead 
+                            </div>
+                          </TableHead>
+                          <TableHead 
+                              className="w-[120px] text-center cursor-pointer hover:bg-gray-100 pl-8"
+                            onClick={() => handleOrdenacao('situacao')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Situação
+                              {ordenacao.coluna === 'situacao' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
                               className="w-[120px] text-center cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('dataUltTrxContabil')}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                Últ. Contábil
-                                {ordenacao.coluna === 'dataUltTrxContabil' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
-                            <TableHead 
+                            onClick={() => handleOrdenacao('dataUltTrxContabil')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Últ. Ab. de Conta
+                              {ordenacao.coluna === 'dataUltTrxContabil' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
                               className="w-[120px] text-center cursor-pointer hover:bg-gray-100"
                               onClick={() => handleOrdenacao('dataUltTrxNegocio')}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                Últ. Negócio
-                                {ordenacao.coluna === 'dataUltTrxNegocio' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
-                            <TableHead 
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Últ. Transação
+                              {ordenacao.coluna === 'dataUltTrxNegocio' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
+                          <TableHead 
                               className="w-[100px] text-center cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('tendencia')}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                Tendência
-                                {ordenacao.coluna === 'tendencia' && (
-                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                                )}
-                              </div>
-                            </TableHead>
+                            onClick={() => handleOrdenacao('tendencia')}
+                          >
+                            <div className="flex items-center justify-center gap-1">
+                              Tendência
+                              {ordenacao.coluna === 'tendencia' && (
+                                <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </TableHead>
                             <TableHead className="w-[150px] text-center">
-                              <div className="flex items-center justify-center">Ações</div>
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                            <div className="flex items-center justify-center">Ações</div>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                           {getCurrentPageData().map((loja) => (
-                            <React.Fragment key={loja.chaveLoja}>
-                              <TableRow>
-                                <TableCell className="font-medium">
-                                  <div>{loja.chaveLoja}</div>
-                                  <div className="text-xs text-gray-500">{loja.cnpj}</div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="font-medium">{loja.nomeLoja}</div>
-                                  <div className="text-xs text-gray-500">
+                          <React.Fragment key={loja.chaveLoja}>
+                            <TableRow>
+                              <TableCell className="font-medium">
+                                <div>{loja.chaveLoja}</div>
+                                <div className="text-xs text-gray-500">{loja.cnpj}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-medium">{loja.nomeLoja}</div>
+                                <div className="text-xs text-gray-500">
                                     {loja.codAgRelacionamento} - {loja.agRelacionamento}
-                                  </div>
-                                </TableCell>
-                                <TableCell className="text-center p-2">{loja.mesM3}</TableCell>
-                                <TableCell className="text-center p-2">{loja.mesM2}</TableCell>
-                                <TableCell className="text-center p-2">{loja.mesM1}</TableCell>
-                                <TableCell className="text-center p-2">{loja.mesM0}</TableCell>
-                                <TableCell className="text-center">
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM3}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM2}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM1}</TableCell>
+                              <TableCell className="text-center p-2">{loja.mesM0}</TableCell>
+                              <TableCell className="text-center">
                                   <div className="flex justify-center">
-                                    {loja.situacao === "ativa" ? (
-                                      <TableStatus status="realizar" label="Ativa" />
-                                    ) : loja.situacao === "bloqueada" ? (
-                                      <div 
-                                        className="cursor-pointer" 
-                                        onClick={() => setModalBloqueio({ isOpen: true, loja })}
-                                      >
-                                        <TableStatus status="bloqueada" label="Bloqueada" />
-                                      </div>
-                                    ) : (
-                                      <TableStatus status="pendente" label="Em encerramento" />
-                                    )}
+                                {loja.situacao === "ativa" ? (
+                                  <TableStatus status="realizar" label="Ativa" />
+                                ) : loja.situacao === "bloqueada" ? (
+                                  <div 
+                                    className="cursor-pointer" 
+                                    onClick={() => setModalBloqueio({ isOpen: true, loja })}
+                                  >
+                                    <TableStatus status="bloqueada" label="Bloqueada" />
                                   </div>
-                                </TableCell>
-                                <TableCell className="text-center">{formatDate(loja.dataUltTrxContabil)}</TableCell>
-                                <TableCell className="text-center">{formatDate(loja.dataUltTrxNegocio)}</TableCell>
-                                <TableCell className="text-center">
-                                  <div className="flex justify-center items-center">
-                                    {renderTendenciaIcon(loja.tendencia)}
+                                ) : (
+                                  <TableStatus status="pendente" label="Encerrando" />
+                                )}
                                   </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex justify-end gap-2">
-                                    <Button 
-                                      variant="outline" 
-                                      size="icon" 
-                                      title="Ver detalhes"
-                                      onClick={() => toggleLojaExpandida(loja.chaveLoja)}
-                                      className="bg-blue-50 border-blue-200 hover:bg-blue-100"
-                                    >
-                                      <Info size={16} className="text-blue-600" />
-                                    </Button>
-                                    <Button 
-                                      variant="outline" 
-                                      size="icon" 
-                                      title="Adicionar tratativa"
-                                      className="bg-green-50 border-green-200 hover:bg-green-100"
-                                    >
-                                      <Plus size={16} className="text-green-600" />
-                                    </Button>
-                                    <Button 
-                                      variant="outline" 
-                                      size="icon" 
-                                      title={lojasMarcadas.has(loja.chaveLoja) ? "Desmarcar loja" : "Acompanhar Loja"}
-                                      onClick={() => toggleLojaMarcada(loja.chaveLoja)}
-                                      className={`${lojasMarcadas.has(loja.chaveLoja) ? 'bg-purple-50 border-purple-200 hover:bg-purple-100' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
-                                    >
-                                      <Pin size={16} className={lojasMarcadas.has(loja.chaveLoja) ? "text-purple-600" : "text-gray-600"} />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                              {lojaExpandida === loja.chaveLoja && (
-                                <TableRow className="bg-gray-50">
-                                  <TableCell colSpan={10} className="py-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                      <div>
-                                        <h4 className="font-medium mb-2">Informações da Loja</h4>
-                                        <ul className="space-y-1.5">
-                                          <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
-                                          <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
-                                          <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
-                                          <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
-                                          <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
-                                        </ul>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium mb-2">Hierarquia</h4>
-                                        <ul className="space-y-1.5">
-                                          <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
-                                          <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
-                                          <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
-                                        </ul>
-                                      </div>
-                                      <div>
-                                        <h4 className="font-medium mb-2">Produtos Habilitados</h4>
-                                        <div className="flex flex-col space-y-2">
-                                          <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            Consignado
-                                          </div>
-                                          <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            Microsseguro
-                                          </div>
-                                          <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                            Lime
-                                          </div>
+                              </TableCell>
+                              <TableCell className="text-center">{formatDate(loja.dataUltTrxContabil)}</TableCell>
+                              <TableCell className="text-center">{formatDate(loja.dataUltTrxNegocio)}</TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex justify-center items-center">
+                                  {renderTendenciaIcon(loja.tendencia)}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title="Ver detalhes"
+                                    onClick={() => toggleLojaExpandida(loja.chaveLoja)}
+                                    className="bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                  >
+                                    <Info size={16} className="text-blue-600" />
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title="Adicionar tratativa"
+                                    className="bg-green-50 border-green-200 hover:bg-green-100"
+                                  >
+                                    <Plus size={16} className="text-green-600" />
+                                  </Button>
+                                  <Button 
+                                    variant="outline" 
+                                    size="icon" 
+                                    title={lojasMarcadas.has(loja.chaveLoja) ? "Desmarcar loja" : "Acompanhar Loja"}
+                                    onClick={() => toggleLojaMarcada(loja.chaveLoja)}
+                                    className={`${lojasMarcadas.has(loja.chaveLoja) ? 'bg-purple-50 border-purple-200 hover:bg-purple-100' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}
+                                  >
+                                    <Pin size={16} className={lojasMarcadas.has(loja.chaveLoja) ? "text-purple-600" : "text-gray-600"} />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {lojaExpandida === loja.chaveLoja && (
+                              <TableRow className="bg-gray-50">
+                                <TableCell colSpan={10} className="py-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                      <h4 className="font-medium mb-2">Informações da Loja</h4>
+                                      <ul className="space-y-1.5">
+                                        <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
+                                        <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
+                                        <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
+                                        <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
+                                        <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h4 className="font-medium mb-2">Hierarquia</h4>
+                                      <ul className="space-y-1.5">
+                                        <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
+                                        <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                        <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
+                                      </ul>
+                                    </div>
+                                    <div>
+                                      <h4 className="font-medium mb-2">Produtos Habilitados</h4>
+                                      <div className="flex flex-col space-y-2">
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Consignado
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Microsseguro
+                                        </div>
+                                        <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                          Lime
                                         </div>
                                       </div>
                                     </div>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </TableBody>
-                      </Table>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </TableBody>
+                    </Table>
 
                       {/* Paginação */}
                       <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
@@ -1458,170 +1531,170 @@ Verifique:
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardContent>
+              </Card>
               ) : null}
-            </TabsContent>
+          </TabsContent>
 
-            <TabsContent value="acoes">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {dadosOrdenados
-                  .filter(loja => lojasMarcadas.has(loja.chaveLoja))
-                  .map((loja) => (
-                    <Card key={loja.chaveLoja} className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white shadow-sm hover:shadow-md transition-shadow">
-                      <CardHeader className="pb-2">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <CardTitle className="text-lg text-purple-800">{loja.nomeLoja}</CardTitle>
-                            <p className="text-sm text-purple-600">Chave: {loja.chaveLoja} - Ag: {loja.agencia}</p>
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            onClick={() => toggleLojaMarcada(loja.chaveLoja)}
-                            className="bg-purple-50 border-purple-200 hover:bg-purple-100"
-                          >
-                            <Pin size={16} className="text-purple-600" />
-                          </Button>
+          <TabsContent value="acoes">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dadosOrdenados
+                .filter(loja => lojasMarcadas.has(loja.chaveLoja))
+                .map((loja) => (
+                  <Card key={loja.chaveLoja} className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-white shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <CardTitle className="text-lg text-purple-800">{loja.nomeLoja}</CardTitle>
+                          <p className="text-sm text-purple-600">Chave: {loja.chaveLoja} - Ag: {loja.agencia}</p>
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-3">
-                          <div className="bg-white p-3 rounded-lg border border-purple-100">
-                            <h4 className="text-sm font-medium text-purple-800 mb-2">Evolução de Contas</h4>
-                            <div className="grid grid-cols-4 gap-2">
-                              <div className="text-center">
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => toggleLojaMarcada(loja.chaveLoja)}
+                          className="bg-purple-50 border-purple-200 hover:bg-purple-100"
+                        >
+                          <Pin size={16} className="text-purple-600" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <h4 className="text-sm font-medium text-purple-800 mb-2">Evolução de Contas</h4>
+                          <div className="grid grid-cols-4 gap-2">
+                            <div className="text-center">
                                 <p className="text-xs text-gray-500">{mesesFormatados.M3}</p>
-                                <p className="text-lg font-semibold text-purple-800">{loja.mesM3}</p>
-                              </div>
-                              <div className="text-center">
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM3}</p>
+                            </div>
+                            <div className="text-center">
                                 <p className="text-xs text-gray-500">{mesesFormatados.M2}</p>
-                                <p className="text-lg font-semibold text-purple-800">{loja.mesM2}</p>
-                              </div>
-                              <div className="text-center">
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM2}</p>
+                            </div>
+                            <div className="text-center">
                                 <p className="text-xs text-gray-500">{mesesFormatados.M1}</p>
-                                <p className="text-lg font-semibold text-purple-800">{loja.mesM1}</p>
-                              </div>
-                              <div className="text-center">
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM1}</p>
+                            </div>
+                            <div className="text-center">
                                 <p className="text-xs text-gray-500">{mesesFormatados.M0}</p>
-                                <p className="text-lg font-semibold text-purple-800">{loja.mesM0}</p>
-                              </div>
+                              <p className="text-lg font-semibold text-purple-800">{loja.mesM0}</p>
                             </div>
                           </div>
+                        </div>
+                        <div className="bg-white p-3 rounded-lg border border-purple-100">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Situação:</span> {loja.situacao}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Contato:</span> {loja.nomeContato}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Últ. Contábil:</span> {formatDate(loja.dataUltTrxContabil)}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">Últ. Negócio:</span> {formatDate(loja.dataUltTrxNegocio)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {lojaExpandida === loja.chaveLoja && (
                           <div className="bg-white p-3 rounded-lg border border-purple-100">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
-                                <p className="text-sm text-gray-600">
-                                  <span className="font-medium">Situação:</span> {loja.situacao}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  <span className="font-medium">Contato:</span> {loja.nomeContato}
-                                </p>
+                                <h4 className="font-medium mb-2">Informações da Loja</h4>
+                                <ul className="space-y-1.5">
+                                  <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
+                                  <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
+                                  <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
+                                  <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
+                                  <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
+                                </ul>
                               </div>
                               <div>
-                                <p className="text-sm text-gray-600">
-                                  <span className="font-medium">Últ. Contábil:</span> {formatDate(loja.dataUltTrxContabil)}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  <span className="font-medium">Últ. Negócio:</span> {formatDate(loja.dataUltTrxNegocio)}
-                                </p>
+                                <h4 className="font-medium mb-2">Hierarquia</h4>
+                                <ul className="space-y-1.5">
+                                  <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
+                                  <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
+                                  <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
+                                </ul>
                               </div>
-                            </div>
-                          </div>
-                          {lojaExpandida === loja.chaveLoja && (
-                            <div className="bg-white p-3 rounded-lg border border-purple-100">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                  <h4 className="font-medium mb-2">Informações da Loja</h4>
-                                  <ul className="space-y-1.5">
-                                    <li className="text-sm"><span className="font-medium">Localização:</span> {loja.endereco}</li>
-                                    <li className="text-sm"><span className="font-medium">Contato:</span> {loja.nomePdv}</li>
-                                    <li className="text-sm"><span className="font-medium">Telefone:</span> {loja.telefoneLoja}</li>
-                                    <li className="text-sm"><span className="font-medium">Data Certificação:</span> {loja.dataCertificacao ? formatDate(loja.dataCertificacao) : '—'}</li>
-                                    <li className="text-sm"><span className="font-medium">Situação Tablet:</span> {loja.situacaoTablet}</li>
-                                  </ul>
-                                </div>
-                                <div>
-                                  <h4 className="font-medium mb-2">Hierarquia</h4>
-                                  <ul className="space-y-1.5">
-                                    <li className="text-sm"><span className="font-medium">Diretoria Regional:</span> {loja.diretoriaRegional}</li>
-                                    <li className="text-sm"><span className="font-medium">Gerência Regional:</span> {loja.gerenciaRegional}</li>
-                                    <li className="text-sm"><span className="font-medium">Multiplicador:</span> {loja.multiplicadorResponsavel}</li>
-                                  </ul>
-                                </div>
-                                <div>
-                                  <h4 className="font-medium mb-2">Produtos Habilitados</h4>
-                                  <div className="flex flex-col space-y-2">
-                                    <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                      Consignado
-                                    </div>
-                                    <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                      Microsseguro
-                                    </div>
-                                    <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                      Lime
-                                    </div>
+                              <div>
+                                <h4 className="font-medium mb-2">Produtos Habilitados</h4>
+                                <div className="flex flex-col space-y-2">
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.consignado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Consignado
+                                  </div>
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.microsseguro ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Microsseguro
+                                  </div>
+                                  <div className={`px-2.5 py-1 rounded-full text-xs ${loja.produtosHabilitados?.lime ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                    Lime
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          )}
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="bg-blue-50 border-blue-200 hover:bg-blue-100"
-                              onClick={() => toggleLojaExpandida(loja.chaveLoja)}
-                            >
-                              <Info size={16} className="text-blue-600 mr-2" />
-                              {lojaExpandida === loja.chaveLoja ? "Ocultar Detalhes" : "Ver Detalhes"}
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              className="bg-green-50 border-green-200 hover:bg-green-100"
-                            >
-                              <Plus size={16} className="text-green-600 mr-2" />
-                              Adicionar Tratativa
-                            </Button>
                           </div>
+                        )}
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-blue-50 border-blue-200 hover:bg-blue-100"
+                            onClick={() => toggleLojaExpandida(loja.chaveLoja)}
+                          >
+                            <Info size={16} className="text-blue-600 mr-2" />
+                            {lojaExpandida === loja.chaveLoja ? "Ocultar Detalhes" : "Ver Detalhes"}
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="bg-green-50 border-green-200 hover:bg-green-100"
+                          >
+                            <Plus size={16} className="text-green-600 mr-2" />
+                            Adicionar Tratativa
+                          </Button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                {dadosOrdenados.filter(loja => lojasMarcadas.has(loja.chaveLoja)).length === 0 && (
-                  <div className="col-span-full text-center py-8">
-                    <Pin size={48} className="mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900">Nenhum correspondente marcado</h3>
-                    <p className="text-gray-500 mt-2">
-                      Clique no ícone de alfinete nas lojas para marcá-las e acompanhar aqui.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            {isManager && (
-              <TabsContent value="gerencial">
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-lg">Visão Consolidada da Equipe</h3>
-                      <p>Esta seção contém informações gerenciais detalhadas sobre o desempenho da sua equipe neste produto.</p>
-                      <p className="text-amber-600">Disponível apenas para coordenadores e gerentes.</p>
-                      
-                      <div className="py-4 px-6 bg-gray-50 rounded-lg">
-                        <p className="text-gray-500 text-sm italic text-center">
-                          Dados detalhados de equipe seriam exibidos aqui em uma implementação completa.
-                        </p>
                       </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              {dadosOrdenados.filter(loja => lojasMarcadas.has(loja.chaveLoja)).length === 0 && (
+                <div className="col-span-full text-center py-8">
+                  <Pin size={48} className="mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900">Nenhum correspondente marcado</h3>
+                  <p className="text-gray-500 mt-2">
+                    Clique no ícone de alfinete nas lojas para marcá-las e acompanhar aqui.
+                  </p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {isManager && (
+            <TabsContent value="gerencial">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-lg">Visão Consolidada da Equipe</h3>
+                    <p>Esta seção contém informações gerenciais detalhadas sobre o desempenho da sua equipe neste produto.</p>
+                    <p className="text-amber-600">Disponível apenas para coordenadores e gerentes.</p>
+                    
+                    <div className="py-4 px-6 bg-gray-50 rounded-lg">
+                      <p className="text-gray-500 text-sm italic text-center">
+                        Dados detalhados de equipe seriam exibidos aqui em uma implementação completa.
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
-          </Tabs>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+        </Tabs>
         </div>
       </div>
 

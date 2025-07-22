@@ -140,7 +140,7 @@ const TableStatus = ({ status, label }: TableStatusProps) => {
   const statusConfig = {
     pendente: {
       color: 'bg-red-100 text-red-800',
-      text: 'Pendente'
+      text: 'Encerrando'
     },
     realizar: {
       color: 'bg-blue-100 text-blue-800',
@@ -160,7 +160,7 @@ const TableStatus = ({ status, label }: TableStatusProps) => {
 
   return (
     <div className={cn(
-      "flex items-center justify-center px-3 py-1 rounded-full text-sm font-medium w-24",
+      "flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap min-w-[100px]",
       config.color
     )}>
       {label || config.text}

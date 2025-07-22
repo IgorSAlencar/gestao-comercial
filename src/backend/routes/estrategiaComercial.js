@@ -219,6 +219,8 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.GER_REGIONAL,
             l.AG_RELACIONAMENTO,
             l.COD_AG_RELACIONAMENTO,
+            l.MUNICIPIO,
+            l.UF,
             ISNULL(c.DT_ULT_AB_CONTA, l.DT_ULT_TRANSACAO) as DT_ULT_AB_CONTA,
             ISNULL(c.MES_M3, 0) as MES_M3,
             ISNULL(c.MES_M2, 0) as MES_M2,
@@ -255,6 +257,8 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.GER_REGIONAL,
             l.AG_RELACIONAMENTO,
             l.COD_AG_RELACIONAMENTO,
+            l.MUNICIPIO,
+            l.UF,
             l.SALDO_CX,
             l.LIMITE
           FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
@@ -288,6 +292,8 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.GER_REGIONAL,
             l.AG_RELACIONAMENTO,
             l.COD_AG_RELACIONAMENTO,
+            l.MUNICIPIO,
+            l.UF,
             l.SALDO_CX,
             l.LIMITE
           FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
@@ -321,6 +327,8 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.GER_REGIONAL,
             l.AG_RELACIONAMENTO,
             l.COD_AG_RELACIONAMENTO,
+            l.MUNICIPIO,
+            l.UF,
             l.DT_BLOQUEIO,
             l.MOTIVO_BLOQUEIO,
             l.SALDO_CX,
@@ -353,15 +361,19 @@ router.get('/:produto', authenticateToken, async (req, res) => {
       mesM1: row.MES_M1 || 0,
       mesM0: row.MES_M0 || 0,
       situacao: row.SITUACAO?.toLowerCase() || 'ativa',
-      dataUltTrxContabil: row.DT_ULT_AB_CONTA || row.DT_ULT_TRANSACAO,
+      dataUltTrxContabil: row.DT_ULT_AB_CONTA,
       dataUltTrxNegocio: row.DT_ULT_TRANSACAO,
       dataBloqueio: row.DT_BLOQUEIO,
       dataInauguracao: row.DT_INAUGURACAO,
       agencia: row.COD_AG_RELACIONAMENTO?.toString() || '',
+      codAgRelacionamento: row.COD_AG_RELACIONAMENTO?.toString() || '',
+      agRelacionamento: row.AG_RELACIONAMENTO || '',
       telefoneLoja: row.TELEFONE_PADRAO || '',
       nomeContato: row.GTE_RESP_LOJA || '',
       gerenciaRegional: row.DESC_GERENCIA_AREA || '',
       diretoriaRegional: row.DIR_REGIONAL || '',
+      municipio: row.MUNICIPIO || '',
+      uf: row.UF || '',
       tendencia: calcularTendencia(row.MES_M3, row.MES_M2, row.MES_M1, row.MES_M0),
       endereco: row.ENDERECO || '',
       nomePdv: row.NOME_LOJA || '',
@@ -395,22 +407,36 @@ router.get('/:produto', authenticateToken, async (req, res) => {
 // Função auxiliar para calcular tendência baseada nos últimos 4 meses
 function calcularTendencia(m3, m2, m1, m0) {
   const valores = [m3 || 0, m2 || 0, m1 || 0, m0 || 0];
-  const ultimoValor = valores[3];
-  const penultimoValor = valores[2];
-  const mediaAnterior = (valores[0] + valores[1]) / 2;
+  const ultimoValor = valores[3]; // M0 (mês atual)
+  const penultimoValor = valores[2]; // M1 (mês anterior)
+  const antepenultimoValor = valores[1]; // M2
+  const mediaAnterior = (valores[0] + valores[1] + valores[2]) / 3;
   
-  if (ultimoValor === 0 && penultimoValor === 0) {
-    return 'atencao';
-  }
+  // Calcular variação percentual entre M1 e M0
+  const variacaoPercentual = penultimoValor > 0 ? 
+    ((ultimoValor - penultimoValor) / penultimoValor) * 100 : 0;
   
-  if (ultimoValor > penultimoValor && ultimoValor > mediaAnterior) {
-    return 'comecando';
-  }
+  // Critérios de tendência alinhados com os "Pontos de Atenção"
   
-  if (ultimoValor < penultimoValor && ultimoValor < mediaAnterior) {
+  // 1. QUEDA: Queda significativa (>30%) ou zerou a produção tendo produzido antes
+  if ((ultimoValor === 0 && penultimoValor > 0) || 
+      (variacaoPercentual <= -30)) {
     return 'queda';
   }
   
+  // 2. ATENÇÃO: Queda moderada entre 5% e 30% OU volatilidade alta
+  if ((variacaoPercentual > -30 && variacaoPercentual <= -5) ||
+      (ultimoValor === 0 && penultimoValor === 0 && antepenultimoValor > 0)) {
+    return 'atencao';
+  }
+  
+  // 3. CRESCIMENTO: Crescimento consistente (>10%) ou recuperação após queda
+  if (variacaoPercentual >= 10 ||
+      (ultimoValor > 0 && penultimoValor === 0 && antepenultimoValor >= 0)) {
+    return 'comecando';
+  }
+  
+  // 4. ESTÁVEL: Variação pequena entre -5% e +10%
   return 'estavel';
 }
 

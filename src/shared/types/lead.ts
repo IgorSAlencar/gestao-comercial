@@ -49,6 +49,8 @@ export interface DadosLoja {
   multiplicadorResponsavel: string;
   dataCertificacao?: Date;
   situacaoTablet: string;
+  municipio?: string;
+  uf?: string;
   produtosHabilitados: {
     consignado: boolean;
     microsseguro: boolean;
@@ -68,8 +70,10 @@ export interface FiltrosLoja {
   cnpj: string;
   nomeLoja: string;
   situacao: string | string[];
-  agencia: string;
+  agencia: string | string[];
   gerenciaRegional: string | string[];
   diretoriaRegional: string | string[];
   tendencia: string | string[];
+  municipio: string | string[];
+  uf: string | string[];
 } 

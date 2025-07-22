@@ -4,7 +4,19 @@ import { ptBR } from "date-fns/locale";
 
 export const formatDate = (date: Date | string | null | undefined): string => {
   if (!date) return "—";
-  return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
+  
+  // Converter para Date se for string
+  const dateObj = new Date(date);
+  
+  // Extrair componentes da data em UTC e usar como local
+  const year = dateObj.getUTCFullYear();
+  const month = dateObj.getUTCMonth();
+  const day = dateObj.getUTCDate();
+  
+  // Criar nova data local com os mesmos componentes
+  const localDate = new Date(year, month, day);
+  
+  return format(localDate, "dd/MM/yyyy", { locale: ptBR });
 };
 
 export const formatRelativeMonth = (monthsAgo: number): string => {

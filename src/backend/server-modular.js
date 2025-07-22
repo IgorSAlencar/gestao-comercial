@@ -17,6 +17,7 @@ const oportunidadesRoutes = require('./routes/oportunidades');
 const prospectVisitasRoutes = require('./routes/prospectVisitas');
 const hotlistRoutes = require('./routes/hotlist');
 const trativasProspecaoRoutes = require('./routes/trativasProspecao');
+const estrategiaComercialRoutes = require('./routes/estrategiaComercial');
 const { router: userLogsRoutes } = require('./routes/user-logs');
 
 const app = express();
@@ -182,6 +183,7 @@ app.use('/api/oportunidades', oportunidadesRoutes);
 app.use('/api/prospect-visitas', prospectVisitasRoutes);
 app.use('/api/hotlist', hotlistRoutes);
 app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
+app.use('/api/estrategia', estrategiaComercialRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {
