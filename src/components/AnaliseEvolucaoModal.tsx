@@ -94,7 +94,7 @@ const AnaliseEvolucaoModal: React.FC<AnaliseEvolucaoModalProps> = ({
     },
     {
       key: 'estaveis' as SectionKey,
-      title: `Estáveis (${dadosAnaliticos.filter(l=> (l.mesM1||0)>0 && (l.mesM0||0)>0).length})`,
+      title: `Lojas Estáveis (${dadosAnaliticos.filter(l=> (l.mesM1||0)>0 && (l.mesM0||0)>0).length})`,
       subtitle: `Mantiveram produção em ${meses.M1} e ${meses.M0}`,
       buttonText: 'Estáveis',
       icon: <Activity className="h-5 w-5"/>,
@@ -111,7 +111,7 @@ const AnaliseEvolucaoModal: React.FC<AnaliseEvolucaoModalProps> = ({
       'Chave Loja': l.chaveLoja,
       'Nome Loja': l.nomeLoja,
       'CNPJ': l.cnpj,
-      'Nome PDV': l.nomePdv,
+      'Contato': l.nomePdv,
       'Endereço': l.endereco,
       
       // Dados de Contato
@@ -126,8 +126,8 @@ const AnaliseEvolucaoModal: React.FC<AnaliseEvolucaoModalProps> = ({
       
       // Situação e Datas
       'Situação': l.situacao,
-      'Última Transação Contábil': l.dataUltTrxContabil ? formatDate(l.dataUltTrxContabil) : '—',
-      'Última Transação Negócio': l.dataUltTrxNegocio ? formatDate(l.dataUltTrxNegocio) : '—',
+      'Última Transação de Conta': l.dataUltTrxContabil ? formatDate(l.dataUltTrxContabil) : '—',
+      'Última Transação': l.dataUltTrxNegocio ? formatDate(l.dataUltTrxNegocio) : '—',
       'Data Inauguração': l.dataInauguracao ? formatDate(l.dataInauguracao) : '—',
       'Data Certificação': l.dataCertificacao ? formatDate(l.dataCertificacao) : '—',
       'Situação Tablet': l.situacaoTablet,
@@ -153,7 +153,7 @@ const AnaliseEvolucaoModal: React.FC<AnaliseEvolucaoModalProps> = ({
     
     // Ajustar largura das colunas
     const colunas = Object.keys(dados[0]);
-    const wscols = colunas.map(() => ({ wch: 20 })); // Largura padrão 20 para todas as colunas
+    const wscols = colunas.map(() => ({ wch: 30 })); // Largura padrão 20 para todas as colunas
     ws['!cols'] = wscols;
 
     XLSX.utils.book_append_sheet(wb, ws, nome);

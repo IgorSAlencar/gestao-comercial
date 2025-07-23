@@ -226,8 +226,8 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             ISNULL(c.MES_M2, 0) as MES_M2,
             ISNULL(c.MES_M1, 0) as MES_M1,
             ISNULL(c.MES_M0, 0) as MES_M0
-          FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
-          LEFT JOIN DATAWAREHOUSE..TB_ESTR_CONTAS c ON l.CHAVE_LOJA = c.CHAVE_LOJA
+          FROM DATAWAREHOUSE..TB_ESTR_CONTAS c
+          LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = c.CHAVE_LOJA
           ${hierarchyFilter}
           ORDER BY l.NOME_LOJA
         `;

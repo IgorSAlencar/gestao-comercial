@@ -1104,6 +1104,28 @@ Verifique:
                 uf: []
               });
             }}
+            onQuedaProducaoClick={() => {
+              // Filtrar lojas com queda na produção (M0 menor que M1)
+              const lojasFiltradas = dados.dadosAnaliticos.filter(loja => 
+                (loja.mesM0 || 0) < (loja.mesM1 || 0) && (loja.mesM1 || 0) > 0
+              );
+              setDadosFiltrados(lojasFiltradas);
+              setCurrentPage(1);
+              
+              // Limpar outros filtros ativos
+              form.reset({
+                chaveLoja: "",
+                cnpj: "",
+                nomeLoja: "",
+                situacao: [],
+                agencia: [],
+                gerenciaRegional: [],
+                diretoriaRegional: [],
+                tendencia: [],
+                municipio: [],
+                uf: []
+              });
+            }}
           />
 
         <Tabs defaultValue="oportunidades">

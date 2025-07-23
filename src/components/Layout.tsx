@@ -52,6 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: Building2,
       label: "Correspondentes",
       href: "/correspondentes",
+      roles: ["admin"],
     },
     {
       icon: Network,

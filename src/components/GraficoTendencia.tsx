@@ -1,10 +1,8 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { TrendingUp, Activity, AlertTriangle, TrendingDown, Target, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Minus, Info, Download } from "lucide-react";
+import { TrendingUp, Activity, AlertTriangle, TrendingDown, Target, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Minus, Info } from "lucide-react";
 import { DadosLoja } from "@/shared/types/lead";
 import { getRelativeMonths } from "@/utils/formatDate";
-import { Button } from "@/components/ui/button";
-import * as XLSX from 'xlsx';
 import {
   Tooltip,
   TooltipContent,
@@ -18,12 +16,14 @@ interface GraficoTendenciaProps {
   dadosAnaliticos?: DadosLoja[];
   onTendenciaClick: (tendencia: string) => void;
   onZeradosClick?: () => void;
+  onQuedaProducaoClick?: () => void;
 }
 
 const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({ 
   dadosAnaliticos = [],
   onTendenciaClick,
-  onZeradosClick
+  onZeradosClick,
+  onQuedaProducaoClick
 }) => {
   const [showAnaliseDetalhada, setShowAnaliseDetalhada] = useState(false);
 
@@ -79,61 +79,23 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
     queda: dadosAnaliticos.filter(loja => loja.tendencia === "queda").length
   };
 
-  // Função para exportar análise geral para Excel
-  const exportarAnaliseGeral = () => {
-    const workbook = XLSX.utils.book_new();
-    
-    // Aba: Resumo Geral
-    const resumoData = [
-      ['Métrica', 'Valor', 'Descrição'],
-      ['Total de Contas - ' + mesesFormatados.M0, totalContasM0, 'Total de contas no mês atual'],
-      ['Total de Contas - ' + mesesFormatados.M1, totalContasM1, 'Total de contas no mês anterior'],
-      ['Variação de Contas', totalContasM0 - totalContasM1, 'Diferença entre os meses'],
-      ['% de Crescimento', formatPercent(crescimento) + '%', 'Percentual de variação'],
-      ['Lojas Ativas - ' + mesesFormatados.M0, lojasQueProduziraM0.length, 'Lojas com produção no mês atual'],
-      ['Lojas Ativas - ' + mesesFormatados.M1, lojasQueProduziraM1.length, 'Lojas com produção no mês anterior'],
-      ['Produtividade Geral', formatPercent(produtividadeGeral) + '%', 'Percentual de lojas ativas'],
-      ['Lojas que Zeraram', lojasQueZeraram.length, 'Lojas que tinham produção e zeraram'],
-      ['Lojas Novas', lojasNovas.length, 'Lojas com primeira produção'],
-      ['Lojas que Voltaram', lojasQueVoltaram.length, 'Lojas que retomaram produção'],
-      ['Lojas Estáveis', lojasEstaveisAtivas.length, 'Lojas que mantiveram produção'],
-    ];
-    
-    const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
-    XLSX.utils.book_append_sheet(workbook, wsResumo, "Resumo Geral");
-
-    // Salvar arquivo
-    const nomeArquivo = `Resumo_Evolução_${mesesFormatados.M1}_${mesesFormatados.M0}_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.xlsx`;
-    XLSX.writeFile(workbook, nomeArquivo);
-  };
 
   return (
     <div className="flex flex-col min-h-0 space-y-4">
       {/* Card Principal - Resumo Executivo */}
       <Card className="flex-none">
         <CardHeader className="pb-3">
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
+                      <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-blue-600" />
               Resumo Executivo
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={exportarAnaliseGeral}
-              className="flex items-center gap-2"
-            >
-              <Download size={16} />
-              Exportar Excel
-            </Button>
-          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
             <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Total Contas {mesesFormatados.M0}</CardTitle>
+                    <CardTitle className="text-sm font-semibold text-gray-900">Total Contas <br />em {mesesFormatados.M0}</CardTitle>
                   <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
                     <BarChart3 className="h-4 w-4 text-blue-600" />
                   </div>
@@ -150,10 +112,27 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
               </CardContent>
             </Card>
 
+            <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-sm font-semibold text-gray-900">Total de Lojas</CardTitle>
+                  <div className="p-2 rounded-full bg-purple-50 border border-purple-100">
+                    <Target className="h-4 w-4 text-purple-600" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div>
+                  <p className="text-2xl font-bold text-purple-800">{formatNumber(dadosAnaliticos.length)}</p>
+                  <p className="text-xs text-gray-600 mt-1">Na estratégia</p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Lojas Ativas</CardTitle>
+                  <CardTitle className="text-sm font-semibold text-gray-900">Quantidade de Lojas <br /> c/ Produção em {mesesFormatados.M0}</CardTitle>
                   <div className="p-2 rounded-full bg-green-50 border border-green-100">
                     <Activity className="h-4 w-4 text-green-600" />
                   </div>
@@ -170,7 +149,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
             <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200 shadow-sm hover:shadow-md transition-all duration-300">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Zeraram {mesesFormatados.M1}→{mesesFormatados.M0}</CardTitle>
+                  <CardTitle className="text-sm font-semibold text-gray-900">Lojas sem Produção <br /> De {mesesFormatados.M1} para {mesesFormatados.M0}</CardTitle>
                   <div className="p-2 rounded-full bg-amber-50 border border-amber-100">
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
                   </div>
@@ -184,22 +163,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Total Lojas</CardTitle>
-                  <div className="p-2 rounded-full bg-purple-50 border border-purple-100">
-                    <Target className="h-4 w-4 text-purple-600" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div>
-                  <p className="text-2xl font-bold text-purple-800">{formatNumber(dadosAnaliticos.length)}</p>
-                  <p className="text-xs text-gray-600 mt-1">Na estratégia</p>
-                </div>
-              </CardContent>
-            </Card>
+
           </div>
         </CardContent>
       </Card>
@@ -382,7 +346,10 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                 </div>
 
                 <div className="space-y-3">
-                  <div className="bg-white p-3 rounded-lg border border-orange-100">
+                  <div 
+                    className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors duration-200"
+                    onClick={onQuedaProducaoClick}
+                  >
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-orange-600">Queda na Produção</span>
                       <span className="text-base font-semibold text-orange-800">
@@ -390,6 +357,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                       </span>
                     </div>
                     <div className="text-xs text-orange-500 mt-1">Lojas com redução vs mês anterior</div>
+                    <div className="text-xs text-orange-500 mt-1">Clique para filtrar</div>
                   </div>
 
                   <div className="bg-white p-3 rounded-lg border border-orange-100">
