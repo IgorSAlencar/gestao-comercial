@@ -7,7 +7,7 @@ import {
   TabsList, 
   TabsTrigger 
 } from "@/components/ui/tabs";
-import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search, Pin, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChartBar, TrendingUp, AlertTriangle, TrendingDown, Activity, Plus, MoreHorizontal, Info, Search, Pin, Download, ArrowRight, ArrowLeft, ChevronLeft, ChevronRight, Minus, ArrowDownRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell, TableStatus } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { estrategiaComercialApi, DadosEstrategiaResponse } from "@/services/estrategiaComercialService";
+import { estrategiaComercialApi, DadosEstrategiaResponse, MetricasEstrategiaResponse, MetricasGerenciaisResponse } from "@/services/estrategiaComercialService";
 import { formatDate, getRelativeMonths } from "@/utils/formatDate";
 
 const dadosSimulados: Record<string, DadosEstrategia> = {
@@ -595,6 +595,19 @@ const DetalhesEstrategia: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
+  const [metricas, setMetricas] = useState<MetricasEstrategiaResponse | null>(null);
+  const [metricasGerenciais, setMetricasGerenciais] = useState<MetricasGerenciaisResponse | null>(null);
+  const [modalDetalhesGerencial, setModalDetalhesGerencial] = useState<{
+    isOpen: boolean;
+    titulo: string;
+    lojas: DadosLoja[];
+    supervisor: string;
+  }>({
+    isOpen: false,
+    titulo: '',
+    lojas: [],
+    supervisor: ''
+  });
 
   const form = useForm<FiltrosLoja>({
     defaultValues: {
@@ -681,6 +694,18 @@ Entre em contato com o administrador se o problema persistir.`;
       
       // console.log('Dados recebidos da API:', response);
       
+      // Buscar métricas calculadas no SQL apenas para produtos com TB_ESTR_CONTAS
+      let metricasResponse: MetricasEstrategiaResponse | null = null;
+      if (['credito', 'abertura-conta', 'seguro'].includes(produto)) {
+        try {
+          metricasResponse = await estrategiaComercialApi.getMetricasEstrategia(produto);
+          console.log('✅ Métricas carregadas do SQL:', metricasResponse);
+        } catch (metricasError) {
+          console.warn('⚠️ Erro ao carregar métricas, usando cálculo no frontend:', metricasError);
+          // Métricas ficam null e o componente usa fallback
+        }
+      }
+      
       // Criar objeto de dados no formato esperado pelo componente
       const estrategiaData: DadosEstrategia = {
         titulo: getTituloEstrategia(produto),
@@ -690,6 +715,7 @@ Entre em contato com o administrador se o problema persistir.`;
         
       setDados(estrategiaData);
       setDadosFiltrados(response.dadosAnaliticos || []);
+      setMetricas(metricasResponse);
       setConnectionStatus('connected');
       
       // console.log(`✅ Estratégia carregada: ${response.totalLojas} lojas encontradas`);
@@ -875,6 +901,39 @@ Verifique:
     aplicarFiltros(filtros);
   };
 
+  const loadMetricasGerenciais = async () => {
+    if (!produto) return;
+    
+    try {
+      const response = await estrategiaComercialApi.getMetricasGerenciais(produto);
+      setMetricasGerenciais(response);
+      console.log('✅ Métricas gerenciais carregadas:', response);
+    } catch (error) {
+      console.error('Erro ao carregar métricas gerenciais:', error);
+      setError('Erro ao carregar métricas gerenciais. Por favor, tente novamente.');
+    }
+  };
+
+  // Carregar métricas gerenciais quando a tab for selecionada
+  useEffect(() => {
+    if (isManager && produto) {
+      loadMetricasGerenciais();
+    }
+  }, [isManager, produto]);
+
+  // Função para abrir modal com detalhes de lojas
+  const abrirModalDetalhes = (titulo: string, filtro: (loja: DadosLoja) => boolean, supervisor: string) => {
+    if (!dados?.dadosAnaliticos) return;
+    
+    const lojasFiltradas = dados.dadosAnaliticos.filter(filtro);
+    setModalDetalhesGerencial({
+      isOpen: true,
+      titulo,
+      lojas: lojasFiltradas,
+      supervisor
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -904,7 +963,7 @@ Verifique:
       case "atencao":
         return <AlertTriangle size={16} className="text-amber-500" />;
       case "estavel":
-        return <Activity size={16} className="text-blue-500" />;
+        return <Minus size={16} className="text-blue-500" />;
       case "comecando":
         return <TrendingUp size={16} className="text-green-500" />;
       default:
@@ -916,6 +975,17 @@ Verifique:
     if (!date) return "—";
     return format(date, "dd/MM/yyyy", {locale: ptBR});
   };
+
+  // Função para formatação contábil
+  const formatContabil = (num: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      useGrouping: true
+    }).format(num);
+  };
+
+
   
   const toggleLojaExpandida = (chaveLoja: string) => {
     if (lojaExpandida === chaveLoja) {
@@ -1078,6 +1148,7 @@ Verifique:
           {/* Gráfico de Tendência */}
           <GraficoTendencia 
             dadosAnaliticos={dados.dadosAnaliticos} 
+            metricas={metricas || undefined}
             onTendenciaClick={(tendencia) => {
               form.setValue('tendencia', [tendencia]);
               aplicarFiltros(form.getValues());
@@ -1697,20 +1768,202 @@ Verifique:
             </div>
           </TabsContent>
 
+
+
           {isManager && (
             <TabsContent value="gerencial">
               <Card>
                 <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Visão Consolidada da Equipe</h3>
-                    <p>Esta seção contém informações gerenciais detalhadas sobre o desempenho da sua equipe neste produto.</p>
-                    <p className="text-amber-600">Disponível apenas para coordenadores e gerentes.</p>
-                    
-                    <div className="py-4 px-6 bg-gray-50 rounded-lg">
-                      <p className="text-gray-500 text-sm italic text-center">
-                        Dados detalhados de equipe seriam exibidos aqui em uma implementação completa.
-                      </p>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xl font-semibold text-gray-900">Visão Consolidada da Equipe</h3>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Desempenho detalhado por supervisão em {produto === 'abertura-conta' ? 'Abertura de Contas' : 
+                                                                produto === 'credito' ? 'Crédito' : 'Seguros'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => loadMetricasGerenciais()}>
+                          <ArrowDownRight className="h-4 w-4 mr-2" />
+                          Atualizar Dados
+                        </Button>
+                      </div>
                     </div>
+
+                    {metricasGerenciais ? (
+                      <div className="grid grid-cols-1 gap-6">
+                        {metricasGerenciais.metricasGerenciais.map((supervisor) => (
+                          <Card key={supervisor.chaveSupervisao} className="overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-blue-50 to-white border-b pb-4">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <CardTitle className="text-lg text-blue-900">{supervisor.descricao}</CardTitle>
+                                  <p className="text-sm text-blue-600 mt-1">Supervisor(a): {supervisor.nomeSupervisor}</p>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-lg font-bold ${supervisor.metricas.crescimentoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {supervisor.metricas.crescimentoPercentual >= 0 ? '+' : ''}{supervisor.metricas.crescimentoPercentual.toFixed(1)}%
+                                  </div>
+                                  <p className="text-sm text-gray-500">vs mês anterior</p>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-6">
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+
+                                {/* Métricas Principais */}
+                                <div 
+                                  className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:bg-blue-50 cursor-pointer transition-colors"
+                                  onClick={() => abrirModalDetalhes(
+                                    'Total de Contas',
+                                    (loja) => (loja.mesM0 || 0) > 0,
+                                    supervisor.descricao
+                                  )}
+                                >
+                                  <h4 className="text-sm font-medium text-gray-500 mb-2">Total de Contas</h4>
+                                  <div className="text-2xl font-bold text-gray-900">{formatContabil(supervisor.metricas.totalContasM0)}</div>
+                                  <div className="mt-1 text-sm text-gray-600">
+                                    Mês Atual • Clique para ver lojas
+                                  </div>
+                                </div>
+
+                                <div 
+                                  className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:bg-green-50 cursor-pointer transition-colors"
+                                  onClick={() => abrirModalDetalhes(
+                                    'Lojas com Produção',
+                                    (loja) => (loja.mesM0 || 0) > 0,
+                                    supervisor.descricao
+                                  )}
+                                >
+                                  <h4 className="text-sm font-medium text-gray-500 mb-2">Lojas Ativas</h4>
+                                  <div className="text-2xl font-bold text-gray-900">
+                                    {formatContabil(supervisor.metricas.lojasAtivas)}/{formatContabil(supervisor.metricas.totalLojas)}
+                                  </div>
+                                  <div className="mt-1 text-sm text-gray-600">
+                                    {supervisor.metricas.produtividadeGeral.toFixed(1)}% • Clique para ver lojas
+                                  </div>
+                                </div>
+
+                                <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm">
+                                  <h4 className="text-sm font-medium text-gray-500 mb-2">Evolução de Lojas</h4>
+                                  <div className="flex items-center gap-2">
+                                    <div 
+                                      className="flex-1 hover:bg-green-50 p-2 rounded cursor-pointer transition-colors"
+                                      onClick={() => abrirModalDetalhes(
+                                        'Lojas que Cresceram',
+                                        (loja) => (loja.mesM0 || 0) > (loja.mesM1 || 0),
+                                        supervisor.descricao
+                                      )}
+                                    >
+                                      <div className="text-sm font-medium text-green-600">
+                                        +{formatContabil(supervisor.metricas.lojasCresceram)}
+                                      </div>
+                                      <div className="text-xs text-gray-500">Cresceram</div>
+                                    </div>
+                                    <div 
+                                      className="flex-1 hover:bg-blue-50 p-2 rounded cursor-pointer transition-colors"
+                                      onClick={() => abrirModalDetalhes(
+                                        'Lojas Estáveis',
+                                        (loja) => (loja.mesM0 || 0) === (loja.mesM1 || 0) && (loja.mesM0 || 0) > 0,
+                                        supervisor.descricao
+                                      )}
+                                    >
+                                      <div className="text-sm font-medium text-blue-600">
+                                        {formatContabil(supervisor.metricas.lojasEstaveis)}
+                                      </div>
+                                      <div className="text-xs text-gray-500">Estáveis</div>
+                                    </div>
+                                    <div 
+                                      className="flex-1 hover:bg-red-50 p-2 rounded cursor-pointer transition-colors"
+                                      onClick={() => abrirModalDetalhes(
+                                        'Lojas em Queda',
+                                        (loja) => (loja.mesM0 || 0) < (loja.mesM1 || 0),
+                                        supervisor.descricao
+                                      )}
+                                    >
+                                      <div className="text-sm font-medium text-red-600">
+                                        -{formatContabil(supervisor.metricas.lojasCairam)}
+                                      </div>
+                                      <div className="text-xs text-gray-500">Caíram</div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div 
+                                  className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:bg-amber-50 cursor-pointer transition-colors"
+                                  onClick={() => abrirModalDetalhes(
+                                    'Lojas que Zeraram',
+                                    (loja) => (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0,
+                                    supervisor.descricao
+                                  )}
+                                >
+                                  <h4 className="text-sm font-medium text-gray-500 mb-2">Pontos de Atenção</h4>
+                                  <div className="text-2xl font-bold text-amber-600">{formatContabil(supervisor.metricas.lojasZeraram)}</div>
+                                  <div className="mt-1 text-sm text-gray-600">
+                                    Lojas zeraram • Clique para ver lojas
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Barra de Progresso */}
+                              <div className="mt-6">
+                                <div className="flex justify-between items-center mb-2">
+                                  <div className="text-sm font-medium text-gray-600">
+                                    Distribuição de Performance
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {supervisor.metricas.totalLojas} lojas no total
+                                  </div>
+                                </div>
+                                <div className="h-2 flex rounded-full overflow-hidden">
+                                  <div 
+                                    className="bg-green-500" 
+                                    style={{ width: `${(supervisor.metricas.lojasCresceram / supervisor.metricas.totalLojas) * 100}%` }}
+                                  />
+                                  <div 
+                                    className="bg-blue-500" 
+                                    style={{ width: `${(supervisor.metricas.lojasEstaveis / supervisor.metricas.totalLojas) * 100}%` }}
+                                  />
+                                  <div 
+                                    className="bg-red-500" 
+                                    style={{ width: `${(supervisor.metricas.lojasCairam / supervisor.metricas.totalLojas) * 100}%` }}
+                                  />
+                                  <div 
+                                    className="bg-gray-300" 
+                                    style={{ width: `${((supervisor.metricas.totalLojas - supervisor.metricas.lojasCresceram - supervisor.metricas.lojasEstaveis - supervisor.metricas.lojasCairam) / supervisor.metricas.totalLojas) * 100}%` }}
+                                  />
+                                </div>
+                                <div className="flex justify-between text-xs mt-2">
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+                                    <span className="text-gray-600">Crescendo ({supervisor.metricas.lojasCresceram})</span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 mr-1" />
+                                    <span className="text-gray-600">Estáveis ({supervisor.metricas.lojasEstaveis})</span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 rounded-full bg-red-500 mr-1" />
+                                    <span className="text-gray-600">Em queda ({supervisor.metricas.lojasCairam})</span>
+                                  </div>
+                                  <div className="flex items-center">
+                                    <div className="w-2 h-2 rounded-full bg-gray-300 mr-1" />
+                                    <span className="text-gray-600">Sem produção ({supervisor.metricas.totalLojas - supervisor.metricas.lojasCresceram - supervisor.metricas.lojasEstaveis - supervisor.metricas.lojasCairam})</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                        <p className="mt-4 text-gray-500">Carregando dados gerenciais...</p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1745,6 +1998,106 @@ Verifique:
                 {modalBloqueio.loja?.motivoBloqueio || 'Motivo não especificado'}
               </p>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Detalhes Gerenciais */}
+      <Dialog open={modalDetalhesGerencial.isOpen} onOpenChange={() => setModalDetalhesGerencial({ isOpen: false, titulo: '', lojas: [], supervisor: '' })}>
+        <DialogContent className="max-w-6xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              {modalDetalhesGerencial.titulo} - {modalDetalhesGerencial.supervisor}
+            </DialogTitle>
+            <p className="text-sm text-gray-500 mt-1">
+              {modalDetalhesGerencial.lojas.length} {modalDetalhesGerencial.lojas.length === 1 ? 'loja encontrada' : 'lojas encontradas'}
+            </p>
+          </DialogHeader>
+          
+          <div className="overflow-auto max-h-[60vh]">
+            {modalDetalhesGerencial.lojas.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">Chave Loja</TableHead>
+                    <TableHead className="w-[250px]">Nome Loja</TableHead>
+                    <TableHead className="text-center" colSpan={4}>
+                      <div className="mb-1">Qtd. Contas</div>
+                      <div className="grid grid-cols-4 gap-2 text-xs font-normal">
+                        <div>{mesesFormatados.M3}</div>
+                        <div>{mesesFormatados.M2}</div>
+                        <div>{mesesFormatados.M1}</div>
+                        <div>{mesesFormatados.M0}</div>
+                      </div>
+                    </TableHead>
+                    <TableHead className="w-[120px] text-center">Situação</TableHead>
+                    <TableHead className="w-[120px] text-center">Últ. Transação</TableHead>
+                    <TableHead className="w-[100px] text-center">Tendência</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {modalDetalhesGerencial.lojas
+                    .sort((a, b) => (b.mesM0 || 0) - (a.mesM0 || 0))
+                    .map((loja) => (
+                    <TableRow key={loja.chaveLoja}>
+                      <TableCell className="font-medium">
+                        <div>{loja.chaveLoja}</div>
+                        <div className="text-xs text-gray-500">{loja.cnpj}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{loja.nomeLoja}</div>
+                        <div className="text-xs text-gray-500">
+                          {loja.codAgRelacionamento} - {loja.agRelacionamento}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center p-2">{formatContabil(loja.mesM3 || 0)}</TableCell>
+                      <TableCell className="text-center p-2">{formatContabil(loja.mesM2 || 0)}</TableCell>
+                      <TableCell className="text-center p-2">{formatContabil(loja.mesM1 || 0)}</TableCell>
+                      <TableCell className="text-center p-2 font-bold">{formatContabil(loja.mesM0 || 0)}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center">
+                          {loja.situacao === "ativa" ? (
+                            <TableStatus status="realizar" label="Ativa" />
+                          ) : loja.situacao === "bloqueada" ? (
+                            <TableStatus status="bloqueada" label="Bloqueada" />
+                          ) : (
+                            <TableStatus status="pendente" label="Encerrando" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">{formatDate(loja.dataUltTrxNegocio)}</TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center items-center">
+                          {renderTendenciaIcon(loja.tendencia)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-12">
+                <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma loja encontrada</h3>
+                <p className="text-gray-500">
+                  Não há lojas que atendam aos critérios selecionados para esta supervisão.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-between items-center pt-4 border-t">
+            <div className="text-sm text-gray-500">
+              Total de {formatContabil(modalDetalhesGerencial.lojas.reduce((sum, loja) => sum + (loja.mesM0 || 0), 0))} contas
+              em {modalDetalhesGerencial.lojas.length} {modalDetalhesGerencial.lojas.length === 1 ? 'loja' : 'lojas'}
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => setModalDetalhesGerencial({ isOpen: false, titulo: '', lojas: [], supervisor: '' })}
+            >
+              Fechar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

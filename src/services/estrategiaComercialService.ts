@@ -45,6 +45,69 @@ export interface DadosEstrategiaResponse {
   dadosAnaliticos: any[];
 }
 
+export interface MetricasEstrategiaResponse {
+  // Totais
+  totalContasM0: number;
+  totalContasM1: number;
+  variacaoTotal: number;
+  
+  // Lojas
+  totalLojas: number;
+  lojasComProducaoM0: number;
+  lojasComProducaoM1: number;
+  
+  // Análises específicas
+  lojasQueZeraram: number;
+  lojasNovas: number;
+  lojasQueVoltaram: number;
+  lojasEstaveisAtivas: number;
+  lojasQuedaProducao: number;
+  lojasSemMovimento: number;
+  
+  // Percentuais calculados
+  crescimentoPercentual: number;
+  produtividadeGeral: number;
+  
+  // Média por loja
+  mediaPorLoja: number;
+  
+  // Tendências
+  tendencias: {
+    comecando: number;
+    estavel: number;
+    atencao: number;
+    queda: number;
+  };
+  
+  // Metadados
+  produto: string;
+  userRole: string;
+  userChave: number;
+}
+
+export interface MetricasGerenciaisResponse {
+  produto: string;
+  userRole: string;
+  userChave: number;
+  metricasGerenciais: {
+    descricao: string;
+    chaveSupervisao: number;
+    nomeSupervisor: string;
+    metricas: {
+      totalContasM0: number;
+      totalContasM1: number;
+      totalLojas: number;
+      lojasAtivas: number;
+      lojasZeraram: number;
+      lojasCresceram: number;
+      lojasCairam: number;
+      lojasEstaveis: number;
+      crescimentoPercentual: number;
+      produtividadeGeral: number;
+    };
+  }[];
+}
+
 // Função auxiliar para tratar erros da API
 const handleApiError = (error: any): string => {
   if (error.response) {
@@ -84,6 +147,68 @@ export const estrategiaComercialApi = {
     } catch (error) {
       const errorMessage = handleApiError(error);
       console.error(`Erro ao buscar estratégia ${produto}:`, error);
+      throw new Error(errorMessage);
+    }
+  },
+
+  /**
+   * Busca métricas calculadas no SQL para uma estratégia específica
+   */
+  getMetricasEstrategia: async (produto: string): Promise<MetricasEstrategiaResponse> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    console.log(`📊 Buscando métricas calculadas para estratégia ${produto}`);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/estrategia/${produto}/metricas`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Erro ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      const errorMessage = handleApiError(error);
+      console.error(`Erro ao buscar métricas de ${produto}:`, error);
+      throw new Error(errorMessage);
+    }
+  },
+
+  /**
+   * Busca métricas gerenciais por supervisão
+   */
+  getMetricasGerenciais: async (produto: string): Promise<MetricasGerenciaisResponse> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    console.log(`📊 Buscando métricas gerenciais para estratégia ${produto}`);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/estrategia/${produto}/metricas-gerenciais`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Erro ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      const errorMessage = handleApiError(error);
+      console.error(`Erro ao buscar métricas gerenciais de ${produto}:`, error);
       throw new Error(errorMessage);
     }
   },

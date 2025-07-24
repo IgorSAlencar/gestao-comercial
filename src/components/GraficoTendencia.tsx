@@ -11,9 +11,11 @@ import {
 } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import AnaliseEvolucaoModal from "./AnaliseEvolucaoModal";
+import { MetricasEstrategiaResponse } from "@/services/estrategiaComercialService";
 
 interface GraficoTendenciaProps {
   dadosAnaliticos?: DadosLoja[];
+  metricas?: MetricasEstrategiaResponse; // Nova prop para métricas calculadas no backend
   onTendenciaClick: (tendencia: string) => void;
   onZeradosClick?: () => void;
   onQuedaProducaoClick?: () => void;
@@ -21,6 +23,7 @@ interface GraficoTendenciaProps {
 
 const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({ 
   dadosAnaliticos = [],
+  metricas,
   onTendenciaClick,
   onZeradosClick,
   onQuedaProducaoClick
@@ -45,39 +48,70 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
     }).format(num);
   };
 
-  // Calcular métricas
-  const totalContasM0 = dadosAnaliticos.reduce((sum, loja) => sum + (loja.mesM0 || 0), 0);
-  const totalContasM1 = dadosAnaliticos.reduce((sum, loja) => sum + (loja.mesM1 || 0), 0);
+  // Usar métricas do backend se disponíveis, senão calcular no frontend (fallback)
+  const usarMetricasBackend = !!metricas;
   
-  const lojasQueProduziraM0 = dadosAnaliticos.filter(loja => (loja.mesM0 || 0) > 0);
-  const lojasQueProduziraM1 = dadosAnaliticos.filter(loja => (loja.mesM1 || 0) > 0);
+  let totalContasM0, totalContasM1, lojasQueProduziraM0, lojasQueProduziraM1;
+  let lojasQueZeraram, lojasNovas, lojasQueVoltaram, lojasEstaveisAtivas;
+  let crescimento, produtividadeGeral, tendencias;
+  let totalLojas, lojasQuedaProducao, lojasSemMovimento, mediaPorLoja;
   
-  // Análise detalhada
-  const lojasQueZeraram = dadosAnaliticos.filter(loja => 
-    (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0
-  );
-  
-  const lojasNovas = dadosAnaliticos.filter(loja => 
-    (loja.mesM1 || 0) === 0 && (loja.mesM0 || 0) > 0
-  );
-  
-  const lojasQueVoltaram = dadosAnaliticos.filter(loja => 
-    (loja.mesM2 || 0) > 0 && (loja.mesM1 || 0) === 0 && (loja.mesM0 || 0) > 0
-  );
+  if (usarMetricasBackend) {
+    // Usar dados calculados no backend
+    totalContasM0 = metricas!.totalContasM0;
+    totalContasM1 = metricas!.totalContasM1;
+    lojasQueProduziraM0 = { length: metricas!.lojasComProducaoM0 };
+    lojasQueProduziraM1 = { length: metricas!.lojasComProducaoM1 };
+    lojasQueZeraram = { length: metricas!.lojasQueZeraram };
+    lojasNovas = { length: metricas!.lojasNovas };
+    lojasQueVoltaram = { length: metricas!.lojasQueVoltaram };
+    lojasEstaveisAtivas = { length: metricas!.lojasEstaveisAtivas };
+    crescimento = metricas!.crescimentoPercentual;
+    produtividadeGeral = metricas!.produtividadeGeral;
+    totalLojas = metricas!.totalLojas;
+    lojasQuedaProducao = { length: metricas!.lojasQuedaProducao };
+    lojasSemMovimento = { length: metricas!.lojasSemMovimento };
+    mediaPorLoja = metricas!.mediaPorLoja;
+    tendencias = metricas!.tendencias;
+  } else {
+    // Fallback: calcular no frontend (método antigo)
+    totalContasM0 = dadosAnaliticos.reduce((sum, loja) => sum + (loja.mesM0 || 0), 0);
+    totalContasM1 = dadosAnaliticos.reduce((sum, loja) => sum + (loja.mesM1 || 0), 0);
+    
+    lojasQueProduziraM0 = dadosAnaliticos.filter(loja => (loja.mesM0 || 0) > 0);
+    lojasQueProduziraM1 = dadosAnaliticos.filter(loja => (loja.mesM1 || 0) > 0);
+    
+    // Análise detalhada
+    lojasQueZeraram = dadosAnaliticos.filter(loja => 
+      (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0
+    );
+    
+    lojasNovas = dadosAnaliticos.filter(loja => 
+      (loja.mesM1 || 0) === 0 && (loja.mesM0 || 0) > 0
+    );
+    
+    lojasQueVoltaram = dadosAnaliticos.filter(loja => 
+      (loja.mesM2 || 0) > 0 && (loja.mesM1 || 0) === 0 && (loja.mesM0 || 0) > 0
+    );
 
-  const lojasEstaveisAtivas = dadosAnaliticos.filter(loja => 
-    (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) > 0
-  );
+    lojasEstaveisAtivas = dadosAnaliticos.filter(loja => 
+      (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) > 0
+    );
 
-  const crescimento = ((totalContasM0 - totalContasM1) / (totalContasM1 || 1)) * 100;
-  const produtividadeGeral = dadosAnaliticos.length > 0 ? (lojasQueProduziraM0.length / dadosAnaliticos.length) * 100 : 0;
+    crescimento = ((totalContasM0 - totalContasM1) / (totalContasM1 || 1)) * 100;
+    produtividadeGeral = dadosAnaliticos.length > 0 ? (lojasQueProduziraM0.length / dadosAnaliticos.length) * 100 : 0;
+    totalLojas = dadosAnaliticos.length;
+    lojasQuedaProducao = dadosAnaliticos.filter(loja => (loja.mesM0 || 0) < (loja.mesM1 || 0));
+    lojasSemMovimento = dadosAnaliticos.filter(loja => (loja.mesM0 || 0) === 0);
+    mediaPorLoja = Math.round(totalContasM0 / (lojasQueProduziraM0.length || 1));
 
-  const tendencias = {
-    comecando: dadosAnaliticos.filter(loja => loja.tendencia === "comecando").length,
-    estavel: dadosAnaliticos.filter(loja => loja.tendencia === "estavel").length,
-    atencao: dadosAnaliticos.filter(loja => loja.tendencia === "atencao").length,
-    queda: dadosAnaliticos.filter(loja => loja.tendencia === "queda").length
-  };
+    tendencias = {
+      comecando: dadosAnaliticos.filter(loja => loja.tendencia === "comecando").length,
+      estavel: dadosAnaliticos.filter(loja => loja.tendencia === "estavel").length,
+      atencao: dadosAnaliticos.filter(loja => loja.tendencia === "atencao").length,
+      queda: dadosAnaliticos.filter(loja => loja.tendencia === "queda").length
+    };
+  }
 
 
   return (
@@ -88,6 +122,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                       <CardTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-blue-600" />
               Resumo Executivo
+
             </CardTitle>
         </CardHeader>
         <CardContent>
@@ -123,7 +158,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
               </CardHeader>
               <CardContent className="pt-0">
                 <div>
-                  <p className="text-2xl font-bold text-purple-800">{formatNumber(dadosAnaliticos.length)}</p>
+                  <p className="text-2xl font-bold text-purple-800">{formatNumber(totalLojas)}</p>
                   <p className="text-xs text-gray-600 mt-1">Na estratégia</p>
                 </div>
               </CardContent>
@@ -256,7 +291,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-semibold inline-block text-green-600">
-                        {formatNumber(lojasQueProduziraM0.length)}/{formatNumber(dadosAnaliticos.length)} lojas
+                        {formatNumber(lojasQueProduziraM0.length)}/{formatNumber(totalLojas)} lojas
                       </span>
                     </div>
                   </div>
@@ -278,7 +313,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                   <div className="bg-white p-3 rounded-lg border border-blue-100">
                     <div className="text-sm text-blue-600">Média por Loja</div>
                     <div className="text-xl font-bold text-blue-800">
-                      {formatNumber(Math.round(totalContasM0 / (lojasQueProduziraM0.length || 1)))}
+                      {formatNumber(mediaPorLoja)}
                     </div>
                     <div className="text-xs text-blue-500">contas/loja</div>
                   </div>
@@ -324,7 +359,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                   <div className="bg-white p-3 rounded-lg border border-amber-100">
                     <div className="text-sm text-amber-600">Impacto</div>
                     <div className="text-base font-semibold text-amber-800">
-                      {formatPercent(dadosAnaliticos.length > 0 ? ((lojasQueZeraram.length / dadosAnaliticos.length) * 100) : 0)}%
+                      {formatPercent(totalLojas > 0 ? ((lojasQueZeraram.length / totalLojas) * 100) : 0)}%
                     </div>
                     <div className="text-xs text-amber-500">do total de lojas</div>
                   </div>
@@ -353,7 +388,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-orange-600">Queda na Produção</span>
                       <span className="text-base font-semibold text-orange-800">
-                        {formatNumber(dadosAnaliticos.filter(loja => (loja.mesM0 || 0) < (loja.mesM1 || 0)).length)}
+                        {formatNumber(lojasQuedaProducao.length)}
                       </span>
                     </div>
                     <div className="text-xs text-orange-500 mt-1">Lojas com redução vs mês anterior</div>
@@ -364,7 +399,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-orange-600">Sem Movimento</span>
                       <span className="text-base font-semibold text-orange-800">
-                        {formatNumber(dadosAnaliticos.filter(loja => (loja.mesM0 || 0) === 0).length)}
+                        {formatNumber(lojasSemMovimento.length)}
                       </span>
                     </div>
                     <div className="text-xs text-orange-500 mt-1">Lojas sem contas no mês atual</div>

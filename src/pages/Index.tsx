@@ -672,7 +672,7 @@ const Index = () => {
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle className="text-xl font-bold text-slate-800">
-                      Agenda Comercial
+                      Agenda de Atividades
                     </CardTitle>
                     <CardDescription className="text-slate-600">
                       Eventos de hoje, da semana e pendentes de tratativas
@@ -786,7 +786,7 @@ const Index = () => {
                     <p className="text-sm text-gray-400 mb-4">Não foram encontrados eventos para hoje, desta semana ou pendentes de tratativas</p>
                     
                     {/* Debug info - mostra informações úteis sobre o carregamento */}
-                    {dataLoadedSuccessfully && (
+                    {/* {dataLoadedSuccessfully && (
                       <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                         <p className="text-xs text-blue-600">
                           <span className="font-medium">Debug:</span> {events.length} eventos carregados, 
@@ -802,49 +802,49 @@ const Index = () => {
                             Nenhum evento encontrado no sistema
                           </p>
                         )}
-                                                 <p className="text-xs text-blue-400 mt-1">
-                           Abra o console do navegador (F12) para ver mais detalhes
-                         </p>
-                         <div className="flex gap-2 mt-2">
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={() => setShowDebugInfo(!showDebugInfo)}
-                             className="text-xs h-6 px-2 border-blue-300 text-blue-600 hover:bg-blue-100"
-                           >
-                             {showDebugInfo ? 'Ocultar' : 'Mostrar'} Debug
-                           </Button>
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={recarregarDados}
-                             className="text-xs h-6 px-2 border-blue-300 text-blue-600 hover:bg-blue-100"
-                           >
-                             <RefreshCw className="h-3 w-3 mr-1" />
-                             Recarregar
-                           </Button>
-                         </div>
-                         {showDebugInfo && (
-                           <div className="mt-3 p-2 bg-gray-50 rounded text-left">
-                             <p className="text-xs font-medium text-gray-700 mb-1">Eventos carregados:</p>
-                             {events.length > 0 ? (
-                               <div className="space-y-1">
-                                 {events.slice(0, 3).map((evento, index) => (
-                                   <div key={index} className="text-xs text-gray-600">
-                                     • {evento.titulo} - {format(new Date(evento.dataInicio), 'dd/MM/yyyy')}
-                                   </div>
-                                 ))}
-                                 {events.length > 3 && (
-                                   <p className="text-xs text-gray-500">... e mais {events.length - 3} eventos</p>
-                                 )}
-                               </div>
-                             ) : (
-                               <p className="text-xs text-gray-500">Nenhum evento encontrado</p>
-                             )}
-                           </div>
-                         )}
-                       </div>
-                     )}
+                        <p className="text-xs text-blue-400 mt-1">
+                          Abra o console do navegador (F12) para ver mais detalhes
+                        </p>
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowDebugInfo(!showDebugInfo)}
+                            className="text-xs h-6 px-2 border-blue-300 text-blue-600 hover:bg-blue-100"
+                          >
+                            {showDebugInfo ? 'Ocultar' : 'Mostrar'} Debug
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={recarregarDados}
+                            className="text-xs h-6 px-2 border-blue-300 text-blue-600 hover:bg-blue-100"
+                          >
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Recarregar
+                          </Button>
+                        </div>
+                      </div>
+                    )} */}
+                    {/* {showDebugInfo && (
+                      <div className="mt-3 p-2 bg-gray-50 rounded text-left">
+                        <p className="text-xs font-medium text-gray-700 mb-1">Eventos carregados:</p>
+                        {events.length > 0 ? (
+                          <div className="space-y-1">
+                            {events.slice(0, 3).map((evento, index) => (
+                              <div key={index} className="text-xs text-gray-600">
+                                • {evento.titulo} - {format(new Date(evento.dataInicio), 'dd/MM/yyyy')}
+                              </div>
+                            ))}
+                            {events.length > 3 && (
+                              <p className="text-xs text-gray-500">... e mais {events.length - 3} eventos</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">Nenhum evento encontrado</p>
+                        )}
+                      </div>
+                    )} */}
                     
                     <Button 
                       variant="outline" 
