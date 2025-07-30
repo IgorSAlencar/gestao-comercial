@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://192.168.0.13:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://192.168.0.10:3001';
 const API_PATH = '/api';
 
 export const API_CONFIG = {

@@ -1091,7 +1091,7 @@ const AgendaStats: React.FC = () => {
                     {/* Descrição do evento - só aparece quando expandida */}
                     {evento.other_description && isDescricaoExpanded(evento.id) && (
                       <div className="mt-2">
-                        <div className="border-t border-gray-100 pt-2">
+                        <div className="border-t border-gray-100 pt-2 overflow-hidden overflow-x-hidden w-full">
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-1">
                               <MessageSquare className="h-3 w-3 text-gray-500" />
@@ -1109,9 +1109,9 @@ const AgendaStats: React.FC = () => {
                               </Button>
                             )}
                           </div>
-                          <p className="text-xs text-gray-600 leading-relaxed">
+                          <div className="text-xs text-gray-600 leading-relaxed break-all max-h-32 overflow-y-auto w-full max-w-full">
                             {evento.other_description}
-                          </p>
+                          </div>
                         </div>
                       </div>
                     )}

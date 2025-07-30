@@ -140,7 +140,7 @@ const TableStatus = ({ status, label }: TableStatusProps) => {
   const statusConfig = {
     pendente: {
       color: 'bg-red-100 text-red-800',
-      text: 'Encerrando'
+      text: 'Pendente'
     },
     realizar: {
       color: 'bg-blue-100 text-blue-800',

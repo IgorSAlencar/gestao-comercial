@@ -662,11 +662,18 @@ const AgendaPage = () => {
       const isProspecao = evento.location === "Prospecção";
       setIsProspeccaoMode(isProspecao);
       
-      // Reset do estado
-      resetTratativaState();
-      
       // Se já existe tratativa, vai direto para a edição
       if (evento.tratativa && evento.tratativa.trim() !== '') {
+        // Reset do estado mas preserva dados de prospecção se for carregar da base
+        setTratativaStep('tratativa');
+        setVisitaRealizada(true);
+        setDesejaReagendar(null);
+        setNovaDataReagendamento(null);
+        setNovaDataFimReagendamento(null);
+        setSelectedRangeReagendamento(undefined);
+        setCalendarReagendamentoOpen(null);
+        setDateReagendamentoError("");
+        setParecerText("");
 
         setTratativaStep('tratativa');
         setVisitaRealizada(true); // Marca como realizada já que tem tratativa
@@ -678,7 +685,8 @@ const AgendaPage = () => {
           setParecerText(evento.tratativa);
         }
       } else {
-
+        // Reset completo do estado apenas para novos eventos
+        resetTratativaState();
         setTratativaStep('pergunta-inicial');
       }
       
@@ -871,24 +879,29 @@ const AgendaPage = () => {
       prospectStatus: boolean[]
     }) => {
       console.log(`Salvando tratativas de prospecção na nova tabela`);
+      const requestBody = {
+        eventoId,
+        userId: user?.id,
+        userName: user?.name,
+        descricao: observacao, // Campo descrição na raiz também
+        cnpjs: cnpjs.map((cnpj, index) => ({
+          cnpj,
+          tratado: prospectStatus[index],
+          descricao: observacao
+        })),
+        dtAgenda: new Date(),
+        dtTratativa: new Date()
+      };
+      
+      console.log('Request body sendo enviado:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({
-          eventoId,
-          userId: user?.id,
-          userName: user?.name,
-          cnpjs: cnpjs.map((cnpj, index) => ({
-            cnpj,
-            tratado: prospectStatus[index],
-            descricao: observacao
-          })),
-          dtAgenda: new Date(),
-          dtTratativa: new Date()
-        })
+        body: JSON.stringify(requestBody)
       });
       
       if (!response.ok) {
@@ -925,20 +938,34 @@ const AgendaPage = () => {
       const validCnpjs = cnpjValues.filter(cnpj => cleanCnpj(cnpj).length > 0);
       
       if (validCnpjs.length > 0) {
-        // Busca o evento atual para obter o supervisorId
-        const currentEvent = eventos.find(ev => ev.id === currentEventId);
-        const supervisorId = currentEvent?.supervisorId;
+        // Busca o evento atual para obter o supervisorId e descrição
+        const eventoAtual = eventos.find(ev => ev.id === currentEventId);
+        const supervisorId = eventoAtual?.supervisorId;
+        const descricaoEvento = eventoAtual?.other_description || '';
         
         // Filtra os status correspondentes aos CNPJs válidos
         const validStatus = cnpjProspectStatus.filter((_, index) => 
           cleanCnpj(cnpjValues[index]).length > 0
         );
         
+        // Combina a descrição do evento com a observação da tratativa
+        const observacaoCompleta = descricaoEvento 
+          ? `Descrição do Evento: ${descricaoEvento}\n\nObservações da Tratativa: ${parecerText}`
+          : parecerText;
+        
+        console.log('Dados sendo enviados para tratativas_prospecao:', {
+          eventoId: currentEventId,
+          supervisorId,
+          observacao: observacaoCompleta,
+          cnpjs: validCnpjs,
+          prospectStatus: validStatus
+        });
+        
         // Chama a API para salvar os CNPJs e a observação na nova tabela
         savePropectVisitaMutation.mutate({
           eventoId: currentEventId,
           supervisorId,
-          observacao: parecerText,
+          observacao: observacaoCompleta,
           cnpjs: validCnpjs,
           prospectStatus: validStatus
         });
@@ -949,16 +976,35 @@ const AgendaPage = () => {
         ).join(', ');
         const tratativaFinal = `Empresas visitadas: ${cnpjListText}\n\n${parecerText}`;
         
-        // Salva também no campo de tratativa do evento para manter compatibilidade visual
+        // Salva nas duas tabelas: eventos (feedback) e tratativas_prospecao (DESCRICAO)
         updateFeedbackMutation.mutate({ 
           eventId: currentEventId, 
           tratativa: tratativaFinal 
         });
+        
+        // Também salva na tabela tratativas_prospecao para garantir que fique no campo DESCRICAO
+        savePropectVisitaMutation.mutate({
+          eventoId: currentEventId,
+          supervisorId,
+          observacao: parecerText, // Apenas o parecer, sem a descrição do evento
+          cnpjs: validCnpjs,
+          prospectStatus: validStatus
+        });
       } else {
-        // Mesmo sem CNPJs, ainda salva o parecer no evento
+        // Mesmo sem CNPJs, ainda salva o parecer nas duas tabelas
         updateFeedbackMutation.mutate({ 
           eventId: currentEventId, 
           tratativa: parecerText 
+        });
+        
+        // Também salva na tabela tratativas_prospecao
+        const eventoParaSalvar = eventos.find(ev => ev.id === currentEventId);
+        savePropectVisitaMutation.mutate({
+          eventoId: currentEventId,
+          supervisorId: eventoParaSalvar?.supervisorId,
+          observacao: parecerText,
+          cnpjs: [],
+          prospectStatus: []
         });
       }
     } else {
@@ -1201,6 +1247,7 @@ const AgendaPage = () => {
 
   const loadTratativasProspecao = async (id: string) => {
     try {
+      console.log(`Carregando tratativas de prospecção para evento ${id}`);
       const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1209,9 +1256,22 @@ const AgendaPage = () => {
       const data = await response.json();
       
       if (data.success && data.data && data.data.length > 0) {
+        console.log(`Encontrados ${data.data.length} registros de tratativas`, data.data);
         const tratativas = data.data;
         const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
-        const status = tratativas.map(t => t.TRATADO === 1);
+        
+        // Debug do campo TRATADO
+        console.log('Valores TRATADO originais:', tratativas.map(t => ({ valor: t.TRATADO, tipo: typeof t.TRATADO })));
+        
+        // Conversão mais robusta para boolean
+        const status = tratativas.map(t => {
+          const tratado = t.TRATADO;
+          // Converte para boolean considerando string ou number
+          return tratado === 1 || tratado === '1' || tratado === true || tratado === 'true';
+        });
+        
+        console.log('CNPJs carregados:', cnpjs);
+        console.log('Status carregados:', status);
         
         setCnpjValues(cnpjs);
         setCnpjProspectStatus(status);
@@ -1221,6 +1281,7 @@ const AgendaPage = () => {
           setParecerText(tratativas[0].DESCRICAO);
         }
       } else {
+        console.log('Nenhuma tratativa encontrada na nova tabela, tentando formato legado');
         const eventoAtual = eventos.find(e => e.id === id);
         if (eventoAtual) {
           handleLegacyTratativa(eventoAtual);
@@ -1236,15 +1297,44 @@ const AgendaPage = () => {
   };
 
   const handleLegacyTratativa = (eventoAtual: Event) => {
+    console.log('Processando tratativa legada:', eventoAtual.tratativa);
     if (eventoAtual.tratativa) {
-      const cnpjMatch = eventoAtual.tratativa.match(/Empresas visitadas:\s*([\d\.,\s\/\-]+)/i);
+      // Regex melhorada para capturar CNPJs com status
+      const cnpjMatch = eventoAtual.tratativa.match(/Empresas visitadas:\s*(.*?)(?:\n\n|$)/s);
       if (cnpjMatch && cnpjMatch[1]) {
-        const cnpjList = cnpjMatch[1].split(',').map(cnpj => cnpj.trim());
+        const empresasText = cnpjMatch[1].trim();
+        console.log('Texto de empresas encontrado:', empresasText);
+        
+        // Extrai CNPJs e seus status do formato: "XX.XXX.XXX/XXXX-XX (Prospectado|Não Prospectado)"
+        const empresasList = empresasText.split(',').map(item => item.trim());
+        const cnpjList = [];
+        const statusList = [];
+        
+        for (const empresa of empresasList) {
+          // Regex para extrair CNPJ e status
+          const match = empresa.match(/([0-9]{2}\.[0-9]{3}\.[0-9]{3}\/[0-9]{4}-[0-9]{2})\s*\((.+?)\)/);
+          if (match) {
+            cnpjList.push(match[1]);
+            statusList.push(match[2].toLowerCase().includes('prospectado') && !match[2].toLowerCase().includes('não'));
+          } else {
+            // Se não tem status no formato novo, assume o CNPJ puro e status false
+            const cnpjOnly = empresa.replace(/[^\d\.\/\-]/g, '');
+            if (cnpjOnly.length > 10) {
+              cnpjList.push(cnpjOnly);
+              statusList.push(false);
+            }
+          }
+        }
+        
+        console.log('CNPJs extraídos:', cnpjList);
+        console.log('Status extraídos:', statusList);
+        
         setCnpjValues(cnpjList);
-        setCnpjProspectStatus(cnpjList.map(() => false));
+        setCnpjProspectStatus(statusList);
         setNumCnpjs(cnpjList.length);
         
-        const cleanedText = eventoAtual.tratativa.replace(/Empresas visitadas:[\d\.,\s\/\-]+\n\n/i, '');
+        // Remove o texto de empresas visitadas do parecer
+        const cleanedText = eventoAtual.tratativa.replace(/Empresas visitadas:.*?(?:\n\n|$)/s, '').trim();
         setParecerText(cleanedText);
       } else {
         resetProspeccaoState();
@@ -2216,7 +2306,7 @@ const AgendaPage = () => {
                             
                             {evento.other_description && (
                               <div className="mt-3">
-                                <div className="border-t border-gray-200 pt-2">
+                                <div className="border-t border-gray-200 pt-2 overflow-hidden overflow-x-hidden w-full">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <MessageSquare className="h-4 w-4 text-gray-600" />
@@ -2238,12 +2328,12 @@ const AgendaPage = () => {
                                       </Button>
                                     )}
                                   </div>
-                                  <p className="text-sm text-gray-600 leading-relaxed mt-1">
+                                  <div className="text-sm text-gray-600 leading-relaxed mt-1 break-all max-h-32 overflow-y-auto w-full max-w-full">
                                     {evento.other_description.length > 100 && !isDescricaoExpanded(evento.id) 
                                       ? truncateText(evento.other_description, 100)
                                       : evento.other_description
                                     }
-                                  </p>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -2362,7 +2452,7 @@ const AgendaPage = () => {
                                                   <MessageSquare className="h-4 w-4 text-gray-500" />
                                                   <span className="text-sm font-medium text-gray-700">Observações</span>
                                                 </div>
-                                                <div className="text-sm text-gray-600 whitespace-pre-wrap">
+                                                <div className="text-sm text-gray-600 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
                                                   {observacoes}
                                                 </div>
                                               </div>
@@ -2371,14 +2461,14 @@ const AgendaPage = () => {
                                         );
                                       }
                                       return (
-                                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                                        <p className="text-sm text-gray-600 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">
                                           {evento.tratativa}
                                         </p>
                                       );
                                     })()}
                                   </div>
                                 ) : (
-                                  <p className="text-sm text-gray-600 whitespace-pre-wrap">{evento.tratativa}</p>
+                                  <p className="text-sm text-gray-600 whitespace-pre-wrap break-words max-h-32 overflow-y-auto">{evento.tratativa}</p>
                                 )}
                               </div>
                             )}
@@ -2416,7 +2506,7 @@ const AgendaPage = () => {
                               title="Excluir evento"
                             >
                               <Trash2 className="h-4 w-4" />
-                              <span className="absolute left-auto right-full mr-2 top-1/2 -translate-y-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                              <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                 Excluir evento
                               </span>
                             </Button>
