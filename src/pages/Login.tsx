@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { User, Lock, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeFuncional } from "@/utils/normalizeFuncional";
 
 const LoginPage: React.FC = () => {
   const [funcional, setFuncional] = useState("");
@@ -22,6 +23,7 @@ const LoginPage: React.FC = () => {
   const validateForm = () => {
     const newErrors: { funcional?: string; password?: string } = {};
 
+    const normalizedFuncional = normalizeFuncional(funcional);
     if (!funcional.trim()) {
       newErrors.funcional = "O funcional é obrigatório";
     }
@@ -81,9 +83,12 @@ const LoginPage: React.FC = () => {
                     id="funcional"
                     type="text"
                     placeholder="Digite seu funcional"
+                    inputMode="text"
+                    autoComplete="username"
                     className={`pl-10 ${errors.funcional ? 'border-red-500' : ''}`}
                     value={funcional}
                     onChange={(e) => {
+                      // Mantém exatamente o que o usuário digitou (primeiro caractere pode ser letra a–i)
                       setFuncional(e.target.value);
                       if (errors.funcional) {
                         setErrors(prev => ({ ...prev, funcional: undefined }));

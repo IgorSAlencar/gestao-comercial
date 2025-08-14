@@ -599,7 +599,7 @@ const Index = () => {
           <CardContent className="pt-6 pr-24 flex flex-col flex-grow">
             <div>
               <p className="text-sm text-sky-600 font-medium">Campanha</p>
-              <h3 className="text-2xl font-bold text-sky-800">Destino<br/>Expresso</h3>
+              <h3 className="text-2xl font-bold text-sky-800">Destino<br/>Expresso 2</h3>
               <p className="text-xs text-sky-500 mt-1">Contratações em destaque</p>
             </div>
             <div className="mt-auto pt-4">

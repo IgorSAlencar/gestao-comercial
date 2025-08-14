@@ -10,7 +10,8 @@ import {
   Flame,
   Users,
   Network,
-  Building2
+  Building2,
+  MapPin
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       icon: Calendar,
       label: "Agenda",
       href: "/agenda",
+    },
+    {
+      icon: MapPin,
+      label: "Meus Municípios",
+      href: "/meus-municipios",
+      roles: ["supervisor", "gerente", "coordenador", "admin"],
     },
     {
       icon: BarChart3,

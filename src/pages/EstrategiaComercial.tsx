@@ -75,7 +75,7 @@ const EstrategiaComercial: React.FC = () => {
       descricao: "Análise de performance e estratégias para ativação de pontos comerciais.",
       icon: <MapPin size={24} />,
       categoria: "Monitoramento",
-      onClick: () => handleSelectProduto("pontos-ativos")
+      onClick: () => navigate("/pontos-ativos")
     },
     {
       titulo: "Pontos com Negócios",

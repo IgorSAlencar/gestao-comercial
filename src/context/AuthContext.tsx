@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, authApi, userApi } from "@/services/api";
+import { normalizeFuncional } from "@/utils/normalizeFuncional";
 import { toast } from "@/hooks/use-toast";
 
 interface AuthContextType {
@@ -174,7 +175,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (funcional: string, password: string) => {
     try {
-      const { user: userData, token: authToken } = await authApi.login(funcional, password);
+      const normalized = normalizeFuncional(funcional, { maxLength: 7 });
+      const { user: userData, token: authToken } = await authApi.login(normalized, password);
       
       console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
       

@@ -11,10 +11,12 @@ import IndexPage from "@/pages/Index";
 import AgendaPage from "@/pages/Agenda";
 import EstrategiaComercial from "@/pages/EstrategiaComercial";
 import DetalhesEstrategia from "@/pages/DetalhesEstrategia";
+import PontosAtivos from "@/pages/PontosAtivos";
 import Hotlist from "@/pages/Hotlist";
 import Correspondentes from "@/pages/Correspondentes";
 import Equipe from "@/pages/Equipe";
 import UserLogs from "@/pages/UserLogs";
+import MeusMunicipios from "@/pages/MeusMunicipios";
 
 import NotFound from "./pages/NotFound";
 
@@ -60,6 +62,14 @@ const App = () => (
               } 
             />
             <Route 
+              path="/pontos-ativos" 
+              element={
+                <PrivateRoute>
+                  <Layout><PontosAtivos /></Layout>
+                </PrivateRoute>
+              } 
+            />
+            <Route 
               path="/hotlist" 
               element={
                 <PrivateRoute>
@@ -89,6 +99,16 @@ const App = () => (
                 <PrivateRoute>
                   <Layout>
                     <UserLogs />
+                  </Layout>
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/meus-municipios"
+              element={
+                <PrivateRoute>
+                  <Layout>
+                    <MeusMunicipios />
                   </Layout>
                 </PrivateRoute>
               }
