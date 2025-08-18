@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (funcional: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  isInitializing: boolean;
   isManager: boolean;
   isCoordinator: boolean;
   isSupervisor: boolean;
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: () => {},
   isAuthenticated: false,
+  isInitializing: true,
   isManager: false,
   isCoordinator: false,
   isSupervisor: false,
@@ -59,6 +61,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loadingSuperior, setLoadingSuperior] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const navigate = useNavigate();
   
   // Ref para controlar chamadas duplicadas
@@ -66,6 +69,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isRefreshingAllUsers = React.useRef(false);
   const lastRefreshSubordinates = React.useRef<number>(0);
   const lastRefreshAllUsers = React.useRef<number>(0);
+
+  // useEffect para recuperar dados do localStorage na inicialização
+  useEffect(() => {
+    const initializeAuth = () => {
+      try {
+        const savedUser = localStorage.getItem("user");
+        const savedToken = localStorage.getItem("token");
+        
+        if (savedUser && savedToken) {
+          const userData = JSON.parse(savedUser);
+          console.log(`🔄 Recuperando sessão do localStorage - User: ${userData.name}, ID: ${userData.id}`);
+          
+          setUser(userData);
+          setToken(savedToken);
+        }
+      } catch (error) {
+        console.error("Erro ao recuperar dados do localStorage:", error);
+        // Se houver erro, limpar localStorage
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeAuth();
+  }, []);
 
   // Carregar subordinados quando o usuário for autenticado
   useEffect(() => {
@@ -178,7 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const normalized = normalizeFuncional(funcional, { maxLength: 7 });
       const { user: userData, token: authToken } = await authApi.login(normalized, password);
       
-      console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
+      console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Chave: ${userData.chave}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
       
       setUser(userData);
       setToken(authToken);
@@ -244,6 +274,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login, 
         logout, 
         isAuthenticated: !!user,
+        isInitializing,
         isManager,
         isCoordinator,
         isSupervisor,

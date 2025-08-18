@@ -40,7 +40,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     },
     {
       icon: MapPin,
-      label: "Meus Municípios",
+      label: "Municípios Prioritários",
       href: "/meus-municipios",
       roles: ["supervisor", "gerente", "coordenador", "admin"],
     },

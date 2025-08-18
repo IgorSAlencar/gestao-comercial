@@ -40,108 +40,47 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
+import { municipiosPrioritariosApi, tratativasMunicipiosApi, MunicipioPrioritario, VisitaAgendada, VisitaRealizada, CNPJVisitado } from '@/services/api';
 
-// Tipos para os dados
-interface Municipio {
-  id: string;
-  nome: string;
-  uf: string;
-  supervisorId: string;
-  supervisorNome: string;
-  visitasAgendadas: VisitaAgendada[];
-  visitasRealizadas: VisitaRealizada[];
+// Usar os tipos da API
+type Municipio = MunicipioPrioritario;
+
+// Tipo local para CNPJVisitado com o campo dataVisita
+interface CNPJVisitadoLocal extends Omit<CNPJVisitado, 'dataVisita'> {
+  dataVisita?: string; // Formato DD/MM/YYYY
 }
-
-interface VisitaAgendada {
-  id: string;
-  data: Date;
-  status: 'agendada' | 'realizada' | 'cancelada';
-}
-
-interface VisitaRealizada {
-  id: string;
-  data: Date;
-  cnpjs: CNPJVisitado[];
-  observacoes?: string;
-}
-
-interface CNPJVisitado {
-  id: string;
-  cnpj: string;
-  razaoSocial: string;
-  ramo: 'farmacia' | 'mercado';
-  interesse: 'sim' | 'nao';
-  contratoEnviado?: 'sim' | 'nao';
-  motivoInteresse?: string;
-  motivoContrato?: string;
-  semCNPJ?: boolean;
-  nomeLoja?: string;
-}
-
-// Dados mockados para demonstração
-const municipiosMock: Municipio[] = [
-  {
-    id: "1",
-    nome: "São Paulo",
-    uf: "SP",
-    supervisorId: "supervisor1",
-    supervisorNome: "João Silva",
-    visitasAgendadas: [
-      {
-        id: "v1",
-        data: new Date(2024, 11, 15),
-        status: 'agendada'
-      }
-    ],
-    visitasRealizadas: []
-  },
-  {
-    id: "2",
-    nome: "Rio de Janeiro",
-    uf: "RJ",
-    supervisorId: "supervisor1",
-    supervisorNome: "João Silva",
-    visitasAgendadas: [],
-    visitasRealizadas: [
-      {
-        id: "vr1",
-        data: new Date(2024, 11, 10),
-        cnpjs: [
-          {
-            id: "cnpj1",
-            cnpj: "12.345.678/0001-90",
-            razaoSocial: "Farmácia Popular Ltda",
-            ramo: 'farmacia',
-            interesse: 'sim',
-            contratoEnviado: 'sim'
-          }
-        ],
-        observacoes: "Visita bem-sucedida, cliente interessado"
-      }
-    ]
-  },
-  {
-    id: "3",
-    nome: "Belo Horizonte",
-    uf: "MG",
-    supervisorId: "supervisor2",
-    supervisorNome: "Maria Santos",
-    visitasAgendadas: [],
-    visitasRealizadas: []
-  }
-];
 
 const MeusMunicipiosPage = () => {
-  const { user, isManager, isCoordinator, isSupervisor, subordinates } = useAuth();
+  const { user, isManager, isCoordinator, isSupervisor, isAdmin, subordinates } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Estados principais
-  const [municipios, setMunicipios] = useState<Municipio[]>(municipiosMock);
+  // Estados dos filtros (declarados antes da query)
   const [selectedUF, setSelectedUF] = useState<string>("");
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
+
+  // Query para buscar municípios da API
+  const { data: municipios = [], isLoading, error } = useQuery({
+    queryKey: ['municipios-prioritarios', selectedSupervisor],
+    queryFn: () => municipiosPrioritariosApi.getMunicipios(selectedSupervisor || undefined),
+    staleTime: 5 * 60 * 1000, // 5 minutos
+  });
+
+  // Mutation para salvar tratativas
+  const salvarTratativaMutation = useMutation({
+    mutationFn: tratativasMunicipiosApi.salvarTratativa,
+    onSuccess: () => {
+      // Recarregar municípios para mostrar as novas tratativas
+      queryClient.invalidateQueries({ queryKey: ['municipios-prioritarios'] });
+    },
+    onError: (error) => {
+      console.error('Erro ao salvar tratativa:', error);
+    }
+  });
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("");
   const [expandedMunicipios, setExpandedMunicipios] = useState<Set<string>>(new Set());
+  const [expandedVisitas, setExpandedVisitas] = useState<Set<string>>(new Set());
   const [expandedCNPJs, setExpandedCNPJs] = useState<Set<string>>(new Set());
 
   // Estados para modais
@@ -149,35 +88,80 @@ const MeusMunicipiosPage = () => {
   const [isTratarVisitaOpen, setIsTratarVisitaOpen] = useState(false);
   const [selectedMunicipio, setSelectedMunicipio] = useState<Municipio | null>(null);
   const [dataVisita, setDataVisita] = useState<Date | null>(null);
-  const [cnpjsVisitados, setCnpjsVisitados] = useState<CNPJVisitado[]>([]);
+  const [cnpjsVisitados, setCnpjsVisitados] = useState<CNPJVisitadoLocal[]>([]);
   const [observacoes, setObservacoes] = useState("");
 
   // Filtros disponíveis
   const ufs = Array.from(new Set(municipios.map(m => m.uf))).sort();
 
+  // Calcular estatísticas dos municípios
+  const estatisticas = {
+    totalMunicipios: municipios.length,
+    municipiosComVisita: municipios.filter(m => m.visitasRealizadas.length > 0).length,
+    totalLojasVisitadas: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.length, 0
+      ), 0
+    ),
+    totalAceites: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.filter(c => c.interesse === 'sim').length, 0
+      ), 0
+    ),
+    totalContratosEnviados: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.filter(c => c.interesse === 'sim' && c.contratoEnviado === 'sim').length, 0
+      ), 0
+    )
+  };
+
   // Filtrar municípios baseado no usuário logado e filtros
   const municipiosFiltrados = municipios.filter(municipio => {
-    // Filtro por usuário
-    if (isSupervisor && municipio.supervisorId !== user?.id) {
-      return false;
-    }
+    // Para supervisores, coordenadores e gerentes, os dados já vêm filtrados do backend
+    // O filtro por supervisor agora é feito via API no backend
+    // Aqui apenas aplicamos filtros adicionais de UI
     
-    if ((isManager || isCoordinator) && selectedSupervisor && municipio.supervisorId !== selectedSupervisor) {
-      return false;
+    // Filtro por UF - só filtra se uma UF específica foi selecionada
+    if (selectedUF && selectedUF.trim() !== "" && selectedUF !== "default") {
+      if (municipio.uf !== selectedUF) {
+        return false;
+      }
+    }
+    // Se selectedUF for string vazia ("") ou "default", significa "Todas" - não filtra por UF
+
+    // Filtro por busca - só filtra se há termo de busca
+    if (searchTerm && searchTerm.trim() !== "") {
+      if (!municipio.nome.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
     }
 
-    // Filtro por UF
-    if (selectedUF && municipio.uf !== selectedUF) {
-      return false;
-    }
-
-    // Filtro por busca
-    if (searchTerm && !municipio.nome.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+    // Filtro por status de visita
+    if (selectedStatusFilter && selectedStatusFilter.trim() !== "") {
+      const hasVisitasRealizadas = municipio.visitasRealizadas.length > 0;
+      const hasVisitasAgendadas = municipio.visitasAgendadas.length > 0;
+      
+      switch (selectedStatusFilter) {
+        case 'realizadas':
+          if (!hasVisitasRealizadas) return false;
+          break;
+        case 'agendadas':
+          if (!hasVisitasAgendadas || hasVisitasRealizadas) return false;
+          break;
+        case 'sem-visitas':
+          if (hasVisitasRealizadas || hasVisitasAgendadas) return false;
+          break;
+        default:
+          break;
+      }
     }
 
     return true;
   });
+
+
+
+
 
   // Funções para manipular municípios
   const toggleMunicipioExpansion = (municipioId: string) => {
@@ -192,6 +176,21 @@ const MeusMunicipiosPage = () => {
 
   const isMunicipioExpanded = (municipioId: string) => {
     return expandedMunicipios.has(municipioId);
+  };
+
+  // Funções para manipular visitas expandidas
+  const toggleVisitaExpansion = (visitaId: string) => {
+    const newExpanded = new Set(expandedVisitas);
+    if (newExpanded.has(visitaId)) {
+      newExpanded.delete(visitaId);
+    } else {
+      newExpanded.add(visitaId);
+    }
+    setExpandedVisitas(newExpanded);
+  };
+
+  const isVisitaExpanded = (visitaId: string) => {
+    return expandedVisitas.has(visitaId);
   };
 
   // Funções para manipular CNPJs expandidos
@@ -232,11 +231,16 @@ const MeusMunicipiosPage = () => {
       status: 'agendada'
     };
 
-    setMunicipios(prev => prev.map(m => 
-      m.id === selectedMunicipio.id 
-        ? { ...m, visitasAgendadas: [...m.visitasAgendadas, novaVisita] }
-        : m
-    ));
+    // Atualizar cache local do React Query
+    queryClient.setQueryData(['municipios-prioritarios'], (oldData: Municipio[] | undefined) => {
+      if (!oldData) return oldData;
+      
+      return oldData.map(m => 
+        m.id === selectedMunicipio.id 
+          ? { ...m, visitasAgendadas: [...m.visitasAgendadas, novaVisita] }
+          : m
+      );
+    });
 
     toast({
       title: "Sucesso",
@@ -251,25 +255,28 @@ const MeusMunicipiosPage = () => {
   // Funções para tratar visita
   const handleTratarVisita = (municipio: Municipio) => {
     setSelectedMunicipio(municipio);
+    setDataVisita(null); // Não precisamos mais da data global
     // Inicializa com pelo menos um CNPJ vazio
     setCnpjsVisitados([{
       id: `cnpj${Date.now()}`,
       cnpj: "",
       razaoSocial: "",
       ramo: 'farmacia',
-      interesse: 'sim'
+      interesse: 'sim',
+      dataVisita: ""
     }]);
     setObservacoes("");
     setIsTratarVisitaOpen(true);
   };
 
   const handleAdicionarCNPJ = () => {
-    const novoCNPJ: CNPJVisitado = {
+    const novoCNPJ: CNPJVisitadoLocal = {
       id: `cnpj${Date.now()}`,
       cnpj: "",
       razaoSocial: "",
       ramo: 'farmacia',
-      interesse: 'sim'
+      interesse: 'sim',
+      dataVisita: ""
     };
     setCnpjsVisitados(prev => [...prev, novoCNPJ]);
   };
@@ -278,13 +285,13 @@ const MeusMunicipiosPage = () => {
     setCnpjsVisitados(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleCNPJChange = (index: number, field: keyof CNPJVisitado, value: any) => {
+  const handleCNPJChange = (index: number, field: keyof CNPJVisitadoLocal, value: any) => {
     setCnpjsVisitados(prev => prev.map((cnpj, i) => 
       i === index ? { ...cnpj, [field]: value } : cnpj
     ));
   };
 
-  const handleSalvarTratativa = () => {
+  const handleSalvarTratativa = async () => {
     if (cnpjsVisitados.length === 0) {
       toast({
         title: "Erro",
@@ -294,46 +301,69 @@ const MeusMunicipiosPage = () => {
       return;
     }
 
-    // Validação atualizada para considerar empresas sem CNPJ
+    // Validação atualizada para incluir data da visita
     const hasInvalidEntries = cnpjsVisitados.some(cnpj => {
+      // Validar data da visita
+      if (!cnpj.dataVisita || !validateDate(cnpj.dataVisita)) {
+        return true;
+      }
+      
+      // Validar outros campos baseados no tipo de empresa
       if (cnpj.semCNPJ) {
-        return !cnpj.nomeLoja || !cnpj.razaoSocial;
+        return !cnpj.nomeLoja;
       } else {
-        return !cnpj.cnpj || !cnpj.razaoSocial;
+        return !cnpj.cnpj;
       }
     });
 
     if (hasInvalidEntries) {
       toast({
         title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
+        description: "Preencha todos os campos obrigatórios, incluindo datas válidas (DD/MM/YYYY)",
         variant: "destructive"
       });
       return;
     }
 
-    const novaVisita: VisitaRealizada = {
-      id: `vr${Date.now()}`,
-      data: new Date(),
-      cnpjs: cnpjsVisitados,
-      observacoes
-    };
+    try {
+      // Preparar dados para enviar à API
+      const tratativaData = {
+        cd_munic: selectedMunicipio!.codigoMunicipio,
+        empresas: cnpjsVisitados.map(cnpj => ({
+          cnpj: cnpj.cnpj || '',
+          semCNPJ: cnpj.semCNPJ || false,
+          nomeLoja: cnpj.nomeLoja || undefined,
+          ramo: (cnpj.ramo === 'farmacia' ? 'sim' : 'nao') as 'sim' | 'nao',
+          interesse: cnpj.interesse,
+          contratoEnviado: cnpj.contratoEnviado || undefined,
+          motivoContrato: cnpj.motivoContrato || undefined,
+          dataVisita: cnpj.dataVisita || undefined
+        }))
+      };
 
-    setMunicipios(prev => prev.map(m => 
-      m.id === selectedMunicipio!.id 
-        ? { ...m, visitasRealizadas: [...m.visitasRealizadas, novaVisita] }
-        : m
-    ));
+      console.log('Enviando tratativa:', tratativaData);
 
-    toast({
-      title: "Sucesso",
-      description: `Tratativa salva para ${selectedMunicipio!.nome}`
-    });
+      // Salvar via API
+      await salvarTratativaMutation.mutateAsync(tratativaData);
 
-    setIsTratarVisitaOpen(false);
-    setSelectedMunicipio(null);
-    setCnpjsVisitados([]);
-    setObservacoes("");
+      toast({
+        title: "Sucesso",
+        description: `Tratativa salva para ${selectedMunicipio!.nome}`
+      });
+
+      setIsTratarVisitaOpen(false);
+      setSelectedMunicipio(null);
+      setCnpjsVisitados([]);
+      setObservacoes("");
+      
+    } catch (error) {
+      console.error('Erro ao salvar tratativa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar tratativa. Tente novamente.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Funções auxiliares
@@ -359,12 +389,61 @@ const MeusMunicipiosPage = () => {
     }
   };
 
+  const formatDateOnType = (value: string) => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+    
+    // Aplica a máscara DD/MM/YYYY conforme o usuário digita
+    if (numbers.length <= 2) {
+      return numbers;
+    } else if (numbers.length <= 4) {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2)}`;
+    } else {
+      return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}/${numbers.slice(4, 8)}`;
+    }
+  };
+
+  const validateDate = (dateString: string) => {
+    // Verifica se a string tem o formato completo DD/MM/YYYY
+    if (dateString.length !== 10) return false;
+    
+    const parts = dateString.split('/');
+    if (parts.length !== 3) return false;
+    
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const year = parseInt(parts[2], 10);
+    
+    // Validações básicas
+    if (day < 1 || day > 31) return false;
+    if (month < 1 || month > 12) return false;
+    if (year < 1900 || year > 2100) return false;
+    
+    // Criar data e verificar se é válida
+    const date = new Date(year, month - 1, day);
+    return date.getDate() === day && date.getMonth() === month - 1 && date.getFullYear() === year;
+  };
+
   const getStatusBadge = (municipio: Municipio) => {
     if (municipio.visitasRealizadas.length > 0) {
-      return <Badge variant="default" className="bg-green-100 text-green-800">Visitas Realizadas</Badge>;
+      return (
+        <Badge
+          variant="outline"
+          className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100 hover:text-green-800"
+        >
+          Visitas Realizadas
+        </Badge>
+      );
     }
     if (municipio.visitasAgendadas.length > 0) {
-      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Visitas Agendadas</Badge>;
+      return (
+        <Badge
+          variant="outline"
+          className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100 hover:text-blue-800"
+        >
+          Visitas Agendadas
+        </Badge>
+      );
     }
     return <Badge variant="outline" className="text-gray-600">Sem Visitas</Badge>;
   };
@@ -374,27 +453,27 @@ const MeusMunicipiosPage = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Meus Municípios</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Municípios Prioritários</h1>
           <p className="text-gray-600 mt-1">
             Gestão de municípios prioritários para contratação
           </p>
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Filtro por Supervisor (apenas para gerentes/coordenadores) */}
-          {(isManager || isCoordinator) && (
+          {/* Filtro por Supervisor (apenas para gerentes/coordenadores/admins) */}
+          {(isManager || isCoordinator || isAdmin) && (
             <Dialog>
               <DialogTrigger asChild>
                 <Button variant="outline" className="flex items-center gap-2">
                   <Filter className="h-4 w-4" />
-                  <span>Filtrar por Supervisor</span>
+                  <span>Filtrar por Gerente Comercial</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Filtrar por Supervisor</DialogTitle>
+                  <DialogTitle>Filtrar por Gerente Comercial</DialogTitle>
                   <DialogDescription>
-                    Selecione um supervisor para visualizar seus municípios
+                    Selecione um Gerente Comercial para visualizar seus municípios
                   </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -407,7 +486,7 @@ const MeusMunicipiosPage = () => {
                     >
                       <div className="flex items-center gap-3">
                         <Users className="h-4 w-4" />
-                        <span>Todos os supervisores</span>
+                        <span>Todos os Gerentes Comerciais</span>
                       </div>
                     </div>
                     
@@ -438,10 +517,124 @@ const MeusMunicipiosPage = () => {
             </Dialog>
           )}
         </div>
-      </div>
+             </div>
 
-      {/* Filtros */}
+       {/* Cards de Estatísticas */}
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+         <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+           <CardHeader className="pb-2">
+             <div className="flex justify-between items-center">
+               <CardTitle className="text-lg font-semibold text-gray-900">Total de Municípios</CardTitle>
+               <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
+                 <MapPin className="h-5 w-5 text-blue-600" />
+               </div>
+             </div>
+           </CardHeader>
+           <CardContent>
+             <div className="mt-2">
+               <p className="text-3xl font-bold text-blue-600">{estatisticas.totalMunicipios}</p>
+               <p className="text-sm text-gray-500 mt-1">Municípios prioritários</p>
+             </div>
+           </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
+           <CardHeader className="pb-2">
+             <div className="flex justify-between items-center">
+               <CardTitle className="text-lg font-semibold text-gray-900">Municípios Visitados</CardTitle>
+               <div className="p-2 rounded-full bg-green-50 border border-green-100">
+                 <Calendar className="h-5 w-5 text-green-600" />
+               </div>
+             </div>
+           </CardHeader>
+           <CardContent>
+             <div className="mt-2">
+               <p className="text-3xl font-bold text-green-600">{estatisticas.municipiosComVisita}</p>
+               <p className="text-sm text-gray-500 mt-1">Com visitas realizadas</p>
+             </div>
+           </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
+           <CardHeader className="pb-2">
+             <div className="flex justify-between items-center">
+               <CardTitle className="text-lg font-semibold text-gray-900">Lojas Visitadas</CardTitle>
+               <div className="p-2 rounded-full bg-purple-50 border border-purple-100">
+                 <Building2 className="h-5 w-5 text-purple-600" />
+               </div>
+             </div>
+           </CardHeader>
+           <CardContent>
+             <div className="mt-2">
+               <p className="text-3xl font-bold text-purple-600">{estatisticas.totalLojasVisitadas}</p>
+               <p className="text-sm text-gray-500 mt-1">Empresas visitadas</p>
+             </div>
+           </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200 shadow-sm hover:shadow-md transition-all duration-300">
+           <CardHeader className="pb-2">
+             <div className="flex justify-between items-center">
+               <CardTitle className="text-lg font-semibold text-gray-900">Aceites</CardTitle>
+               <div className="p-2 rounded-full bg-orange-50 border border-orange-100">
+                 <CheckCircle className="h-5 w-5 text-orange-600" />
+               </div>
+             </div>
+           </CardHeader>
+           <CardContent>
+             <div className="mt-2">
+               <p className="text-3xl font-bold text-orange-600">{estatisticas.totalAceites}</p>
+               <p className="text-sm text-gray-500 mt-1">Com interesse</p>
+             </div>
+           </CardContent>
+         </Card>
+
+         <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200 shadow-sm hover:shadow-md transition-all duration-300">
+           <CardHeader className="pb-2">
+             <div className="flex justify-between items-center">
+               <CardTitle className="text-lg font-semibold text-gray-900">Contratos Enviados</CardTitle>
+               <div className="p-2 rounded-full bg-emerald-50 border border-emerald-100">
+                 <FileText className="h-5 w-5 text-emerald-600" />
+               </div>
+             </div>
+           </CardHeader>
+           <CardContent>
+             <div className="mt-2">
+               <p className="text-3xl font-bold text-emerald-600">{estatisticas.totalContratosEnviados}</p>
+               <p className="text-sm text-gray-500 mt-1">Documentos enviados</p>
+             </div>
+           </CardContent>
+         </Card>
+       </div>
+
+       {/* Filtros */}
+       
       <div className="flex flex-col sm:flex-row gap-4">
+
+      <div className="flex gap-2">
+          <Select value={selectedUF} onValueChange={(value) => setSelectedUF(value)}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="UF" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas</SelectItem>
+              {ufs.map(uf => (
+                <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
+          {selectedUF && selectedUF.trim() !== "" && selectedUF !== "default" && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setSelectedUF("")}
+              className="h-9 px-2"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
         <div className="flex-1">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -454,57 +647,194 @@ const MeusMunicipiosPage = () => {
           </div>
         </div>
         
-        <div className="flex gap-2">
-          <Select value={selectedUF} onValueChange={setSelectedUF}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Selecione a UF..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
-              {ufs.map(uf => (
-                <SelectItem key={uf} value={uf}>{uf}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+
       </div>
 
-      {/* Indicador de filtro ativo */}
-      {selectedSupervisor && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-blue-600" />
-            <span className="font-medium">
-              Visualizando municípios de {
-                subordinates.find(s => s.id === selectedSupervisor)?.name || "Supervisor"
-              }
-            </span>
+      {/* Badges de Status de Visitas - Clicáveis */}
+      <div className="flex flex-wrap gap-3 items-center justify-center md:justify-start">
+        <button
+          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'realizadas' ? '' : 'realizadas')}
+          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+            selectedStatusFilter === 'realizadas'
+              ? 'bg-green-600 border-green-600 text-white shadow-lg transform scale-105'
+              : 'bg-green-50 border border-green-200 text-green-800 hover:bg-green-100'
+          }`}
+        >
+          <div className={`w-2 h-2 rounded-full ${
+            selectedStatusFilter === 'realizadas' ? 'bg-white' : 'bg-green-500'
+          }`}></div>
+          <span className="text-sm font-medium">
+            Municípios Visitados ({municipios.filter(m => m.visitasRealizadas.length > 0).length})
+          </span>
+        </button>
+        
+        <button
+          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'agendadas' ? '' : 'agendadas')}
+          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+            selectedStatusFilter === 'agendadas'
+              ? 'bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105'
+              : 'bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100'
+          }`}
+        >
+          <div className={`w-2 h-2 rounded-full ${
+            selectedStatusFilter === 'agendadas' ? 'bg-white' : 'bg-blue-500'
+          }`}></div>
+          <span className="text-sm font-medium">
+            Visitas Agendadas ({municipios.filter(m => m.visitasAgendadas.length > 0 && m.visitasRealizadas.length === 0).length})
+          </span>
+        </button>
+        
+        <button
+          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'sem-visitas' ? '' : 'sem-visitas')}
+          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+            selectedStatusFilter === 'sem-visitas'
+              ? 'bg-gray-600 border-gray-600 text-white shadow-lg transform scale-105'
+              : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <div className={`w-2 h-2 rounded-full ${
+            selectedStatusFilter === 'sem-visitas' ? 'bg-white' : 'bg-gray-400'
+          }`}></div>
+          <span className="text-sm font-medium">
+            Sem Visitas ({municipios.filter(m => m.visitasRealizadas.length === 0 && m.visitasAgendadas.length === 0).length})
+          </span>
+        </button>
+      </div>
+
+             {/* Indicadores de filtros ativos */}
+       {(selectedSupervisor || (selectedUF && selectedUF.trim() !== "" && selectedUF !== "default") || searchTerm || selectedStatusFilter) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            {selectedSupervisor && (
+              <div className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full">
+                <Users className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">
+                  Gerente Comercial: {subordinates.find(s => s.id === selectedSupervisor)?.name || "Gerente Comercial"}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedSupervisor(null)}
+                  className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-200"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+            
+                         {selectedUF && selectedUF.trim() !== "" && selectedUF !== "default" && (
+               <div className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full">
+                 <MapPin className="h-4 w-4 text-blue-600" />
+                 <span className="text-sm font-medium text-blue-800">
+                   UF: {selectedUF}
+                 </span>
+                 <Button 
+                   variant="ghost" 
+                   size="sm" 
+                   onClick={() => setSelectedUF("")}
+                   className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-200"
+                 >
+                   <X className="h-3 w-3" />
+                 </Button>
+               </div>
+             )}
+            
+            {searchTerm && searchTerm.trim() !== "" && (
+              <div className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full">
+                <Search className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">
+                  Busca: "{searchTerm}"
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSearchTerm("")}
+                  className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-200"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+            
+            {selectedStatusFilter && (
+              <div className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full">
+                <Filter className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-800">
+                  Status: {selectedStatusFilter === 'realizadas' ? 'Visitas Realizadas' : 
+                          selectedStatusFilter === 'agendadas' ? 'Visitas Agendadas' : 
+                          'Sem Visitas'}
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedStatusFilter("")}
+                  className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-200"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+            
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => {
+                setSelectedSupervisor(null);
+                setSelectedUF("");
+                setSearchTerm("");
+                setSelectedStatusFilter("");
+              }}
+              className="text-sm text-blue-600 hover:bg-blue-200"
+            >
+              Limpar todos os filtros
+            </Button>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setSelectedSupervisor(null)}
-            className="text-sm"
-          >
-            Limpar filtro
-          </Button>
         </div>
       )}
 
+      {/* Loading state */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando municípios...</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="text-center py-12">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <h3 className="text-lg font-medium text-red-800 mb-2">Erro ao carregar municípios</h3>
+            <p className="text-red-600 mb-4">
+              {error instanceof Error ? error.message : 'Erro desconhecido'}
+            </p>
+            <Button 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['municipios-prioritarios'] })}
+              variant="outline"
+              className="border-red-300 text-red-700 hover:bg-red-50"
+            >
+              Tentar novamente
+            </Button>
+          </div>
+        </div>
+      )}
+
+
       {/* Lista de Municípios */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-start">
-        {municipiosFiltrados.length === 0 ? (
+      {!isLoading && !error && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-start">
+          {municipiosFiltrados.length === 0 ? (
           <div className="col-span-full">
             <Card>
               <CardContent className="py-12 text-center">
                 <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum município encontrado</h3>
-                <p className="text-gray-500">
-                  {searchTerm || selectedUF || selectedSupervisor 
-                    ? "Tente ajustar os filtros aplicados"
-                    : "Não há municípios cadastrados para seu perfil"
-                  }
-                </p>
+                                 <p className="text-gray-500">
+                   {(searchTerm && searchTerm.trim() !== "") || (selectedUF && selectedUF.trim() !== "" && selectedUF !== "default") || selectedSupervisor || selectedStatusFilter
+                     ? "Tente ajustar os filtros aplicados"
+                     : "Não há municípios cadastrados para seu perfil"
+                   }
+                 </p>
               </CardContent>
             </Card>
           </div>
@@ -528,10 +858,15 @@ const MeusMunicipiosPage = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      <p className="text-xs text-gray-600 truncate">
-                        <span className="font-medium">Supervisor:</span> {municipio.supervisorNome}
-                      </p>
-                      {getStatusBadge(municipio)}
+                      {/* Só mostrar supervisor se o usuário logado não for supervisor */}
+                      {!isSupervisor && municipio.supervisorNome && (
+                        <p className="text-xs text-gray-600 truncate">
+                          <span className="font-medium"></span> {municipio.supervisorNome}
+                        </p>
+                      )}
+                      <div className="mt-7">
+                        {getStatusBadge(municipio)}
+                      </div>
                     </div>
                   </div>
                   
@@ -547,10 +882,10 @@ const MeusMunicipiosPage = () => {
                     </Button>
                     
                     <Button
-                      variant="default"
+                      variant="outline"
                       size="sm"
                       onClick={() => handleTratarVisita(municipio)}
-                      className="text-xs px-2 py-1 h-7 bg-green-600 hover:bg-green-700"
+                      className="text-xs px-2 py-1 h-7"
                       title="Tratar Visita"
                     >
                       <FileText className="h-3 w-3" />
@@ -593,7 +928,10 @@ const MeusMunicipiosPage = () => {
                                   {format(visita.data, "dd/MM/yyyy", { locale: ptBR })}
                                 </span>
                               </div>
-                              <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
+                              >
                                 {visita.status}
                               </Badge>
                             </div>
@@ -609,139 +947,173 @@ const MeusMunicipiosPage = () => {
                           <CheckCircle className="h-4 w-4 text-green-600" />
                           Visitas Realizadas
                         </h4>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           {municipio.visitasRealizadas.map((visita) => (
-                            <div key={visita.id} className="border rounded-lg p-3 bg-gray-50">
-                              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-200">
-                                <Calendar className="h-4 w-4 text-green-600" />
-                                <span className="text-sm font-semibold text-gray-900">
-                                  {format(visita.data, "dd/MM/yyyy", { locale: ptBR })}
-                                </span>
-                                <Badge variant="secondary" className="text-xs ml-auto">
-                                  {visita.cnpjs.length} {visita.cnpjs.length === 1 ? 'empresa' : 'empresas'}
-                                </Badge>
+                            <div key={visita.id} className="border rounded-lg bg-gray-50">
+                              {/* Header da visita - sempre visível */}
+                              <div 
+                                className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-100 transition-colors"
+                                onClick={() => toggleVisitaExpansion(visita.id)}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Calendar className="h-4 w-4 text-green-600" />
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {format(visita.data, "dd/MM/yyyy", { locale: ptBR })}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {visita.cnpjs.length} {visita.cnpjs.length === 1 ? 'empresa' : 'empresas'}
+                                  </span>
+                                </div>
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="p-1 h-auto"
+                                >
+                                  {isVisitaExpanded(visita.id) ? (
+                                    <ChevronUp className="h-3 w-3" />
+                                  ) : (
+                                    <ChevronDown className="h-3 w-3" />
+                                  )}
+                                </Button>
                               </div>
                               
-                              {/* Lista simples de CNPJs */}
-                              <div className="space-y-1">
-                                {visita.cnpjs.map((cnpj, index) => (
-                                  <div key={cnpj.id} className="group">
-                                    <div 
-                                      className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer transition-colors"
-                                      onClick={() => toggleCNPJExpansion(cnpj.id)}
-                                    >
-                                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <span className="text-xs font-medium text-gray-500 w-6 text-center">
-                                          {index + 1}
-                                        </span>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="text-sm font-medium text-gray-900 truncate">
-                                            {cnpj.razaoSocial || 'Empresa sem nome'}
-                                          </div>
-                                          <div className="text-xs text-gray-500">
-                                            {cnpj.semCNPJ ? (
-                                              <span className="italic">
-                                                {cnpj.nomeLoja ? `Loja: ${cnpj.nomeLoja}` : 'Empresa informal'}
-                                              </span>
-                                            ) : (
-                                              formatCnpj(cnpj.cnpj)
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                      
-                                      <div className="flex items-center gap-2">
-                                        {cnpj.interesse === 'sim' ? (
-                                          <CheckCircle className="h-4 w-4 text-green-600" />
-                                        ) : (
-                                          <XCircle className="h-4 w-4 text-red-500" />
-                                        )}
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="p-1 h-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                              {/* Conteúdo expandido da visita */}
+                              {isVisitaExpanded(visita.id) && (
+                                <div className="border-t border-gray-200 p-3">
+                                  <div className="space-y-2">
+                                    {visita.cnpjs.map((cnpj, index) => (
+                                      <div key={cnpj.id} className="group">
+                                        <div 
+                                          className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer transition-colors"
+                                          onClick={() => toggleCNPJExpansion(cnpj.id)}
                                         >
-                                          {isCNPJExpanded(cnpj.id) ? (
-                                            <ChevronUp className="h-3 w-3" />
-                                          ) : (
-                                            <ChevronDown className="h-3 w-3" />
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </div>
-                                    
-                                    {/* Detalhes expandidos do CNPJ */}
-                                    {isCNPJExpanded(cnpj.id) && (
-                                      <div className="mt-2 p-3 bg-white border rounded-md ml-4">
-                                        <div className="grid grid-cols-1 gap-2 text-sm">
-                                          {cnpj.semCNPJ ? (
-                                            <div className="flex justify-between">
-                                              <span className="font-medium text-gray-700">Nome da Loja:</span>
-                                              <span className="text-gray-600 italic">
-                                                {cnpj.nomeLoja || 'Não informado'}
-                                              </span>
-                                            </div>
-                                          ) : (
-                                            <div className="flex justify-between">
-                                              <span className="font-medium text-gray-700">CNPJ:</span>
-                                              <span className="text-gray-600">
-                                                {formatCnpj(cnpj.cnpj)}
-                                              </span>
-                                            </div>
-                                          )}
-                                          <div className="flex justify-between">
-                                            <span className="font-medium text-gray-700">Tipo:</span>
-                                            <span className="text-gray-600">
-                                              {cnpj.semCNPJ ? 'Empresa Informal' : 'Empresa Formal'}
+                                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <span className="text-xs font-medium text-gray-500 w-6 text-center">
+                                              {index + 1}
                                             </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="font-medium text-gray-700">Ramo:</span>
-                                            <span className="text-gray-600">
-                                              {cnpj.ramo === 'farmacia' ? 'Farmácia' : 'Mercado'}
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span className="font-medium text-gray-700">Interesse:</span>
-                                            <span className={cnpj.interesse === 'sim' ? 'text-green-600' : 'text-red-600'}>
-                                              {cnpj.interesse === 'sim' ? 'Sim' : 'Não'}
-                                            </span>
-                                          </div>
-                                          {cnpj.interesse === 'sim' && (
-                                            <div className="flex justify-between">
-                                              <span className="font-medium text-gray-700">Contrato Enviado:</span>
-                                              <span className={cnpj.contratoEnviado === 'sim' ? 'text-green-600' : 'text-orange-600'}>
-                                                {cnpj.contratoEnviado === 'sim' ? 'Sim' : 'Não'}
-                                              </span>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="text-sm font-medium text-gray-900 truncate">
+                                                {cnpj.razaoSocial || 'Empresa sem nome'}
+                                              </div>
+                                              <div className="text-xs text-gray-500">
+                                                {cnpj.semCNPJ ? (
+                                                  <span className="italic">
+                                                    {cnpj.nomeLoja ? `Loja: ${cnpj.nomeLoja}` : 'Empresa informal'}
+                                                  </span>
+                                                ) : (
+                                                  formatCnpj(cnpj.cnpj)
+                                                )}
+                                              </div>
                                             </div>
-                                          )}
-                                          {cnpj.motivoInteresse && (
-                                            <div className="mt-2 pt-2 border-t">
-                                              <span className="font-medium text-gray-700 block mb-1">
-                                                Motivo {cnpj.interesse === 'sim' ? 'do interesse' : 'da falta de interesse'}:
-                                              </span>
-                                              <p className="text-gray-600 text-xs">{cnpj.motivoInteresse}</p>
+                                          </div>
+                                          
+                                          <div className="flex items-center gap-3">
+
+                                            {/* Coluna de ícones com labels */}
+                                            <div className="flex gap-4">
+                                              {/* Aceite */}
+                                              <div className="flex flex-col items-center w-[40px]">
+                                                <span className="text-[10px] text-gray-600 mb-1">Aceite</span>
+                                                {cnpj.interesse === 'sim' ? (
+                                                  <CheckCircle className="h-4 w-4 text-green-600" />
+                                                ) : (
+                                                  <XCircle className="h-4 w-4 text-red-500" />
+                                                )}
+                                              </div>
+
+                                              {/* Contrato - só mostra se tiver aceite */}
+                                              {cnpj.interesse === 'sim' && (
+                                                <div className="flex flex-col items-center w-[40px]">
+                                                  <span className="text-[10px] text-gray-600 mb-1">Contrato</span>
+                                                  {cnpj.contratoEnviado ? (
+                                                    cnpj.contratoEnviado === 'sim' ? (
+                                                      <CheckCircle className="h-4 w-4 text-blue-600" />
+                                                    ) : (
+                                                      <XCircle className="h-4 w-4 text-orange-500" />
+                                                    )
+                                                  ) : (
+                                                    <div className="h-4 w-4" /> // Espaço vazio quando não se aplica
+                                                  )}
+                                                </div>
+                                              )}
                                             </div>
-                                          )}
-                                          {cnpj.motivoContrato && (
-                                            <div className="mt-2 pt-2 border-t">
-                                              <span className="font-medium text-gray-700 block mb-1">
-                                                Motivo do contrato não enviado:
-                                              </span>
-                                              <p className="text-gray-600 text-xs">{cnpj.motivoContrato}</p>
-                                            </div>
-                                          )}
+                                            
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="p-1 h-auto opacity-0 group-hover:opacity-100 transition-opacity ml-2"
+                                            >
+                                              {isCNPJExpanded(cnpj.id) ? (
+                                                <ChevronUp className="h-3 w-3" />
+                                              ) : (
+                                                <ChevronDown className="h-3 w-3" />
+                                              )}
+                                            </Button>
+                                          </div>
                                         </div>
+                                        
+                                        {/* Detalhes expandidos do CNPJ */}
+                                        {isCNPJExpanded(cnpj.id) && (
+                                          <div className="mt-2 p-3 bg-white border rounded-md ml-4">
+                                            <div className="grid grid-cols-1 gap-2 text-sm">
+                                              {cnpj.semCNPJ ? (
+                                                <div className="flex justify-between">
+                                                  <span className="font-medium text-gray-700">Nome da Loja:</span>
+                                                  <span className="text-gray-600 italic">
+                                                    {cnpj.nomeLoja || 'Não informado'}
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <div className="flex justify-between">
+                                                  <span className="font-medium text-gray-700">CNPJ:</span>
+                                                  <span className="text-gray-600">
+                                                    {formatCnpj(cnpj.cnpj)}
+                                                  </span>
+                                                </div>
+                                              )}
+                                              <div className="flex justify-between">
+                                                <span className="font-medium text-gray-700">Ramo de Farmácia/Mercado?</span>
+                                                <span className="text-gray-600">
+                                                  {cnpj.ramo === 'farmacia' ? 'Sim' : 'Não'}
+                                                </span>
+                                              </div>
+                                              <div className="flex justify-between">
+                                                <span className="font-medium text-gray-700">Interesse:</span>
+                                                <span className={cnpj.interesse === 'sim' ? 'text-green-600' : 'text-red-600'}>
+                                                  {cnpj.interesse === 'sim' ? 'Sim' : 'Não'}
+                                                </span>
+                                              </div>
+                                              {cnpj.interesse === 'sim' && (
+                                                <div className="flex justify-between">
+                                                  <span className="font-medium text-gray-700">Contrato Enviado:</span>
+                                                  <span className={cnpj.contratoEnviado === 'sim' ? 'text-green-600' : 'text-orange-600'}>
+                                                    {cnpj.contratoEnviado === 'sim' ? 'Sim' : 'Não'}
+                                                  </span>
+                                                </div>
+                                              )}
+                                              {cnpj.motivoInteresse && (
+                                                <div className="mt-2 pt-2 border-t">
+                                                  <span className="font-medium text-gray-700 block mb-1">
+                                                    Motivo {cnpj.interesse === 'sim' ? 'do interesse' : 'da falta de interesse'}:
+                                                  </span>
+                                                  <p className="text-gray-600 text-xs">{cnpj.motivoInteresse}</p>
+                                                </div>
+                                              )}
+                                              {cnpj.motivoContrato && (
+                                                <div className="mt-2 pt-2 border-t">
+                                                  <span className="font-medium text-gray-700 block mb-1">
+                                                    Motivo do contrato não enviado:
+                                                  </span>
+                                                  <p className="text-gray-600 text-xs">{cnpj.motivoContrato}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
-                                    )}
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                              
-                              {visita.observacoes && (
-                                <div className="mt-3 p-2 bg-white rounded border">
-                                  <span className="text-xs font-medium text-gray-700 block mb-1">Observações:</span>
-                                  <p className="text-xs text-gray-600">{visita.observacoes}</p>
                                 </div>
                               )}
                             </div>
@@ -762,7 +1134,8 @@ const MeusMunicipiosPage = () => {
             </Card>
           ))
         )}
-      </div>
+        </div>
+      )}
 
       {/* Modal Agendar Visita */}
       <Dialog open={isAgendarVisitaOpen} onOpenChange={setIsAgendarVisitaOpen}>
@@ -830,43 +1203,67 @@ const MeusMunicipiosPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center justify-center">
-                <div className="flex items-center border rounded-md overflow-hidden shadow-sm">
-                  <button
-                    type="button"
-                    className="px-4 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 border-r focus:outline-none transition-colors"
-                    onClick={() => {
-                      if (cnpjsVisitados.length > 1) {
-                        setCnpjsVisitados(prev => prev.slice(0, prev.length - 1));
-                      }
-                    }}
-                    disabled={cnpjsVisitados.length <= 1}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                  </button>
-                  
-                  <div className="px-6 py-3 bg-white text-center min-w-[80px]">
-                    <span className="text-2xl font-bold text-gray-800">{cnpjsVisitados.length}</span>
+              <div className="flex flex-col items-center space-y-4">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 w-full max-w-md">
+                  <div className="flex items-center justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-12 h-12 rounded-full border-2 border-gray-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                      onClick={() => {
+                        if (cnpjsVisitados.length > 1) {
+                          setCnpjsVisitados(prev => prev.slice(0, prev.length - 1));
+                        }
+                      }}
+                      disabled={cnpjsVisitados.length <= 1}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </Button>
+                    
+                    <div className="flex flex-col items-center px-6">
+                      <span className="text-4xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                        {cnpjsVisitados.length}
+                      </span>
+                      <span className="text-sm text-gray-500 font-medium mt-1">
+                        {cnpjsVisitados.length === 1 ? 'empresa' : 'empresas'}
+                      </span>
+                    </div>
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-12 h-12 rounded-full border-2 border-gray-200 hover:border-green-300 hover:bg-green-50 hover:text-green-600 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                      onClick={handleAdicionarCNPJ}
+                      disabled={cnpjsVisitados.length >= 20}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </Button>
                   </div>
                   
-                  <button
-                    type="button"
-                    className="px-4 py-3 bg-gray-100 text-gray-700 hover:bg-gray-200 border-l focus:outline-none transition-colors"
-                    onClick={handleAdicionarCNPJ}
-                    disabled={cnpjsVisitados.length >= 20}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                  </button>
+                  <div className="mt-4 flex justify-center">
+                    <div className="flex items-center space-x-2 text-xs text-gray-400">
+                      <span>Mín: 1</span>
+                      <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+                      <span>Máx: 20</span>
+                    </div>
+                  </div>
                 </div>
                 
-                <span className="ml-4 text-gray-600 font-medium">
-                  {cnpjsVisitados.length === 1 ? 'empresa' : 'empresas'}
-                </span>
+                {cnpjsVisitados.length > 0 && (
+                  <p className="text-sm text-gray-600 text-center max-w-md">
+                    {cnpjsVisitados.length === 1 
+                      ? "Você visitou 1 empresa neste município" 
+                      : `Você visitou ${cnpjsVisitados.length} empresas neste município`
+                    }
+                  </p>
+                )}
               </div>
 
               {cnpjsVisitados.length === 0 && (
@@ -908,33 +1305,35 @@ const MeusMunicipiosPage = () => {
                         </Button>
                       </div>
 
-                      {/* Checkbox para empresa sem CNPJ */}
-                      <div className="mb-4">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`sem-cnpj-${index}`}
-                            checked={cnpj.semCNPJ || false}
-                            onCheckedChange={(checked) => {
-                              handleCNPJChange(index, 'semCNPJ', checked);
-                              if (checked) {
-                                // Limpar CNPJ quando marcar sem CNPJ
-                                handleCNPJChange(index, 'cnpj', '');
-                              } else {
-                                // Limpar nome da loja quando desmarcar sem CNPJ
-                                handleCNPJChange(index, 'nomeLoja', '');
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Data da Visita */}
+                        <div className="space-y-2">
+                          <Label htmlFor={`data-visita-${index}`} className="text-sm text-gray-700">
+                            Data da Visita *
+                          </Label>
+                          <Input
+                            id={`data-visita-${index}`}
+                            placeholder="DD/MM/YYYY"
+                            value={cnpj.dataVisita || ""}
+                            onChange={(e) => {
+                              const formatted = formatDateOnType(e.target.value);
+                              handleCNPJChange(index, 'dataVisita', formatted);
+                            }}
+                            onKeyPress={(e) => {
+                              if (!/\d/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete') {
+                                e.preventDefault();
                               }
                             }}
+                            maxLength={10}
+                            className={`transition-all duration-200 ${
+                              cnpj.dataVisita && !validateDate(cnpj.dataVisita) ? 'border-red-300 bg-red-50' : ''
+                            }`}
                           />
-                          <Label 
-                            htmlFor={`sem-cnpj-${index}`} 
-                            className="text-sm text-gray-700 cursor-pointer"
-                          >
-                            Empresa sem CNPJ (informal)
-                          </Label>
+                          {cnpj.dataVisita && !validateDate(cnpj.dataVisita) && (
+                            <p className="text-xs text-red-600">Data inválida. Use o formato DD/MM/YYYY</p>
+                          )}
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* CNPJ ou Nome da Loja */}
                         <div className="space-y-2">
                           {cnpj.semCNPJ ? (
@@ -973,24 +1372,52 @@ const MeusMunicipiosPage = () => {
                               />
                             </>
                           )}
+                          
+                          {/* Checkbox para empresa sem CNPJ - posicionado embaixo do campo */}
+                          <div className="mt-2">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`sem-cnpj-${index}`}
+                                checked={cnpj.semCNPJ || false}
+                                onCheckedChange={(checked) => {
+                                  handleCNPJChange(index, 'semCNPJ', checked);
+                                  if (checked) {
+                                    // Limpar CNPJ quando marcar sem CNPJ
+                                    handleCNPJChange(index, 'cnpj', '');
+                                  } else {
+                                    // Limpar nome da loja quando desmarcar sem CNPJ
+                                    handleCNPJChange(index, 'nomeLoja', '');
+                                  }
+                                }}
+                              />
+                              <Label 
+                                htmlFor={`sem-cnpj-${index}`} 
+                                className="text-xs text-gray-500 cursor-pointer"
+                              >
+                                Não obtive o CNPJ durante a visita
+                              </Label>
+                            </div>
+                          </div>
                         </div>
+                      </div>
 
-    
+                      {/* Segunda linha - Ramo e Interesse */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         {/* Ramo - aparece sempre */}
                         <div className="space-y-2">
                           <Label htmlFor={`ramo-${index}`} className="text-sm text-gray-700">
-                            Ramo de Atividade é Farmácia/Mercado?
+                            Ramo de Atividade é Farmácia/Mercado? (Sim / Não)
                           </Label>
                           <Select
                             value={cnpj.ramo}
-                            onValueChange={(value: 'Sim' | 'Não') => handleCNPJChange(index, 'ramo', value)}
+                            onValueChange={(value: 'farmacia' | 'mercado') => handleCNPJChange(index, 'ramo', value)}
                           >
                             <SelectTrigger className="transition-all duration-200">
-                              <SelectValue placeholder="Selecione a opção..." />
+                              <SelectValue placeholder="Selecione Sim ou Não..." />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Sim">Sim</SelectItem>
-                              <SelectItem value="Não">Não</SelectItem>
+                              <SelectItem value="farmacia">Sim</SelectItem>
+                              <SelectItem value="mercado">Não</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -998,14 +1425,14 @@ const MeusMunicipiosPage = () => {
                         {/* Interesse - aparece sempre */}
                         <div className="space-y-2">
                           <Label htmlFor={`interesse-${index}`} className="text-sm text-gray-700">
-                            Houve Interesse?
+                            Houve Interesse? (Sim / Não)
                           </Label>
                           <Select
                             value={cnpj.interesse}
                             onValueChange={(value: 'sim' | 'nao') => handleCNPJChange(index, 'interesse', value)}
                           >
                             <SelectTrigger className="transition-all duration-200">
-                              <SelectValue placeholder="Selecione a opção..." />
+                              <SelectValue placeholder="Selecione Sim ou Não..." />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="sim">Sim</SelectItem>
@@ -1041,7 +1468,7 @@ const MeusMunicipiosPage = () => {
                             {cnpj.contratoEnviado === 'nao' && (
                               <div className="mt-3">
                                 <Label htmlFor={`motivo-contrato-${index}`} className="text-sm text-gray-700 block mb-2">
-                                  Motivo do contrato não enviado
+                                  Motivo do contrato não ser enviado?
                                 </Label>
                                 <Textarea
                                   id={`motivo-contrato-${index}`}
@@ -1052,6 +1479,25 @@ const MeusMunicipiosPage = () => {
                                 />
                               </div>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Campo para quando não há interesse */}
+                      {cnpj.interesse === 'nao' && (
+                        <div className="mt-4">
+                          <div className="p-4 bg-red-50 border border-red-100 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <XCircle className="h-4 w-4 text-red-600" />
+                              <span className="text-sm text-gray-700">Por que não houve interesse?</span>
+                            </div>
+                            <Textarea
+                              id={`motivo-interesse-${index}`}
+                              placeholder="Descreva o motivo da falta de interesse..."
+                              value={cnpj.motivoContrato || ""} // Usando a mesma propriedade conforme solicitado
+                              onChange={(e) => handleCNPJChange(index, 'motivoContrato', e.target.value)}
+                              className="min-h-[80px] resize-none transition-all duration-200"
+                            />
                           </div>
                         </div>
                       )}
@@ -1074,17 +1520,32 @@ const MeusMunicipiosPage = () => {
             </Button>
             <Button
               onClick={handleSalvarTratativa}
-              disabled={cnpjsVisitados.length === 0 || cnpjsVisitados.some(cnpj => {
+              disabled={salvarTratativaMutation.isPending || cnpjsVisitados.length === 0 || cnpjsVisitados.some(cnpj => {
+                // Validar data da visita
+                if (!cnpj.dataVisita || !validateDate(cnpj.dataVisita)) {
+                  return true;
+                }
+                
+                // Validar outros campos
                 if (cnpj.semCNPJ) {
-                  return !cnpj.nomeLoja || !cnpj.razaoSocial;
+                  return !cnpj.nomeLoja;
                 } else {
-                  return !cnpj.cnpj || !cnpj.razaoSocial;
+                  return !cnpj.cnpj;
                 }
               })}
               className="w-full sm:w-auto bg-green-600 hover:bg-green-700 transition-all duration-200"
             >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Salvar Tratativa
+              {salvarTratativaMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Salvar Tratativa
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

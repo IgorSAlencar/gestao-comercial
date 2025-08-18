@@ -760,6 +760,48 @@ export const hotListApi = {
   },
 };
 
+// Tipos para municípios prioritários
+export interface MunicipioPrioritario {
+  id: string;
+  nome: string;
+  uf: string;
+  codigoMunicipio: number;
+  chaveSupervisor: string;
+  chaveCoordenador: string;
+  chaveGerente: string;
+  supervisorId: string | null;
+  supervisorNome: string | null;
+  visitasAgendadas: VisitaAgendada[];
+  visitasRealizadas: VisitaRealizada[];
+}
+
+export interface VisitaAgendada {
+  id: string;
+  data: Date;
+  status: 'agendada' | 'realizada' | 'cancelada';
+}
+
+export interface VisitaRealizada {
+  id: string;
+  data: Date;
+  cnpjs: CNPJVisitado[];
+  observacoes?: string;
+}
+
+export interface CNPJVisitado {
+  id: string;
+  cnpj: string;
+  razaoSocial: string;
+  ramo: 'farmacia' | 'mercado';
+  interesse: 'sim' | 'nao';
+  contratoEnviado?: 'sim' | 'nao';
+  motivoInteresse?: string;
+  motivoContrato?: string;
+  semCNPJ?: boolean;
+  nomeLoja?: string;
+  dataVisita?: string; // Formato DD/MM/YYYY
+}
+
 // Tipos para categorias de eventos
 export interface EventCategory {
   id: number;
@@ -836,6 +878,166 @@ export const eventCategoryApi = {
       }
       
       throw new Error("Erro desconhecido ao buscar categorias");
+    }
+  }
+};
+
+// API para municípios prioritários
+export const municipiosPrioritariosApi = {
+  getMunicipios: async (supervisorId?: string): Promise<MunicipioPrioritario[]> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    // Construir URL com parâmetro de query se supervisorId for fornecido
+    let url = `${API_URL}/municipios-prioritarios`;
+    if (supervisorId) {
+      url += `?supervisorId=${encodeURIComponent(supervisorId)}`;
+    }
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      console.log('[MunicipiosAPI] Buscando municípios prioritários...', supervisorId ? `para supervisor ${supervisorId}` : '');
+      const data = await fetchWithErrorHandling(url, options);
+      
+      // Converter as datas dos objetos aninhados
+      const municipios = data.map((municipio: any) => ({
+        ...municipio,
+        visitasAgendadas: municipio.visitasAgendadas.map((visita: any) => ({
+          ...visita,
+          data: new Date(visita.data)
+        })),
+        visitasRealizadas: municipio.visitasRealizadas.map((visita: any) => ({
+          ...visita,
+          data: new Date(visita.data)
+        }))
+      }));
+      
+      console.log(`[MunicipiosAPI] ${municipios.length} municípios carregados`);
+      return municipios;
+    } catch (error) {
+      console.error('Erro ao buscar municípios prioritários:', error);
+      throw error;
+    }
+  },
+
+  getMunicipio: async (municipioId: string): Promise<MunicipioPrioritario> => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      console.log(`[MunicipiosAPI] Buscando município ${municipioId}...`);
+      const data = await fetchWithErrorHandling(`${API_URL}/municipios-prioritarios/${municipioId}`, options);
+      
+      // Converter as datas dos objetos aninhados
+      const municipio = {
+        ...data,
+        visitasAgendadas: data.visitasAgendadas.map((visita: any) => ({
+          ...visita,
+          data: new Date(visita.data)
+        })),
+        visitasRealizadas: data.visitasRealizadas.map((visita: any) => ({
+          ...visita,
+          data: new Date(visita.data)
+        }))
+      };
+      
+      console.log(`[MunicipiosAPI] Município ${municipio.nome} carregado`);
+      return municipio;
+    } catch (error) {
+      console.error(`Erro ao buscar município ${municipioId}:`, error);
+      throw error;
+    }
+  }
+};
+
+// API para tratativas de municípios
+export const tratativasMunicipiosApi = {
+  salvarTratativa: async (tratativaData: {
+    cd_munic: number;
+    empresas: Array<{
+      cnpj: string;
+      semCNPJ: boolean;
+      nomeLoja?: string;
+      ramo: 'sim' | 'nao';
+      interesse: 'sim' | 'nao';
+      contratoEnviado?: 'sim' | 'nao';
+      motivoContrato?: string;
+      dataVisita?: string;
+    }>;
+  }) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(tratativaData),
+    };
+    
+    try {
+      console.log('[TratativasAPI] Salvando tratativa:', tratativaData);
+      const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios`, options);
+      console.log('[TratativasAPI] Tratativa salva com sucesso:', data);
+      return data;
+    } catch (error) {
+      console.error('Erro ao salvar tratativa:', error);
+      throw error;
+    }
+  },
+
+  buscarTratativasMunicipio: async (cdMunic: number) => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      console.log(`[TratativasAPI] Buscando tratativas do município ${cdMunic}...`);
+      const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios/municipio/${cdMunic}`, options);
+      console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o município ${cdMunic}`);
+      return data;
+    } catch (error) {
+      console.error(`Erro ao buscar tratativas do município ${cdMunic}:`, error);
+      throw error;
+    }
+  },
+
+  buscarTratavisUsuario: async () => {
+    const token = localStorage.getItem("token");
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    try {
+      console.log('[TratativasAPI] Buscando tratativas do usuário...');
+      const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios/usuario`, options);
+      console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o usuário`);
+      return data;
+    } catch (error) {
+      console.error('Erro ao buscar tratativas do usuário:', error);
+      throw error;
     }
   }
 };

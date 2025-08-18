@@ -27,6 +27,7 @@ import {
   MapPin,
   MessageSquare,
   ChevronRight,
+  Building2,
   Loader2,
   CreditCard,
   Shield,
@@ -46,7 +47,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import DashboardGerencial from "@/components/DashboardGerencial";
 import AgendaStats from "@/components/AgendaStats";
-import { eventApi, Event, hotListApi } from "@/services/api";
+import { eventApi, Event, hotListApi, municipiosPrioritariosApi } from "@/services/api";
 import { format, isPast, isToday, parseISO, addHours, startOfWeek, endOfWeek, isWithinInterval, isFuture, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/components/ui/use-toast";
@@ -82,6 +83,14 @@ const Index = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [dataLoadedSuccessfully, setDataLoadedSuccessfully] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [municipiosData, setMunicipiosData] = useState({
+    total: 0,
+    comVisitasRealizadas: 0,
+    comVisitasAgendadas: 0,
+    semVisitas: 0,
+    totalEmpresas: 0,
+    aceites: 0
+  });
   
   // Função para verificar se um evento ocorre no dia atual
   const eventoHoje = (evento: Event) => {
@@ -212,7 +221,7 @@ const Index = () => {
   
   // Função consolidada para carregar todos os dados
   const carregarTodosDados = useCallback(async (tentativa = 0) => {
-        if (!user) return;
+    if (!user) return;
 
     setLoading(true);
     setLoadingError(null);
@@ -262,8 +271,62 @@ const Index = () => {
           return { leadsPendentes: 0, totalLeads: 0 };
         }
       })();
+
+      // 3. Carregar municípios (apenas para supervisores, coordenadores e gerentes)
+      const municipiosPromise = (async () => {
+        if (isSupervisor || isCoordinator || isManager) {
+          try {
+            const municipios = await municipiosPrioritariosApi.getMunicipios();
+            
+            // Calcular estatísticas
+            const total = municipios.length;
+            const comVisitasRealizadas = municipios.filter(m => m.visitasRealizadas.length > 0).length;
+            const comVisitasAgendadas = municipios.filter(m => m.visitasAgendadas.length > 0 && m.visitasRealizadas.length === 0).length;
+            const semVisitas = municipios.filter(m => m.visitasRealizadas.length === 0 && m.visitasAgendadas.length === 0).length;
+            
+            const totalEmpresas = municipios.reduce((total, m) => 
+              total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+                visitaTotal + v.cnpjs.length, 0
+              ), 0
+            );
+            
+            const aceites = municipios.reduce((total, m) => 
+              total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+                visitaTotal + v.cnpjs.filter(c => c.interesse === 'sim').length, 0
+              ), 0
+            );
+
+            return {
+              total,
+              comVisitasRealizadas,
+              comVisitasAgendadas,
+              semVisitas,
+              totalEmpresas,
+              aceites
+            };
+          } catch (error) {
+            //console.error("Erro ao carregar municípios:", error);
+            return {
+              total: 0,
+              comVisitasRealizadas: 0,
+              comVisitasAgendadas: 0,
+              semVisitas: 0,
+              totalEmpresas: 0,
+              aceites: 0
+            };
+          }
+        }
+        return {
+          total: 0,
+          comVisitasRealizadas: 0,
+          comVisitasAgendadas: 0,
+          semVisitas: 0,
+          totalEmpresas: 0,
+          aceites: 0
+        };
+      })();
         
-      // 3. Simular estatísticas (futuramente será uma API real)
+      // 4. Simular estatísticas (futuramente será uma API real)
       const estatisticasPromise = Promise.resolve({
           totalAcoes: 0,
           concluidas: 0,
@@ -273,7 +336,7 @@ const Index = () => {
           contasAbertasMes: Math.floor(Math.random() * 120) + 50
         });
         
-      // 4. Simular alertas (futuramente será uma API real)
+      // 5. Simular alertas (futuramente será uma API real)
       const alertasPromise = Promise.resolve([
           {
             id: 1,
@@ -302,9 +365,10 @@ const Index = () => {
         ]);
       
       // Aguardar todas as promessas
-      const [eventosData, hotListSummary, estatisticasData, alertasData] = await Promise.all([
+      const [eventosData, hotListSummary, municipiosStats, estatisticasData, alertasData] = await Promise.all([
         eventosPromise,
         hotlistPromise,
+        municipiosPromise,
         estatisticasPromise,
         alertasPromise
       ]);
@@ -322,8 +386,9 @@ const Index = () => {
       //console.log(`Eventos relevantes para exibição: ${eventosRelevantes.length}`, eventosRelevantes);
       setEventosHoje(eventosRelevantes);
       
-      setTotalLeadsPendentes(hotListSummary.leadsPendentes);
+      setTotalLeadsPendentes(hotListSummary.leadsPendentes || 0);
       setTotalLeadsUsuario(hotListSummary.totalLeads || 0);
+      setMunicipiosData(municipiosStats);
       setEstatisticas(estatisticasData);
       setAlertas(alertasData);
       
@@ -629,11 +694,11 @@ const Index = () => {
               <h3 className="text-2xl font-bold text-orange-800">HotList</h3>
               <div className="flex flex-col gap-2 mt-2">
                 <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {totalLeadsUsuario.toLocaleString('pt-BR')} leads ativos
+                  {(totalLeadsUsuario || 0).toLocaleString('pt-BR')} leads ativos
                 </div>
                 <div className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                   <AlertCircle className="h-4 w-4" />
-                  {totalLeadsPendentes.toLocaleString('pt-BR')} leads pendentes
+                  {(totalLeadsPendentes || 0).toLocaleString('pt-BR')} leads pendentes
                 </div>
               </div>
             </div>
@@ -658,11 +723,11 @@ const Index = () => {
         <DashboardGerencial />
       ) : (
         /* Conteúdo de Agenda e Ações para outros usuários */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Coluna 1: Agenda do Dia */}
           <div className="lg:col-span-2 space-y-6">
             {/* Agenda do Dia */}
-            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+            <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden min-h-[600px] flex flex-col">
               {/* Elementos decorativos de fundo */}
               <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-50"></div>
               <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-violet-100/20 to-transparent rounded-full transform translate-x-1/2 -translate-y-1/2"></div>
@@ -688,7 +753,7 @@ const Index = () => {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent className="relative">
+              <CardContent className="relative flex-1 flex flex-col">
                 {loading && !dataLoadedSuccessfully ? (
                   <div className="flex justify-center py-8">
                     <div className="flex flex-col items-center gap-2">
@@ -700,7 +765,7 @@ const Index = () => {
                     </div>
                   </div>
                 ) : eventosHoje.length > 0 ? (
-                  <div className="pt-4 border-t border-slate-200">
+                  <div className="pt-4 border-t border-slate-200 flex-1 flex flex-col">
                     {/* Seções de eventos */}
                     <div className="space-y-6">
                       {(() => {
@@ -777,7 +842,7 @@ const Index = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-12 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200">
+                  <div className="text-center py-12 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex-1 flex flex-col justify-center">
                     <div className="relative inline-block">
                       <CalendarDays className="h-16 w-16 text-slate-300 mx-auto mb-3 transform -rotate-6" />
                       <div className="absolute top-0 left-0 h-16 w-16 border-4 border-slate-100 rounded-lg transform rotate-6"></div>
@@ -846,14 +911,16 @@ const Index = () => {
                       </div>
                     )} */}
                     
-                    <Button 
-                      variant="outline" 
-                      className="border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 transform hover:-translate-y-0.5"
-                      onClick={() => navegarPara('/agenda')}
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      Adicionar Evento
-                    </Button>
+                    <div className="flex justify-center">
+                      <Button 
+                        variant="outline" 
+                        className="border-2 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all duration-300 transform hover:-translate-y-0.5 w-48 px-4"
+                        onClick={() => navegarPara('/agenda')}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Adicionar Evento
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -862,6 +929,59 @@ const Index = () => {
         
           {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
           <div className="space-y-6">
+            {/* Card de Meus Municípios - apenas para supervisores, coordenadores e gerentes */}
+            {(isSupervisor || isCoordinator || isManager) && (
+              <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+                {/* Elementos decorativos de fundo */}
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-50 via-white to-slate-50 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-teal-100/20 to-transparent rounded-full transform translate-x-32 -translate-y-32 pointer-events-none"></div>
+                
+                <CardHeader className="relative z-10">
+                  <CardTitle className="text-lg text-slate-800 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-teal-100 text-teal-600">
+                      <MapPin className="h-5 w-5" />
+                    </div>
+                    Municípios Prioritários
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">Gestão territorial e acompanhamento de visitas</CardDescription>
+                </CardHeader>
+                <CardContent className="relative z-10">
+                  <div className="space-y-3 mb-4">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-teal-50 to-white rounded-lg border border-teal-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-teal-800">Total de Municípios</span>
+                      </div>
+                      <span className="text-lg font-bold text-teal-700">{municipiosData.total}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-emerald-50 to-white rounded-lg border border-emerald-100">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-emerald-800">Visitados</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-emerald-700">{municipiosData.comVisitasRealizadas}</span>
+                        <span className="text-sm font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                          {municipiosData.total > 0 ? Math.round((municipiosData.comVisitasRealizadas / municipiosData.total) * 100) : 0}%
+                        </span>
+                      </div>
+                    </div>
+
+                  </div>
+                  
+                  <Button 
+                    onClick={() => navegarPara('/meus-municipios')}
+                    className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
+                  >
+                    <MapPin className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                    Gerenciar Municípios
+                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Links para Estratégias Comerciais */}
             <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">
               {/* Elementos decorativos de fundo */}
@@ -869,50 +989,54 @@ const Index = () => {
               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-100/20 to-transparent rounded-full transform translate-x-32 -translate-y-32 pointer-events-none"></div>
               
               <CardHeader className="relative z-10">
-                <CardTitle className="text-lg text-slate-800">Estratégias Comerciais</CardTitle>
+                <CardTitle className="text-lg text-slate-800 flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                    <BarChart2 className="h-5 w-5" />
+                  </div>
+                  Estratégias Comerciais
+                </CardTitle>
                 <CardDescription className="text-slate-600">Acesse os produtos prioritários para atendimento</CardDescription>
               </CardHeader>
               <CardContent className="relative z-10">
-                <div className="grid grid-cols-1 gap-3">
-                  <Button 
-                    variant="outline"
-                    className="relative border-2 bg-gradient-to-r from-blue-50 via-white to-white border-blue-200 hover:border-blue-300 hover:shadow-md justify-start transition-all duration-300 group overflow-hidden"
+                <div className="space-y-3 mb-4">
+                  <div 
+                    className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-50 to-white rounded-lg border border-blue-100 cursor-pointer hover:shadow-md transition-all duration-300"
                     onClick={() => navegarPara('/estrategia/abertura-conta')}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="relative flex items-center">
-                      <div className="p-1.5 rounded-md bg-blue-100 text-blue-600 mr-2 group-hover:scale-110 transition-transform">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-md bg-blue-100 text-blue-600">
                         <Users className="h-4 w-4" />
                       </div>
-                      <span className="text-slate-700 group-hover:text-slate-900">Abertura de Contas</span>
+                      <span className="text-sm font-medium text-blue-800">Abertura de Contas</span>
                     </div>
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="relative border-2 bg-gradient-to-r from-emerald-50 via-white to-white border-emerald-200 hover:border-emerald-300 hover:shadow-md justify-start transition-all duration-300 group overflow-hidden"
+                    <ChevronRight className="h-4 w-4 text-blue-500" />
+                  </div>
+
+                  <div 
+                    className="flex justify-between items-center p-3 bg-gradient-to-r from-emerald-50 to-white rounded-lg border border-emerald-100 cursor-pointer hover:shadow-md transition-all duration-300"
                     onClick={() => navegarPara('/estrategia/credito')}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="relative flex items-center">
-                      <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-600 mr-2 group-hover:scale-110 transition-transform">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-600">
                         <CreditCard className="h-4 w-4" />
                       </div>
-                      <span className="text-slate-700 group-hover:text-slate-900">Crédito</span>
+                      <span className="text-sm font-medium text-emerald-800">Crédito</span>
                     </div>
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    className="relative border-2 bg-gradient-to-r from-violet-50 via-white to-white border-violet-200 hover:border-violet-300 hover:shadow-md justify-start transition-all duration-300 group overflow-hidden"
+                    <ChevronRight className="h-4 w-4 text-emerald-600" />
+                  </div>
+
+                  <div 
+                    className="flex justify-between items-center p-3 bg-gradient-to-r from-violet-50 to-white rounded-lg border border-violet-100 cursor-pointer hover:shadow-md transition-all duration-300"
                     onClick={() => navegarPara('/estrategia/seguro')}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-violet-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <div className="relative flex items-center">
-                      <div className="p-1.5 rounded-md bg-violet-100 text-violet-600 mr-2 group-hover:scale-110 transition-transform">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-md bg-violet-100 text-violet-600">
                         <Shield className="h-4 w-4" />
                       </div>
-                      <span className="text-slate-700 group-hover:text-slate-900">Seguros</span>
+                      <span className="text-sm font-medium text-violet-800">Seguros</span>
                     </div>
-                  </Button>
+                    <ChevronRight className="h-4 w-4 text-violet-600" />
+                  </div>
                 </div>
               </CardContent>
             </Card>

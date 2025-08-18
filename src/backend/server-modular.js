@@ -18,6 +18,8 @@ const prospectVisitasRoutes = require('./routes/prospectVisitas');
 const hotlistRoutes = require('./routes/hotlist');
 const trativasProspecaoRoutes = require('./routes/trativasProspecao');
 const estrategiaComercialRoutes = require('./routes/estrategiaComercial');
+const municipiosPrioritariosRoutes = require('./routes/municipiosPrioritarios');
+const tratativasMunicipiosRoutes = require('./routes/tratativasMunicipios');
 const { router: userLogsRoutes } = require('./routes/user-logs');
 
 const app = express();
@@ -184,10 +186,12 @@ app.use('/api/prospect-visitas', prospectVisitasRoutes);
 app.use('/api/hotlist', hotlistRoutes);
 app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
 app.use('/api/estrategia', estrategiaComercialRoutes);
+app.use('/api/municipios-prioritarios', municipiosPrioritariosRoutes);
+app.use('/api/tratativas-municipios', tratativasMunicipiosRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {
-  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.15.4' : config.server.host}:${PORT}`;
+  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.15.7' : config.server.host}:${PORT}`;
   console.log(`Server running on port ${PORT}`);
   console.log(`Server accessible at ${serverUrl}`);
 }); 
