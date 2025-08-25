@@ -19,20 +19,13 @@ import {
   CheckCircle, 
   XCircle,
   Info,
-  Filter,
   BarChart3,
-  Users,
-  Building2,
-  Phone,
-  Calendar,
-  Clock,
-  Target,
-  Award,
+  Eye,
+  EyeOff,
   Wrench,
   Heart,
   Plus
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +39,9 @@ import { cn } from "@/lib/utils";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { estrategiaComercialApi } from "@/services/estrategiaComercialService";
+import { formatDate } from "@/utils/formatDate";
+import { useAuth } from "@/context/AuthContext";
 
 // Tipos específicos para Pontos Ativos
 interface DadosPontoAtivo {
@@ -53,7 +49,7 @@ interface DadosPontoAtivo {
   cnpj: string;
   nomeLoja: string;
   situacao: "ativa" | "inativa" | "bloqueada";
-  dataUltimaTransacao: Date;
+  dataUltimaTransacao: Date | string;
   mesM3: number;
   mesM2: number;
   mesM1: number;
@@ -66,10 +62,12 @@ interface DadosPontoAtivo {
   diretoriaRegional: string;
   telefoneLoja: string;
   nomeContato: string;
-  dataInauguracao: Date;
-  dataCertificacao: Date;
+  dataInauguracao: Date | string;
+  dataCertificacao: Date | string;
   situacaoTablet: "Instalado" | "Pendente" | "Não Instalado";
   multiplicadorResponsavel: string;
+  supervisorResponsavel: string;
+  chaveSupervisao: string;
   tendencia: "crescimento" | "estavel" | "queda" | "atencao";
   nivelAtividade: "alta" | "media" | "baixa";
   produtosHabilitados: {
@@ -85,6 +83,7 @@ interface FiltrosPontosAtivos {
   situacao: string[];
   gerenciaRegional: string[];
   diretoriaRegional: string[];
+  supervisorResponsavel: string[];
   tendencia: string[];
   nivelAtividade: string[];
   municipio: string[];
@@ -120,6 +119,8 @@ const dadosSimulados: DadosPontoAtivo[] = [
     dataCertificacao: new Date("2022-10-05"),
     situacaoTablet: "Instalado",
     multiplicadorResponsavel: "Carlos Oliveira",
+    supervisorResponsavel: "João Supervisor",
+    chaveSupervisao: "SUP001",
     tendencia: "crescimento",
     nivelAtividade: "alta",
     produtosHabilitados: {
@@ -150,6 +151,8 @@ const dadosSimulados: DadosPontoAtivo[] = [
     dataCertificacao: new Date("2022-09-15"),
     situacaoTablet: "Instalado",
     multiplicadorResponsavel: "Ana Pereira",
+    supervisorResponsavel: "Maria Supervisora",
+    chaveSupervisao: "SUP002",
     tendencia: "estavel",
     nivelAtividade: "media",
     produtosHabilitados: {
@@ -180,6 +183,8 @@ const dadosSimulados: DadosPontoAtivo[] = [
     dataCertificacao: new Date("2022-08-20"),
     situacaoTablet: "Instalado",
     multiplicadorResponsavel: "Roberto Costa",
+    supervisorResponsavel: "Pedro Supervisor",
+    chaveSupervisao: "SUP003",
     tendencia: "atencao",
     nivelAtividade: "media",
     produtosHabilitados: {
@@ -192,15 +197,18 @@ const dadosSimulados: DadosPontoAtivo[] = [
 
 const PontosAtivos: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isManager } = useAuth();
-  const [dados, setDados] = useState<DadosPontoAtivo[]>(dadosSimulados);
-  const [dadosFiltrados, setDadosFiltrados] = useState<DadosPontoAtivo[]>(dadosSimulados);
+  const { user, isManager, isAdmin } = useAuth();
+  const [dados, setDados] = useState<DadosPontoAtivo[]>([]);
+  const [dadosFiltrados, setDadosFiltrados] = useState<DadosPontoAtivo[]>([]);
+  const [metricas, setMetricas] = useState<any>(null);
   const [ordenacao, setOrdenacao] = useState({ coluna: 'chaveLoja' as keyof DadosPontoAtivo, direcao: 'asc' as 'asc' | 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
-  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error'>('success');
+  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string>('');
   const [showAnaliseFiltros, setShowAnaliseFiltros] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showHierarchyColumns, setShowHierarchyColumns] = useState(false);
 
   const form = useForm<FiltrosPontosAtivos>({
     defaultValues: {
@@ -209,6 +217,7 @@ const PontosAtivos: React.FC = () => {
       situacao: [],
       gerenciaRegional: [],
       diretoriaRegional: [],
+      supervisorResponsavel: [],
       tendencia: [],
       nivelAtividade: [],
       municipio: [],
@@ -221,6 +230,15 @@ const PontosAtivos: React.FC = () => {
     }
   });
 
+  // Função auxiliar para calcular nível de atividade
+  const calcularNivelAtividade = (m0: number): "alta" | "media" | "baixa" => {
+    if (m0 >= 5) return "alta";
+    if (m0 >= 2) return "media";
+    return "baixa";
+  };
+
+
+
   // Opções para filtros
   const situacoes = ["ativa", "inativa", "bloqueada"];
   const tendencias = ["crescimento", "estavel", "queda", "atencao"];
@@ -230,6 +248,110 @@ const PontosAtivos: React.FC = () => {
   const municipios = [...new Set(dados.map(d => d.municipio))];
   const ufs = [...new Set(dados.map(d => d.uf))];
   const agencias = [...new Set(dados.map(d => d.agencia))];
+  const multiplicadoresResponsaveis = [...new Set(dados.map(d => d.multiplicadorResponsavel))];
+  const supervisoresResponsaveis = [...new Set(dados.map(d => d.supervisorResponsavel))];
+
+  // Função para carregar dados da API
+  const loadPontosAtivos = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoading(true);
+      setError('');
+      setConnectionStatus('loading');
+      
+      // Verificar se o usuário tem chave definida
+      if (!user.chave && user.role !== 'admin') {
+        const errorMsg = `Usuário ${user.name} (${user.role}) não possui chave de hierarquia definida. 
+        
+Para corrigir:
+1. Execute o script SQL: src/sql/fix_user_keys.sql
+2. Verifique se o usuário tem chave na tabela TESTE..users
+3. Faça logout e login novamente
+
+Entre em contato com o administrador se o problema persistir.`;
+        
+        setError(errorMsg);
+        setConnectionStatus('error');
+        // Fallback para dados simulados
+        setDados(dadosSimulados);
+        setDadosFiltrados(dadosSimulados);
+        return;
+      }
+      
+      // Buscar dados da estratégia pontos-ativos
+      const response = await estrategiaComercialApi.getEstrategia('pontos-ativos');
+      
+      // Mapear dados para o formato esperado
+      const dadosFormatados: DadosPontoAtivo[] = response.dadosAnaliticos.map(loja => ({
+        chaveLoja: loja.chaveLoja,
+        cnpj: loja.cnpj,
+        nomeLoja: loja.nomeLoja,
+        situacao: loja.situacao as "ativa" | "inativa" | "bloqueada",
+        // Manter data como string para evitar problemas de fuso horário
+        dataUltimaTransacao: loja.dataUltTrxNegocio as any,
+        mesM3: loja.mesM3,
+        mesM2: loja.mesM2,
+        mesM1: loja.mesM1,
+        mesM0: loja.mesM0,
+        endereco: loja.endereco,
+        municipio: loja.municipio || '',
+        uf: loja.uf || '',
+        agencia: loja.agencia,
+        gerenciaRegional: loja.gerenciaRegional,
+        diretoriaRegional: loja.diretoriaRegional,
+        telefoneLoja: loja.telefoneLoja,
+        nomeContato: loja.nomeContato,
+        // Manter datas como string para evitar problemas de fuso horário
+        dataInauguracao: loja.dataInauguracao as any,
+        dataCertificacao: (loja.dataCertificacao || loja.dataInauguracao) as any,
+        situacaoTablet: loja.situacaoTablet as "Instalado" | "Pendente" | "Não Instalado",
+        multiplicadorResponsavel: loja.multiplicadorResponsavel,
+        supervisorResponsavel: loja.supervisorResponsavel || '',
+        chaveSupervisao: loja.chaveSupervisao || '',
+        tendencia: loja.tendencia as "crescimento" | "estavel" | "queda" | "atencao",
+        nivelAtividade: calcularNivelAtividade(loja.mesM0),
+        produtosHabilitados: loja.produtosHabilitados || {
+          consignado: false,
+          microsseguro: false,
+          lime: false
+        }
+      }));
+      
+      setDados(dadosFormatados);
+      setDadosFiltrados(dadosFormatados);
+      setConnectionStatus('success');
+      
+    } catch (err: any) {
+      console.error('Erro ao carregar pontos ativos:', err);
+      
+      let errorMessage = err.message || 'Erro ao carregar dados dos pontos ativos';
+      
+      if (err.message?.includes('fetch') || err.message?.includes('network')) {
+        errorMessage = `Erro de conexão com o servidor. 
+        
+Verifique:
+1. Se o backend está rodando
+2. Se as tabelas TB_ESTR_LOJAS e TB_ESTR_ATIVO existem
+3. Execute os scripts SQL necessários para popular as tabelas`;
+      }
+      
+      setError(errorMessage);
+      setConnectionStatus('error');
+      
+      // Fallback para dados simulados
+      setDados(dadosSimulados);
+      setDadosFiltrados(dadosSimulados);
+      
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // UseEffect para carregar dados
+  useEffect(() => {
+    loadPontosAtivos();
+  }, [user]);
 
   const handleVoltar = () => {
     navigate('/estrategia-comercial');
@@ -259,6 +381,10 @@ const PontosAtivos: React.FC = () => {
 
     if (values.diretoriaRegional.length > 0) {
       filtrados = filtrados.filter(loja => values.diretoriaRegional.includes(loja.diretoriaRegional));
+    }
+
+    if (values.supervisorResponsavel.length > 0) {
+      filtrados = filtrados.filter(loja => values.supervisorResponsavel.includes(loja.supervisorResponsavel));
     }
 
     if (values.tendencia.length > 0) {
@@ -355,7 +481,7 @@ const PontosAtivos: React.FC = () => {
 
   const exportarParaExcel = () => {
     // Implementar exportação para Excel
-    console.log('Exportando dados para Excel...');
+    //console.log('Exportando dados para Excel...');
   };
 
   const getCurrentPageData = () => {
@@ -368,18 +494,7 @@ const PontosAtivos: React.FC = () => {
     setCurrentPage(newPage);
   };
 
-  const renderTendenciaIcon = (tendencia: string) => {
-    switch (tendencia) {
-      case 'crescimento':
-        return <TrendingUp className="h-4 w-4 text-green-600" />;
-      case 'queda':
-        return <TrendingDown className="h-4 w-4 text-red-600" />;
-      case 'atencao':
-        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
-      default:
-        return <Activity className="h-4 w-4 text-blue-600" />;
-    }
-  };
+
 
   const renderSituacaoBadge = (situacao: string) => {
     switch (situacao) {
@@ -407,9 +522,8 @@ const PontosAtivos: React.FC = () => {
     }
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('pt-BR');
-  };
+  // Usando a função formatDate do utils que corrige problemas de fuso horário
+  // const formatDate é importada do @/utils/formatDate
 
   // Função para gerar nomes dos meses dinamicamente
   const getMonthNames = () => {
@@ -504,6 +618,35 @@ const PontosAtivos: React.FC = () => {
     );
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="container mx-auto">
+        <div className="flex flex-col space-y-6">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleVoltar}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">Pontos Ativos</h1>
+              <p className="text-gray-500">Carregando dados dos pontos ativos...</p>
+            </div>
+          </div>
+          
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <p className="ml-4 text-gray-500">Carregando dados...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto">
       <div className="flex flex-col space-y-6">
@@ -536,280 +679,75 @@ const PontosAtivos: React.FC = () => {
         )}
 
         {/* Cards de Métricas */}
-        <Card className="flex-none">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-blue-600" />
-              Resumo dos Pontos Ativos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-                             <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
-                 <CardHeader className="pb-2">
-                   <div className="flex justify-between items-center">
-                     <CardTitle className="text-sm font-semibold text-gray-900">Lojas Ativas em {format(new Date(), 'MMM/yy', {locale: ptBR}).toUpperCase()}</CardTitle>
-                     <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
-                       <Building2 className="h-4 w-4 text-blue-600" />
-                     </div>
-                   </div>
-                 </CardHeader>
-                 <CardContent className="pt-0">
-                   <div>
-                     <p className="text-2xl font-bold text-blue-800">{dados.filter(d => d.situacao === 'ativa' && d.mesM0 > 0).length}</p>
-                     <p className="text-xs text-gray-600 mt-1">Correspondentes transacionando </p>
-                   </div>
-                 </CardContent>
-               </Card>
-
-              <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-semibold text-gray-900">Pontos Ativos</CardTitle>
-                    <div className="p-2 rounded-full bg-green-50 border border-green-100">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div>
-                    <p className="text-2xl font-bold text-green-800">{dados.filter(d => d.situacao === 'ativa').length}</p>
-                    <p className="text-xs text-gray-600 mt-1">Pontos em operação</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-
-              <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-semibold text-gray-900">Pontos de Atenção</CardTitle>
-                    <div className="p-2 rounded-full bg-amber-50 border border-amber-100">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div>
-                    <p className="text-2xl font-bold text-amber-800">{dados.filter(d => d.tendencia === 'atencao' || d.tendencia === 'queda').length}</p>
-                    <p className="text-xs text-gray-600 mt-1">Requerem atenção</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </CardContent>
-                 </Card>
-
-         {/* Cards de Performance & Evolução */}
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-none">
-           {/* Card Performance & Evolução Unificado */}
-           <Card>
-             <CardHeader className="pb-3">
-               <CardTitle className="text-lg flex items-center gap-2">
-                 <Activity className="h-5 w-5 text-blue-600" />
-                 Performance & Evolução
-               </CardTitle>
-             </CardHeader>
-             <CardContent>
+        
+        {/* Grid Principal */}
                <div className="space-y-4">
-                 {/* Indicadores de Evolução */}
-                 <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-50/70 transition-all duration-200">
-                   <div className="flex items-center justify-between mb-3">
-                     <div className="flex items-center gap-2">
-                       <TrendingUp className="h-5 w-5 text-blue-600" />
-                       <span className="font-medium text-blue-800">Evolução de Pontos</span>
-                     </div>
-                     <div className="flex items-center gap-2">
-                       <div className="flex items-center gap-1 text-green-600 font-bold text-lg">
-                         <TrendingUp className="h-5 w-5" />
-                         15.2%
-                       </div>
-                       <Info className="h-4 w-4 text-blue-400" />
-                     </div>
-                   </div>
-                   
-                   <div className="grid grid-cols-2 gap-4">
-                     {/* Variação Total */}
-                     <div className="bg-white p-3 rounded-lg border border-blue-100">
-                       <div className="text-sm text-blue-600 mb-1">Variação Total</div>
-                       <div className="flex items-baseline gap-1">
-                         <span className="text-xl font-bold text-blue-800">+12</span>
-                         <span className="text-sm text-blue-600">pontos</span>
-                       </div>
-                       <div className="text-xs text-blue-500 mt-1">
-                         JUN/25 → JUL/25
-                       </div>
-                     </div>
+          {/* Gráfico de Tendência - Convertendo DadosPontoAtivo para DadosLoja */}
+                     <GraficoTendencia 
+             showTendenciaCard={false}
+             tipoMetrica="ativos"
+             onTendenciaClick={(tendencia) => {
+               const lojasFiltradas = dados.filter(loja => loja.tendencia === tendencia);
+               setDadosFiltrados(lojasFiltradas);
+               setCurrentPage(1);
+             }}
+             dadosAnaliticos={dados.map(ponto => ({
+              chaveLoja: ponto.chaveLoja,
+              cnpj: ponto.cnpj,
+              nomeLoja: ponto.nomeLoja,
+              mesM3: ponto.mesM3,
+              mesM2: ponto.mesM2,
+              mesM1: ponto.mesM1,
+              mesM0: ponto.mesM0,
+              situacao: ponto.situacao,
+              dataUltTrxContabil: new Date(ponto.dataUltimaTransacao),
+              dataUltTrxNegocio: new Date(ponto.dataUltimaTransacao),
+              dataInauguracao: new Date(ponto.dataInauguracao),
+              agencia: ponto.agencia,
+              codAgRelacionamento: ponto.agencia,
+              agRelacionamento: ponto.agencia,
+              telefoneLoja: ponto.telefoneLoja,
+              nomeContato: ponto.nomeContato,
+              gerenciaRegional: ponto.gerenciaRegional,
+              diretoriaRegional: ponto.diretoriaRegional,
+              tendencia: ponto.tendencia,
+              endereco: ponto.endereco,
+              nomePdv: ponto.nomeLoja,
+              multiplicadorResponsavel: ponto.multiplicadorResponsavel,
+              dataCertificacao: new Date(ponto.dataCertificacao),
+              situacaoTablet: ponto.situacaoTablet,
+              municipio: ponto.municipio,
+              uf: ponto.uf,
+              produtosHabilitados: ponto.produtosHabilitados
+            }))} 
+            onZeradosClick={() => {
+              // Filtrar lojas que tinham atividade em M1 mas zeraram em M0
+              const lojasFiltradas = dados.filter(loja => 
+                (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0
+              );
+              setDadosFiltrados(lojasFiltradas);
+              setCurrentPage(1);
+            }}
+            onQuedaProducaoClick={() => {
+              // Filtrar lojas com queda na atividade (M0 menor que M1)
+              const lojasFiltradas = dados.filter(loja => 
+                (loja.mesM0 || 0) < (loja.mesM1 || 0) && (loja.mesM1 || 0) > 0
+              );
+              setDadosFiltrados(lojasFiltradas);
+              setCurrentPage(1);
+            }}
+          />
 
-                     {/* Comparativo de Pontos Ativos */}
-                     <div className="bg-white p-3 rounded-lg border border-green-100">
-                       <div className="text-sm text-green-600 mb-1">Pontos Ativos</div>
-                       <div className="flex items-center justify-between">
-                         <div>
-                           <div className="text-sm text-gray-600">JUN/25</div>
-                           <div className="text-lg font-bold text-green-800">78</div>
-                         </div>
-                         <div className="text-xl font-bold text-gray-300">→</div>
-                         <div>
-                           <div className="text-sm text-gray-600">JUL/25</div>
-                           <div className="text-lg font-bold text-green-800">90</div>
-                         </div>
-                       </div>
-                     </div>
-                   </div>
-                 </div>
+         <Tabs defaultValue="pontos">
+           <TabsList className="mb-4">
+             <TabsTrigger value="pontos">Pontos Ativos</TabsTrigger>
 
-                 {/* Indicadores de Performance */}
-                 <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
-                   <div className="flex items-center justify-between mb-3">
-                     <div className="flex items-center gap-2">
-                       <Target className="h-5 w-5 text-green-600" />
-                       <span className="font-medium text-green-800">Estabilidade dos Pontos</span>
-                     </div>
-                     <div className="text-lg font-bold text-green-600">85.2%</div>
-                   </div>
+           </TabsList>
 
-                                    {/* Barra de Progresso */}
-                 <div className="relative pt-1">
-                   <div className="flex mb-2 items-center justify-between">
-                     <div>
-                       <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-green-600 bg-green-100">
-                         Estabilidade dos Pontos
-                       </span>
-                     </div>
-                     <div className="text-right">
-                       <span className="text-xs font-semibold inline-block text-green-600">
-                         78/85 pontos estáveis
-                       </span>
-                     </div>
-                   </div>
-                   <div className="overflow-hidden h-2 text-xs flex rounded-full bg-green-100">
-                     <div
-                       style={{ width: '85.2%' }}
-                       className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-green-500 transition-all duration-500"
-                     />
-                   </div>
-                 </div>
-
-                                    {/* Detalhamento */}
-                 <div className="grid grid-cols-2 gap-4 mt-4">
-                   <div className="bg-white p-3 rounded-lg border border-green-100">
-                     <div className="text-sm text-green-600">Pontos Estáveis</div>
-                     <div className="text-xl font-bold text-green-800">78</div>
-                     <div className="text-xs text-green-500">3+ meses ativos</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-blue-100">
-                     <div className="text-sm text-blue-600">Taxa de Retenção</div>
-                     <div className="text-xl font-bold text-blue-800">92.3%</div>
-                     <div className="text-xs text-blue-500">M0 vs M1</div>
-                   </div>
-                 </div>
-                 </div>
-               </div>
-             </CardContent>
-           </Card>
-
-           {/* Card Atenção */}
+          <TabsContent value="pontos">
            <Card>
-             <CardHeader className="pb-3">
-               <CardTitle className="text-lg flex items-center gap-2">
-                 <AlertTriangle className="h-5 w-5 text-amber-600" />
-                 Pontos de Atenção
-               </CardTitle>
-             </CardHeader>
-             <CardContent>
-               <div className="space-y-4">
-                 {/* Card de Pontos que Zeraram */}
-                 <div className="bg-gradient-to-r from-amber-50 to-red-50 p-4 rounded-lg border border-amber-200 cursor-pointer hover:bg-amber-100/70 transition-colors duration-200">
-                   <div className="flex items-center justify-between mb-3">
-                     <div className="flex items-center gap-2">
-                       <AlertTriangle className="h-5 w-5 text-amber-600" />
-                       <span className="font-medium text-amber-800">Pontos que Zeraram</span>
-                     </div>
-                     <div className="text-lg font-bold text-amber-800">8</div>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4">
-                     <div className="bg-white p-3 rounded-lg border border-amber-100">
-                       <div className="text-sm text-amber-600">Período</div>
-                       <div className="text-base font-semibold text-amber-800">
-                         JUN/25 → JUL/25
-                       </div>
-                       <div className="text-xs text-amber-500">Clique para filtrar</div>
-                     </div>
-                     <div className="bg-white p-3 rounded-lg border border-amber-100">
-                       <div className="text-sm text-amber-600">Impacto</div>
-                       <div className="text-base font-semibold text-amber-800">6.7%</div>
-                       <div className="text-xs text-amber-500">do total de pontos</div>
-                     </div>
-                   </div>
-
-                                    <div className="mt-4 text-sm text-amber-800 bg-amber-100 p-3 rounded-lg border border-amber-200 flex items-center gap-2">
-                   <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                   <span>Esses pontos precisam de acompanhamento especial para recuperação</span>
-                 </div>
-               </div>
-
-               {/* Card de Pontos Bloqueados */}
-               <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-4 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100/70 transition-colors duration-200">
-                 <div className="flex items-center justify-between mb-3">
-                   <div className="flex items-center gap-2">
-                     <XCircle className="h-5 w-5 text-gray-600" />
-                     <span className="font-medium text-gray-800">Pontos Bloqueados</span>
-                   </div>
-                   <div className="text-lg font-bold text-gray-800">12</div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                   <div className="bg-white p-3 rounded-lg border border-gray-100">
-                     <div className="text-sm text-gray-600">Inativos M0</div>
-                     <div className="text-base font-semibold text-gray-800">8</div>
-                     <div className="text-xs text-gray-500">dos 12 bloqueados</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-gray-100">
-                     <div className="text-sm text-gray-600">Tempo Médio</div>
-                     <div className="text-base font-semibold text-gray-800">45 dias</div>
-                     <div className="text-xs text-gray-500">em bloqueio</div>
-                   </div>
-                 </div>
-                 <div className="mt-4 space-y-2">
-                   <div className="bg-white p-3 rounded-lg border border-gray-100">
-                     <div className="flex justify-between items-center mb-2">
-                       <span className="text-sm text-gray-600">Principais Motivos</span>
-                       <span className="text-xs text-gray-500">Top 3</span>
-                     </div>
-                     <div className="space-y-1">
-                       <div className="flex justify-between items-center">
-                         <span className="text-xs text-gray-600">Documentação</span>
-                         <span className="text-xs font-semibold text-gray-800">5 pontos</span>
-                       </div>
-                       <div className="flex justify-between items-center">
-                         <span className="text-xs text-gray-600">Compliance</span>
-                         <span className="text-xs font-semibold text-gray-800">4 pontos</span>
-                       </div>
-                       <div className="flex justify-between items-center">
-                         <span className="text-xs text-gray-600">Operacional</span>
-                         <span className="text-xs font-semibold text-gray-800">3 pontos</span>
-                       </div>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-
-
-               </div>
-             </CardContent>
-           </Card>
-         </div>
-
-
-
-         {/* Card Gestão e Manutenção */}
-         <Card className="flex-none">
-           <CardHeader className="pb-3">
-             <CardTitle className="flex items-center gap-2">
-               <Wrench className="h-5 w-5 text-purple-600" />
-               Gestão e Manutenção
-             </CardTitle>
+              <CardHeader>
+                <CardTitle>Quadro de Pontos Ativos</CardTitle>
            </CardHeader>
            <CardContent>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -820,27 +758,47 @@ const PontosAtivos: React.FC = () => {
                    <span className="font-medium text-purple-800">Padrões de Comportamento</span>
                  </div>
                  <div className="space-y-3">
-                   <div className="bg-white p-3 rounded-lg border border-purple-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-purple-600">Oscilantes</span>
-                       <span className="text-base font-semibold text-purple-800">15</span>
-                     </div>
-                     <div className="text-xs text-purple-500 mt-1">1→0→1→0 (M3→M2→M1→M0)</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-purple-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-purple-600">Em Queda</span>
-                       <span className="text-base font-semibold text-purple-800">8</span>
-                     </div>
-                     <div className="text-xs text-purple-500 mt-1">1→1→0→0 (M3→M2→M1→M0)</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-purple-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-purple-600">Recuperação</span>
-                       <span className="text-base font-semibold text-purple-800">12</span>
-                     </div>
-                     <div className="text-xs text-purple-500 mt-1">0→0→1→1 (M3→M2→M1→M0)</div>
-                   </div>
+                   {(() => {
+                     // Calcular padrões baseados nos dados reais
+                     const oscilantes = dados.filter(d => 
+                       (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 === 0) ||
+                       (d.mesM3 === 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
+                     ).length;
+                     
+                     const emQueda = dados.filter(d => 
+                       d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 === 0
+                     ).length;
+                     
+                     const recuperacao = dados.filter(d => 
+                       d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 > 0
+                     ).length;
+                     
+                     return (
+                       <>
+                         <div className="bg-white p-3 rounded-lg border border-purple-100">
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-purple-600">Oscilantes</span>
+                             <span className="text-base font-semibold text-purple-800">{oscilantes}</span>
+                           </div>
+                           <div className="text-xs text-purple-500 mt-1">Padrão 1→0→1→0 ou 0→1→0→1</div>
+                         </div>
+                         <div className="bg-white p-3 rounded-lg border border-purple-100">
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-purple-600">Em Queda</span>
+                             <span className="text-base font-semibold text-purple-800">{emQueda}</span>
+                           </div>
+                           <div className="text-xs text-purple-500 mt-1">Padrão 1→1→0→0 (M3→M2→M1→M0)</div>
+                         </div>
+                         <div className="bg-white p-3 rounded-lg border border-purple-100">
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-purple-600">Recuperação</span>
+                             <span className="text-base font-semibold text-purple-800">{recuperacao}</span>
+                           </div>
+                           <div className="text-xs text-purple-500 mt-1">Padrão 0→0→1→1 (M3→M2→M1→M0)</div>
+                         </div>
+                       </>
+                     );
+                   })()}
                  </div>
                </div>
 
@@ -851,27 +809,81 @@ const PontosAtivos: React.FC = () => {
                    <span className="font-medium text-orange-800">Ações de Manutenção</span>
                  </div>
                  <div className="space-y-3">
-                   <div className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-orange-600">Reativação Urgente</span>
-                       <span className="text-base font-semibold text-orange-800">5</span>
-                     </div>
-                     <div className="text-xs text-orange-500 mt-1">0→0→0→0 (4 meses inativo)</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-orange-600">Monitoramento</span>
-                       <span className="text-base font-semibold text-orange-800">18</span>
-                     </div>
-                     <div className="text-xs text-orange-500 mt-1">Padrão oscilante detectado</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-orange-600">Preventivo</span>
-                       <span className="text-base font-semibold text-orange-800">25</span>
-                     </div>
-                     <div className="text-xs text-orange-500 mt-1">Tendência de queda</div>
-                   </div>
+                   {(() => {
+                     // Calcular ações de manutenção baseadas nos dados reais
+                     const reativacaoUrgente = dados.filter(d => 
+                       d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 === 0 && d.mesM0 === 0
+                     ).length;
+                     
+                     const monitoramento = dados.filter(d => 
+                       d.tendencia === 'atencao' || 
+                       (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0) ||
+                       (d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
+                     ).length;
+                     
+                     const preventivo = dados.filter(d => 
+                       d.tendencia === 'queda' || 
+                       (d.mesM1 > d.mesM0 && d.mesM0 > 0) ||
+                       (d.mesM2 > d.mesM1 && d.mesM1 > d.mesM0)
+                     ).length;
+                     
+                     return (
+                       <>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 === 0 && d.mesM0 === 0
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-orange-600">Reativação Urgente</span>
+                             <span className="text-base font-semibold text-orange-800">{reativacaoUrgente}</span>
+                           </div>
+                           <div className="text-xs text-orange-500 mt-1">0→0→0→0 (4 meses inativo)</div>
+                         </div>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               d.tendencia === 'atencao' || 
+                               (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0) ||
+                               (d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-orange-600">Monitoramento</span>
+                             <span className="text-base font-semibold text-orange-800">{monitoramento}</span>
+                           </div>
+                           <div className="text-xs text-orange-500 mt-1">Padrão oscilante detectado</div>
+                         </div>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               d.tendencia === 'queda' || 
+                               (d.mesM1 > d.mesM0 && d.mesM0 > 0) ||
+                               (d.mesM2 > d.mesM1 && d.mesM1 > d.mesM0)
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-orange-600">Preventivo</span>
+                             <span className="text-base font-semibold text-orange-800">{preventivo}</span>
+                           </div>
+                           <div className="text-xs text-orange-500 mt-1">Tendência de queda</div>
+                         </div>
+                       </>
+                     );
+                   })()}
                  </div>
                </div>
 
@@ -882,44 +894,90 @@ const PontosAtivos: React.FC = () => {
                    <span className="font-medium text-green-800">Saúde dos Pontos</span>
                  </div>
                  <div className="space-y-3">
-                   <div className="bg-white p-3 rounded-lg border border-green-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-green-600">Saudáveis</span>
-                       <span className="text-base font-semibold text-green-800">85</span>
-                     </div>
-                     <div className="text-xs text-green-500 mt-1">Ativos 3+ meses</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-green-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-green-600">Recuperados</span>
-                       <span className="text-base font-semibold text-green-800">12</span>
-                     </div>
-                     <div className="text-xs text-green-500 mt-1">Retornaram à atividade</div>
-                   </div>
-                   <div className="bg-white p-3 rounded-lg border border-green-100">
-                     <div className="flex justify-between items-center">
-                       <span className="text-sm text-green-600">Estáveis</span>
-                       <span className="text-base font-semibold text-green-800">32</span>
-                     </div>
-                     <div className="text-xs text-green-500 mt-1">Produção consistente</div>
-                   </div>
+                   {(() => {
+                     // Calcular indicadores de saúde baseados nos dados reais
+                     const saudaveis = dados.filter(d => 
+                       d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 > 0 && d.mesM0 > 0
+                     ).length;
+                     
+                     const recuperados = dados.filter(d => 
+                       (d.mesM2 === 0 || d.mesM1 === 0) && d.mesM0 > 0 && d.situacao === 'ativa'
+                     ).length;
+                     
+                     const estaveis = dados.filter(d => 
+                       d.tendencia === 'estavel' && d.mesM0 > 0
+                     ).length;
+                     
+                     return (
+                       <>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 > 0 && d.mesM0 > 0
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-green-600">Saudáveis</span>
+                             <span className="text-base font-semibold text-green-800">{saudaveis}</span>
+                           </div>
+                           <div className="text-xs text-green-500 mt-1">Ativos 4 meses consecutivos</div>
+                         </div>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               (d.mesM2 === 0 || d.mesM1 === 0) && d.mesM0 > 0 && d.situacao === 'ativa'
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-green-600">Recuperados</span>
+                             <span className="text-base font-semibold text-green-800">{recuperados}</span>
+                           </div>
+                           <div className="text-xs text-green-500 mt-1">Retornaram à atividade</div>
+                         </div>
+                         <div 
+                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
+                           onClick={() => {
+                             const filtrados = dados.filter(d => 
+                               d.tendencia === 'estavel' && d.mesM0 > 0
+                             );
+                             setDadosFiltrados(filtrados);
+                             setCurrentPage(1);
+                           }}
+                         >
+                           <div className="flex justify-between items-center">
+                             <span className="text-sm text-green-600">Estáveis</span>
+                             <span className="text-base font-semibold text-green-800">{estaveis}</span>
+                           </div>
+                           <div className="text-xs text-green-500 mt-1">Produção consistente</div>
+                         </div>
+                       </>
+                     );
+                   })()}
                  </div>
                </div>
              </div>
            </CardContent>
          </Card>
 
-         {/* Tabs */}
-                 <Tabs defaultValue="pontos">
-           <TabsList className="mb-4">
-             <TabsTrigger value="pontos">Pontos Ativos</TabsTrigger>
-             <TabsTrigger value="gestao">Gestão e Manutenção</TabsTrigger>
-           </TabsList>
 
-          <TabsContent value="pontos">
             <Card>
               <CardHeader>
-                <CardTitle>Quadro de Pontos Ativos</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Quadro de Pontos Ativos</CardTitle>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
+                    <span className="text-sm font-medium text-blue-800">
+                      {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'ponto' : 'pontos'}
+                    </span>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {/* Filtros */}
@@ -975,41 +1033,9 @@ const PontosAtivos: React.FC = () => {
                            valueKey="value"
                            labelKey="label"
                          />
-                         <ComboboxFilter
-                           name="nivelAtividade"
-                           title="Nível de Atividade"
-                           options={niveisAtividade.map(n => ({
-                             value: n,
-                             label: n === "alta" ? "Alta" : 
-                                    n === "media" ? "Média" : 
-                                    "Baixa"
-                           }))}
-                           valueKey="value"
-                           labelKey="label"
-                         />
-                         <ComboboxFilter
-                           name="tendencia"
-                           title="Tendência"
-                           options={tendencias.map(t => ({
-                             value: t,
-                             label: t === "crescimento" ? "Crescimento" :
-                                    t === "estavel" ? "Estável" :
-                                    t === "queda" ? "Queda" :
-                                    "Atenção"
-                           }))}
-                           valueKey="value"
-                           labelKey="label"
-                         />
-                         <ComboboxFilter
-                           name="gerenciaRegional"
-                           title="Gerência Regional"
-                           options={gerenciasRegionais}
-                         />
-                         <ComboboxFilter
-                           name="diretoriaRegional"
-                           title="Diretoria Regional"
-                           options={diretoriasRegionais}
-                         />
+
+
+
                          <ComboboxFilter
                            name="municipio"
                            title="Município"
@@ -1025,6 +1051,33 @@ const PontosAtivos: React.FC = () => {
                            title="Agência"
                            options={agencias}
                          />
+
+                         {/* Filtros de hierarquia para admin quando colunas estão visíveis */}
+                         {isAdmin && showHierarchyColumns && (
+                           <>
+                             <ComboboxFilter
+                               name="gerenciaRegional"
+                               title="Gerente"
+                               options={gerenciasRegionais.map(g => ({ value: g, label: g }))}
+                               valueKey="value"
+                               labelKey="label"
+                             />
+                             <ComboboxFilter
+                               name="diretoriaRegional"
+                               title="Coordenador"
+                               options={diretoriasRegionais.map(d => ({ value: d, label: d }))}
+                               valueKey="value"
+                               labelKey="label"
+                             />
+                             <ComboboxFilter
+                               name="supervisorResponsavel"
+                               title="Supervisor"
+                               options={supervisoresResponsaveis.map(s => ({ value: s, label: s }))}
+                               valueKey="value"
+                               labelKey="label"
+                             />
+                           </>
+                         )}
                          
                          {/* Botão Análise */}
                          <Button
@@ -1175,11 +1228,11 @@ const PontosAtivos: React.FC = () => {
 
                 {/* Tabela */}
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-full table-fixed">
                     <TableHeader>
                       <TableRow>
                         <TableHead 
-                          className="w-[180px] cursor-pointer hover:bg-gray-100" 
+                          className="w-[140px] cursor-pointer hover:bg-gray-100" 
                           onClick={() => handleOrdenacao('chaveLoja')}
                         >
                           <div className="flex items-center gap-1">
@@ -1190,7 +1243,7 @@ const PontosAtivos: React.FC = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="w-[250px] cursor-pointer hover:bg-gray-100"
+                          className="w-[200px] cursor-pointer hover:bg-gray-100"
                           onClick={() => handleOrdenacao('nomeLoja')}
                         >
                           <div className="flex items-center gap-1">
@@ -1230,7 +1283,7 @@ const PontosAtivos: React.FC = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="w-[120px] text-center cursor-pointer hover:bg-gray-100"
+                          className="w-[100px] text-center cursor-pointer hover:bg-gray-100"
                           onClick={() => handleOrdenacao('situacao')}
                         >
                           <div className="flex items-center justify-center gap-1">
@@ -1241,7 +1294,7 @@ const PontosAtivos: React.FC = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="w-[120px] text-center cursor-pointer hover:bg-gray-100"
+                          className="w-[110px] text-center cursor-pointer hover:bg-gray-100"
                           onClick={() => handleOrdenacao('dataUltimaTransacao')}
                         >
                           <div className="flex items-center justify-center gap-1">
@@ -1251,18 +1304,66 @@ const PontosAtivos: React.FC = () => {
                             )}
                           </div>
                         </TableHead>
-                        <TableHead 
-                          className="w-[100px] text-center cursor-pointer hover:bg-gray-100"
-                          onClick={() => handleOrdenacao('tendencia')}
-                        >
-                          <div className="flex items-center justify-center gap-1">
-                            Tendência
-                            {ordenacao.coluna === 'tendencia' && (
-                              <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
-                            )}
-                          </div>
-                        </TableHead>
-                        <TableHead className="w-[150px] text-center">
+
+                        {/* Controle de visibilidade das colunas de hierarquia para admin */}
+                        {isAdmin && (
+                          <TableHead className="w-[50px] text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowHierarchyColumns(!showHierarchyColumns)}
+                              className="h-8 w-8 p-0 hover:bg-gray-100"
+                              title={showHierarchyColumns ? "Ocultar colunas de hierarquia" : "Mostrar colunas de hierarquia"}
+                            >
+                              {showHierarchyColumns ? (
+                                <EyeOff className="h-4 w-4 text-gray-600" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-gray-600" />
+                              )}
+                            </Button>
+                          </TableHead>
+                        )}
+
+                        {/* Colunas de hierarquia para usuários admin */}
+                        {isAdmin && showHierarchyColumns && (
+                          <>
+                            <TableHead 
+                              className="w-[120px] cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleOrdenacao('gerenciaRegional')}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="truncate">Gerente</span>
+                                {ordenacao.coluna === 'gerenciaRegional' && (
+                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                                )}
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="w-[120px] cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleOrdenacao('diretoriaRegional')}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="truncate">Coordenador</span>
+                                {ordenacao.coluna === 'diretoriaRegional' && (
+                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                                )}
+                              </div>
+                            </TableHead>
+                            <TableHead 
+                              className="w-[120px] cursor-pointer hover:bg-gray-100"
+                              onClick={() => handleOrdenacao('supervisorResponsavel')}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span className="truncate">Supervisor</span>
+                                {ordenacao.coluna === 'supervisorResponsavel' && (
+                                  <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
+                                )}
+                              </div>
+                            </TableHead>
+                          </>
+                        )}
+
+                        <TableHead className="w-[120px] text-center">
                           <div className="flex items-center justify-center">Ações</div>
                         </TableHead>
                       </TableRow>
@@ -1271,12 +1372,12 @@ const PontosAtivos: React.FC = () => {
                       {getCurrentPageData().map((ponto) => (
                         <TableRow key={ponto.chaveLoja}>
                           <TableCell className="font-medium">
-                            <div>{ponto.chaveLoja}</div>
-                            <div className="text-xs text-gray-500">{ponto.cnpj}</div>
+                            <div className="truncate">{ponto.chaveLoja}</div>
+                            <div className="text-xs text-gray-500 truncate">{ponto.cnpj}</div>
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">{ponto.nomeLoja}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="font-medium truncate" title={ponto.nomeLoja}>{ponto.nomeLoja}</div>
+                            <div className="text-xs text-gray-500 truncate">
                               {ponto.agencia} - {ponto.gerenciaRegional}
                             </div>
                           </TableCell>
@@ -1344,28 +1445,52 @@ const PontosAtivos: React.FC = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-center">{formatDate(ponto.dataUltimaTransacao)}</TableCell>
+                          
+                          {/* Célula vazia para o botão de olho */}
+                          {isAdmin && (
+                            <TableCell className="text-center">
+                              {/* Célula vazia apenas para manter alinhamento com o cabeçalho */}
+                            </TableCell>
+                          )}
+
+                          {/* Colunas de hierarquia para usuários admin */}
+                          {isAdmin && showHierarchyColumns && (
+                            <>
+                              <TableCell className="text-left">
+                                <div className="text-sm text-gray-900 truncate" title={ponto.gerenciaRegional}>
+                                  {ponto.gerenciaRegional}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-left">
+                                <div className="text-sm text-gray-900 truncate" title={ponto.diretoriaRegional}>
+                                  {ponto.diretoriaRegional}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-left">
+                                <div className="text-sm text-gray-900 truncate" title={ponto.supervisorResponsavel}>
+                                  {ponto.supervisorResponsavel}
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
+                          
                           <TableCell className="text-center">
-                            <div className="flex justify-center items-center">
-                              {renderTendenciaIcon(ponto.tendencia)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-center gap-1">
                               <Button 
                                 variant="outline" 
-                                size="icon" 
+                                size="sm" 
                                 title="Ver detalhes"
-                                className="bg-blue-50 border-blue-200 hover:bg-blue-100"
+                                className="bg-blue-50 border-blue-200 hover:bg-blue-100 h-8 w-8 p-0"
                               >
-                                <Info size={16} className="text-blue-600" />
+                                <Info size={14} className="text-blue-600" />
                               </Button>
                               <Button 
                                 variant="outline" 
-                                size="icon" 
+                                size="sm" 
                                 title="Adicionar tratativa"
-                                className="bg-green-50 border-green-200 hover:bg-green-100"
+                                className="bg-green-50 border-green-200 hover:bg-green-100 h-8 w-8 p-0"
                               >
-                                <Plus size={16} className="text-green-600" />
+                                <Plus size={14} className="text-green-600" />
                               </Button>
                             </div>
                           </TableCell>
@@ -1405,185 +1530,9 @@ const PontosAtivos: React.FC = () => {
             </Card>
                      </TabsContent>
 
-           <TabsContent value="gestao">
-             <Card>
-               <CardHeader>
-                 <CardTitle>Gestão e Manutenção de Pontos</CardTitle>
-                 <p className="text-sm text-gray-500">Análise temporal e ações de manutenção baseadas nos padrões M3→M2→M1→M0</p>
-               </CardHeader>
-               <CardContent>
-                 <div className="space-y-6">
-                   {/* Análise Temporal */}
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <Card>
-                       <CardHeader>
-                         <CardTitle className="text-lg flex items-center gap-2">
-                           <BarChart3 className="h-5 w-5 text-blue-600" />
-                           Análise Temporal dos Padrões
-                         </CardTitle>
-                       </CardHeader>
-                       <CardContent>
-                         <div className="space-y-4">
-                           <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
-                             <h4 className="font-medium text-blue-800 mb-3">Padrões Identificados</h4>
-                             <div className="space-y-3">
-                               <div className="bg-white p-3 rounded-lg border border-blue-100">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-blue-600">Oscilante (1→0→1→0)</span>
-                                   <span className="text-base font-semibold text-blue-800">15 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-blue-500 mt-1">Comportamento instável - requer monitoramento</div>
-                               </div>
-                               <div className="bg-white p-3 rounded-lg border border-red-100">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-red-600">Em Queda (1→1→0→0)</span>
-                                   <span className="text-base font-semibold text-red-800">8 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-red-500 mt-1">Tendência de desativação - ação urgente</div>
-                               </div>
-                               <div className="bg-white p-3 rounded-lg border border-green-100">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-green-600">Recuperação (0→0→1→1)</span>
-                                   <span className="text-base font-semibold text-green-800">12 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-green-500 mt-1">Retornaram à atividade - manter suporte</div>
-                               </div>
-                             </div>
-                           </div>
-                         </div>
-                       </CardContent>
-                     </Card>
-
-                     <Card>
-                       <CardHeader>
-                         <CardTitle className="text-lg flex items-center gap-2">
-                           <Wrench className="h-5 w-5 text-orange-600" />
-                           Ações de Manutenção
-                         </CardTitle>
-                       </CardHeader>
-                       <CardContent>
-                         <div className="space-y-4">
-                           <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200">
-                             <h4 className="font-medium text-orange-800 mb-3">Prioridades de Ação</h4>
-                             <div className="space-y-3">
-                               <div className="bg-white p-3 rounded-lg border border-red-200 cursor-pointer hover:bg-red-50 transition-colors">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-red-600">Reativação Urgente</span>
-                                   <span className="text-base font-semibold text-red-800">5 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-red-500 mt-1">0→0→0→0 (4 meses inativo)</div>
-                                 <div className="text-xs text-red-500">Ação: Contato imediato + visita técnica</div>
-                               </div>
-                               <div className="bg-white p-3 rounded-lg border border-orange-200 cursor-pointer hover:bg-orange-50 transition-colors">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-orange-600">Monitoramento Intensivo</span>
-                                   <span className="text-base font-semibold text-orange-800">18 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-orange-500 mt-1">Padrão oscilante detectado</div>
-                                 <div className="text-xs text-orange-500">Ação: Acompanhamento semanal</div>
-                               </div>
-                               <div className="bg-white p-3 rounded-lg border border-yellow-200 cursor-pointer hover:bg-yellow-50 transition-colors">
-                                 <div className="flex justify-between items-center">
-                                   <span className="text-sm text-yellow-600">Preventivo</span>
-                                   <span className="text-base font-semibold text-yellow-800">25 pontos</span>
-                                 </div>
-                                 <div className="text-xs text-yellow-500 mt-1">Tendência de queda</div>
-                                 <div className="text-xs text-yellow-500">Ação: Suporte preventivo</div>
-                               </div>
-                             </div>
-                           </div>
-                         </div>
-                       </CardContent>
-                     </Card>
-                   </div>
-
-                   {/* Tabela de Pontos com Análise Temporal */}
-                   <Card>
-                     <CardHeader>
-                       <CardTitle>Análise Detalhada por Ponto</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                       <div className="overflow-x-auto">
-                         <Table>
-                           <TableHeader>
-                             <TableRow>
-                               <TableHead>Chave Loja</TableHead>
-                               <TableHead>Última Transação</TableHead>
-                               <TableHead>Padrão M3→M2→M1→M0</TableHead>
-                               <TableHead>Status</TableHead>
-                               <TableHead>Ação Recomendada</TableHead>
-                               <TableHead>Prioridade</TableHead>
-                             </TableRow>
-                           </TableHeader>
-                           <TableBody>
-                             <TableRow>
-                               <TableCell className="font-medium">10628</TableCell>
-                               <TableCell>02/02/2025</TableCell>
-                               <TableCell>
-                                 <div className="flex items-center gap-1">
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                 </div>
-                               </TableCell>
-                               <TableCell>
-                                 <Badge className="bg-orange-100 text-orange-800">Oscilante</Badge>
-                               </TableCell>
-                               <TableCell>Monitoramento Intensivo</TableCell>
-                               <TableCell>
-                                 <Badge className="bg-orange-100 text-orange-800">Média</Badge>
-                               </TableCell>
-                             </TableRow>
-                             <TableRow>
-                               <TableCell className="font-medium">10629</TableCell>
-                               <TableCell>01/02/2025</TableCell>
-                               <TableCell>
-                                 <div className="flex items-center gap-1">
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                 </div>
-                               </TableCell>
-                               <TableCell>
-                                 <Badge className="bg-red-100 text-red-800">Em Queda</Badge>
-                               </TableCell>
-                               <TableCell>Reativação Urgente</TableCell>
-                               <TableCell>
-                                 <Badge className="bg-red-100 text-red-800">Alta</Badge>
-                               </TableCell>
-                             </TableRow>
-                             <TableRow>
-                               <TableCell className="font-medium">10630</TableCell>
-                               <TableCell>03/02/2025</TableCell>
-                               <TableCell>
-                                 <div className="flex items-center gap-1">
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                   <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">0</span>
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                   <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">1</span>
-                                 </div>
-                               </TableCell>
-                               <TableCell>
-                                 <Badge className="bg-green-100 text-green-800">Recuperação</Badge>
-                               </TableCell>
-                               <TableCell>Manter Suporte</TableCell>
-                               <TableCell>
-                                 <Badge className="bg-green-100 text-green-800">Baixa</Badge>
-                               </TableCell>
-                             </TableRow>
-                           </TableBody>
-                         </Table>
-                       </div>
-                     </CardContent>
-                   </Card>
-                 </div>
-               </CardContent>
-             </Card>
-           </TabsContent>
-
+           
         </Tabs>
+        </div>
       </div>
     </div>
   );

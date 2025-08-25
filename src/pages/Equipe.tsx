@@ -280,12 +280,12 @@ const Equipe: React.FC = () => {
       // Se o usuário ativo for um gerente, garantir que só mostramos coordenadores no segundo nível
       if (activeUser?.role === "gerente") {
         const filteredSecondLevel = secondLevel.filter(user => user.role === "coordenador");
-        console.log(`Filtrando segundo nível para gerente: ${filteredSecondLevel.length} coordenadores de ${secondLevel.length} usuários totais`);
+        //console.log(`Filtrando segundo nível para gerente: ${filteredSecondLevel.length} coordenadores de ${secondLevel.length} usuários totais`);
         setSecondLevelUsers(filteredSecondLevel);
       } else {
         // Para coordenadores, mostrar apenas supervisores
         const filteredSecondLevel = secondLevel.filter(user => user.role === "supervisor");
-        console.log(`Filtrando segundo nível para coordenador: ${filteredSecondLevel.length} supervisores de ${secondLevel.length} usuários totais`);
+        //console.log(`Filtrando segundo nível para coordenador: ${filteredSecondLevel.length} supervisores de ${secondLevel.length} usuários totais`);
         setSecondLevelUsers(filteredSecondLevel);
       }
     } catch (error) {

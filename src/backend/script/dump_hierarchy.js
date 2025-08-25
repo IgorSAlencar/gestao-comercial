@@ -7,25 +7,25 @@ const { sql, pool, poolConnect } = require('../config/db');
 
 async function dumpHierarchy() {
   try {
-    console.log('Conectando ao banco de dados...');
+    //console.log('Conectando ao banco de dados...');
     await poolConnect;
     
-    console.log('\n=== HIERARQUIA DE USUÁRIOS ===\n');
+    //console.log('\n=== HIERARQUIA DE USUÁRIOS ===\n');
     
     // 1. Obter todos os usuários
-    console.log('Listando todos os usuários:');
+    //console.log('Listando todos os usuários:');
     const usersResult = await pool.request().query(`
       SELECT id, name, role, funcional FROM TESTE..users
       ORDER BY role, name
     `);
     
-    console.log('\nUsuários encontrados:', usersResult.recordset.length);
+    //console.log('\nUsuários encontrados:', usersResult.recordset.length);
     usersResult.recordset.forEach(user => {
-      console.log(`- ${user.id} | ${user.name} | ${user.role} | ${user.funcional}`);
+      //console.log(`- ${user.id} | ${user.name} | ${user.role} | ${user.funcional}`);
     });
     
     // 2. Obter todas as relações hierárquicas
-    console.log('\nRelações hierárquicas:');
+    //console.log('\nRelações hierárquicas:');
     const hierarchyResult = await pool.request().query(`
       SELECT 
         h.id, 
@@ -41,16 +41,16 @@ async function dumpHierarchy() {
       ORDER BY u1.role, u1.name, u2.role, u2.name
     `);
     
-    console.log('\nTotal de relações encontradas:', hierarchyResult.recordset.length);
+    //console.log('\nTotal de relações encontradas:', hierarchyResult.recordset.length);
     hierarchyResult.recordset.forEach((rel, index) => {
-      console.log(`\nRelação #${index + 1}:`);
-      console.log(`- Superior: ${rel.superior_name} (${rel.superior_role})`);
-      console.log(`- Subordinado: ${rel.subordinate_name} (${rel.subordinate_role})`);
-      console.log(`- IDs: ${rel.superior_id} > ${rel.subordinate_id}`);
+      //console.log(`\nRelação #${index + 1}:`);
+      //console.log(`- Superior: ${rel.superior_name} (${rel.superior_role})`);
+      //console.log(`- Subordinado: ${rel.subordinate_name} (${rel.subordinate_role})`);
+      //console.log(`- IDs: ${rel.superior_id} > ${rel.subordinate_id}`);
     });
     
     // 3. Verificar relações indiretas (gerente > coordenador > supervisor)
-    console.log('\nRelações indiretas (gerente > coordenador > supervisor):');
+    //console.log('\nRelações indiretas (gerente > coordenador > supervisor):');
     const indirectResult = await pool.request().query(`
       SELECT 
         h1.superior_id as gerente_id,
@@ -67,15 +67,15 @@ async function dumpHierarchy() {
       ORDER BY u1.name, u2.name, u3.name
     `);
     
-    console.log('\nTotal de relações indiretas encontradas:', indirectResult.recordset.length);
+    //console.log('\nTotal de relações indiretas encontradas:', indirectResult.recordset.length);
     indirectResult.recordset.forEach((rel, index) => {
-      console.log(`\nRelação indireta #${index + 1}:`);
-      console.log(`- Gerente: ${rel.gerente_name} (ID: ${rel.gerente_id})`);
-      console.log(`- Coordenador: ${rel.coordenador_name} (ID: ${rel.coordenador_id})`);
-      console.log(`- Supervisor: ${rel.supervisor_name} (ID: ${rel.supervisor_id})`);
+      //console.log(`\nRelação indireta #${index + 1}:`);
+      //console.log(`- Gerente: ${rel.gerente_name} (ID: ${rel.gerente_id})`);
+      //console.log(`- Coordenador: ${rel.coordenador_name} (ID: ${rel.coordenador_id})`);
+      //console.log(`- Supervisor: ${rel.supervisor_name} (ID: ${rel.supervisor_id})`);
     });
     
-    console.log('\nDump de hierarquia concluído!\n');
+    //console.log('\nDump de hierarquia concluído!\n');
     
   } catch (error) {
     console.error('Erro ao fazer dump da hierarquia:', error);

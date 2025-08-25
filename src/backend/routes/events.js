@@ -10,7 +10,7 @@ router.get('/', authenticateToken, async (req, res) => {
     const { id: userId, role: userRole } = req.user;
     const formattedUserId = userId.toUpperCase();
 
-    // console.log('Buscando eventos para:', {
+    // //console.log('Buscando eventos para:', {
     //   userId: formattedUserId,
     //   role: userRole,
     //   rawUserId: userId
@@ -45,7 +45,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     // Admin vê todos os eventos
     if (userRole === 'admin') {
-      // console.log('Usuário é admin, buscando todos os eventos');
+      // //console.log('Usuário é admin, buscando todos os eventos');
       // Não adiciona WHERE clause para admin ver todos os eventos
     }
     // Gerente vê seus eventos e os eventos de todos os subordinados (diretos e indiretos)
@@ -87,14 +87,14 @@ router.get('/', authenticateToken, async (req, res) => {
 
     query += ` ORDER BY e.start_date DESC`;
 
-    // console.log('Executando query com userId:', formattedUserId);
-    // console.log('Query:', query);
+    // //console.log('Executando query com userId:', formattedUserId);
+    // //console.log('Query:', query);
 
     const result = await pool.request()
       .input('userId', sql.UniqueIdentifier, formattedUserId)
       .query(query);
 
-    // console.log('Eventos encontrados:', result.recordset.length);
+    // //console.log('Eventos encontrados:', result.recordset.length);
 
     // Garantir que todos os campos necessários estejam presentes e com o formato correto
     const events = result.recordset.map(event => {
@@ -124,7 +124,7 @@ router.get('/', authenticateToken, async (req, res) => {
       };
     });
 
-    // console.log('Primeiro evento transformado (exemplo):', events[0]);
+    // //console.log('Primeiro evento transformado (exemplo):', events[0]);
 
     res.json(events);
   } catch (error) {
@@ -136,10 +136,10 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // Rota para buscar categorias e subcategorias de eventos
 router.get('/categories', authenticateToken, async (req, res) => {
-  // console.log('GET /categories - Iniciando busca de categorias');
+  // //console.log('GET /categories - Iniciando busca de categorias');
   try {
     await poolConnect;
-    // console.log('GET /categories - Conectado ao banco de dados');
+    // //console.log('GET /categories - Conectado ao banco de dados');
     
     // Query para verificar se as tabelas existem
     const checkTablesQuery = `
@@ -150,7 +150,7 @@ router.get('/categories', authenticateToken, async (req, res) => {
     `;
     
     const tablesResult = await pool.request().query(checkTablesQuery);
-    //console.log('Tabelas encontradas:', tablesResult.recordset);
+    ////console.log('Tabelas encontradas:', tablesResult.recordset);
     
     if (tablesResult.recordset.length < 2) {
       throw new Error('Tabelas de categorias não encontradas');
@@ -171,9 +171,9 @@ router.get('/categories', authenticateToken, async (req, res) => {
       ORDER BY c.Name, s.Name
     `;
     
-    //console.log('Executando query:', query);
+    ////console.log('Executando query:', query);
     const result = await pool.request().query(query);
-    //console.log('Resultados da query:', result.recordset);
+    ////console.log('Resultados da query:', result.recordset);
 
     // Formatar os resultados em uma estrutura hierárquica
     const categories = [];
@@ -201,7 +201,7 @@ router.get('/categories', authenticateToken, async (req, res) => {
       }
     });
 
-    //console.log('GET /categories - Dados formatados:', categories);
+    ////console.log('GET /categories - Dados formatados:', categories);
     res.json(categories);
   } catch (error) {
     console.error('Erro ao buscar categorias:', error);
@@ -291,7 +291,7 @@ function normalizeUUID(uuid) {
   }
   
   // Se não conseguir formatar, retorna o original
-  // console.log(`AVISO: UUID inválido ou mal-formatado: ${uuid}`);
+  // //console.log(`AVISO: UUID inválido ou mal-formatado: ${uuid}`);
   return uuid;
 }
 
@@ -412,10 +412,10 @@ router.post('/', authenticateToken, async (req, res) => {
     const normalizedUserId = normalizeUUID(userId);
     const normalizedSupervisorId = supervisorId ? normalizeUUID(supervisorId) : null;
     
-    // console.log('IDs normalizados para comparação:');
-    // console.log('- normalizedUserId:', normalizedUserId);
-    // console.log('- normalizedSupervisorId:', normalizedSupervisorId);
-    // console.log('- Formatos originais - userId:', userId, 'supervisorId:', supervisorId);
+    // //console.log('IDs normalizados para comparação:');
+    // //console.log('- normalizedUserId:', normalizedUserId);
+    // //console.log('- normalizedSupervisorId:', normalizedSupervisorId);
+    // //console.log('- Formatos originais - userId:', userId, 'supervisorId:', supervisorId);
     
     // Determine the supervisor_id 
     // If user is manager/coordinator and specified a supervisorId, use that
@@ -423,11 +423,11 @@ router.post('/', authenticateToken, async (req, res) => {
     let actualSupervisorId = normalizedUserId;
     
     if (normalizedSupervisorId && normalizedSupervisorId !== normalizedUserId && (userRole === 'gerente' || userRole === 'coordenador' || userRole === 'admin')) {
-      // console.log(`Tentando criar evento para supervisor: ${normalizedSupervisorId} por usuário: ${normalizedUserId} com papel: ${userRole}`);
+      // //console.log(`Tentando criar evento para supervisor: ${normalizedSupervisorId} por usuário: ${normalizedUserId} com papel: ${userRole}`);
       
       // Para admins, permitir criar para qualquer supervisor
       if (userRole === 'admin') {
-        // console.log('Usuário é admin, verificando se o alvo é supervisor');
+        // //console.log('Usuário é admin, verificando se o alvo é supervisor');
         const checkIsSupervisor = await pool.request()
           .input('supervisorId', sql.UniqueIdentifier, normalizedSupervisorId)
           .query(`
@@ -437,15 +437,15 @@ router.post('/', authenticateToken, async (req, res) => {
         
         if (checkIsSupervisor.recordset[0].count > 0) {
           actualSupervisorId = normalizedSupervisorId;
-          // console.log('Alvo confirmado como supervisor, admin tem permissão');
+          // //console.log('Alvo confirmado como supervisor, admin tem permissão');
         } else {
-          // console.log('Alvo não é supervisor, negando permissão para admin');
+          // //console.log('Alvo não é supervisor, negando permissão para admin');
           return res.status(403).json({ message: 'O usuário selecionado não é um supervisor' });
         }
       } 
       // Para gerentes, verificar se o supervisor existe
       else if (userRole === 'gerente') {
-        // console.log('Verificando permissão para gerente (inclui subordinados indiretos)');
+        // //console.log('Verificando permissão para gerente (inclui subordinados indiretos)');
         
         // Vamos verificar diretamente se o supervisor existe
         const supervisorCheck = await pool.request()
@@ -455,10 +455,10 @@ router.post('/', authenticateToken, async (req, res) => {
             WHERE id = @supervisorId
           `);
         
-        // console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
+        // //console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
         
         if (supervisorCheck.recordset.length === 0) {
-          // console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado na base de dados`);
+          // //console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado na base de dados`);
           return res.status(404).json({ message: 'Supervisor não encontrado' });
         }
         
@@ -470,10 +470,10 @@ router.post('/', authenticateToken, async (req, res) => {
             WHERE id = @userId AND role = 'gerente'
           `);
         
-        // console.log(`Verificação de gerente - Resultado: ${JSON.stringify(managerCheck.recordset)}`);
+        // //console.log(`Verificação de gerente - Resultado: ${JSON.stringify(managerCheck.recordset)}`);
         
         if (managerCheck.recordset.length === 0) {
-          // console.log(`ERRO: Usuário ${normalizedUserId} não é um gerente ou não foi encontrado`);
+          // //console.log(`ERRO: Usuário ${normalizedUserId} não é um gerente ou não foi encontrado`);
           return res.status(403).json({ message: 'Usuário não tem papel de gerente' });
         }
         
@@ -488,7 +488,7 @@ router.post('/', authenticateToken, async (req, res) => {
             AND h.superior_id = @userId
           `);
         
-        // console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
+        // //console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
         
         // Verificar hierarquia indireta (gerente -> coordenador -> supervisor)
         const indirectHierarchyCheck = await pool.request()
@@ -507,14 +507,14 @@ router.post('/', authenticateToken, async (req, res) => {
             AND h2.subordinate_id = @supervisorId
           `);
         
-        // console.log(`Verificação de hierarquia indireta - Resultado: ${JSON.stringify(indirectHierarchyCheck.recordset)}`);
+        // //console.log(`Verificação de hierarquia indireta - Resultado: ${JSON.stringify(indirectHierarchyCheck.recordset)}`);
         
         // Se encontramos qualquer relação, conceder permissão
         if (directHierarchyCheck.recordset.length > 0 || indirectHierarchyCheck.recordset.length > 0) {
-          // console.log(`SUCESSO: Permissão concedida para ${normalizedUserId} criar evento para ${normalizedSupervisorId}`);
+          // //console.log(`SUCESSO: Permissão concedida para ${normalizedUserId} criar evento para ${normalizedSupervisorId}`);
           actualSupervisorId = normalizedSupervisorId;
         } else {
-          // console.log(`FALHA: Nenhuma relação hierárquica encontrada entre ${normalizedUserId} e ${normalizedSupervisorId}`);
+          // //console.log(`FALHA: Nenhuma relação hierárquica encontrada entre ${normalizedUserId} e ${normalizedSupervisorId}`);
           
           // Mostrar todas as relações hierárquicas do gerente para debug
           const allHierarchyCheck = await pool.request()
@@ -534,7 +534,7 @@ router.post('/', authenticateToken, async (req, res) => {
               WHERE h1.superior_id = @userId
             `);
           
-          // console.log(`Todas as relações hierárquicas do gerente - Resultado: ${JSON.stringify(allHierarchyCheck.recordset)}`);
+          // //console.log(`Todas as relações hierárquicas do gerente - Resultado: ${JSON.stringify(allHierarchyCheck.recordset)}`);
           
           return res.status(403).json({ 
             message: 'Sem permissão para criar evento para este supervisor',
@@ -544,7 +544,7 @@ router.post('/', authenticateToken, async (req, res) => {
       } 
       // Para coordenadores, apenas supervisores diretos
       else if (userRole === 'coordenador') {
-        // console.log('Verificando permissão para coordenador (apenas subordinados diretos)');
+        // //console.log('Verificando permissão para coordenador (apenas subordinados diretos)');
         
         // Vamos verificar diretamente se o supervisor existe
         const supervisorCheck = await pool.request()
@@ -554,10 +554,10 @@ router.post('/', authenticateToken, async (req, res) => {
             WHERE id = @supervisorId AND role = 'supervisor'
           `);
         
-        // console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
+        // //console.log(`Verificação de supervisor - Resultado: ${JSON.stringify(supervisorCheck.recordset)}`);
         
         if (supervisorCheck.recordset.length === 0) {
-          // console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado ou não tem papel de supervisor`);
+          // //console.log(`ERRO: Supervisor com ID ${normalizedSupervisorId} não encontrado ou não tem papel de supervisor`);
           return res.status(404).json({ message: 'Supervisor não encontrado ou não tem papel de supervisor' });
         }
         
@@ -569,10 +569,10 @@ router.post('/', authenticateToken, async (req, res) => {
             WHERE id = @userId AND role = 'coordenador'
           `);
         
-        // console.log(`Verificação de coordenador - Resultado: ${JSON.stringify(coordCheck.recordset)}`);
+        // //console.log(`Verificação de coordenador - Resultado: ${JSON.stringify(coordCheck.recordset)}`);
         
         if (coordCheck.recordset.length === 0) {
-          // console.log(`ERRO: Usuário ${normalizedUserId} não é um coordenador ou não foi encontrado`);
+          // //console.log(`ERRO: Usuário ${normalizedUserId} não é um coordenador ou não foi encontrado`);
           return res.status(403).json({ message: 'Usuário não tem papel de coordenador' });
         }
         
@@ -591,13 +591,13 @@ router.post('/', authenticateToken, async (req, res) => {
             AND h.superior_id = @userId
           `);
         
-        // console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
+        // //console.log(`Verificação de hierarquia direta - Resultado: ${JSON.stringify(directHierarchyCheck.recordset)}`);
         
         if (directHierarchyCheck.recordset.length > 0) {
-          // console.log(`SUCESSO: Permissão concedida para coordenador ${normalizedUserId} criar evento para supervisor ${normalizedSupervisorId}`);
+          // //console.log(`SUCESSO: Permissão concedida para coordenador ${normalizedUserId} criar evento para supervisor ${normalizedSupervisorId}`);
           actualSupervisorId = normalizedSupervisorId;
         } else {
-          // console.log(`FALHA: Coordenador ${normalizedUserId} não é superior direto do supervisor ${normalizedSupervisorId}`);
+          // //console.log(`FALHA: Coordenador ${normalizedUserId} não é superior direto do supervisor ${normalizedSupervisorId}`);
           
           // Listar todos os subordinados do coordenador para debug
           const allSubordinatesCheck = await pool.request()
@@ -609,7 +609,7 @@ router.post('/', authenticateToken, async (req, res) => {
               WHERE h.superior_id = @userId
             `);
           
-          // console.log(`Todos os subordinados do coordenador - Resultado: ${JSON.stringify(allSubordinatesCheck.recordset)}`);
+          // //console.log(`Todos os subordinados do coordenador - Resultado: ${JSON.stringify(allSubordinatesCheck.recordset)}`);
           
           return res.status(403).json({ 
             message: 'Sem permissão para criar evento para este supervisor',
@@ -730,9 +730,9 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
     const normalizedUserId = normalizeUUID(userId);
     const normalizedEventId = normalizeUUID(eventId);
     
-    // console.log('Update - IDs normalizados:');
-    // console.log('- normalizedUserId:', normalizedUserId);
-    // console.log('- normalizedEventId:', normalizedEventId);
+    // //console.log('Update - IDs normalizados:');
+    // //console.log('- normalizedUserId:', normalizedUserId);
+    // //console.log('- normalizedEventId:', normalizedEventId);
     
     // Check if user has permission to update this event
     const permissionCheck = await pool.request()
@@ -749,16 +749,16 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
       `);
     
     if (permissionCheck.recordset.length === 0) {
-      // console.log(`Evento não encontrado: ${normalizedEventId}`);
+      // //console.log(`Evento não encontrado: ${normalizedEventId}`);
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
     const eventPermission = permissionCheck.recordset[0];
-    // console.log('Permissões do evento:', eventPermission);
+    // //console.log('Permissões do evento:', eventPermission);
     
     // Only owner or superior can update an event
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
-      // console.log(`Permissão negada para atualizar evento: ${normalizedEventId}`);
+      // //console.log(`Permissão negada para atualizar evento: ${normalizedEventId}`);
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
     
@@ -876,15 +876,15 @@ router.put('/:eventId', authenticateToken, async (req, res) => {
 
 // Update event feedback/tratativa - rota PATCH
 router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
-  // console.log('PATCH /events/:eventId/feedback - ROTA ACESSADA');
-  // console.log('Parâmetros:', req.params);
-  // console.log('Body:', req.body);
+  // //console.log('PATCH /events/:eventId/feedback - ROTA ACESSADA');
+  // //console.log('Parâmetros:', req.params);
+  // //console.log('Body:', req.body);
   
   const { eventId } = req.params;
   const { id: userId } = req.user;
   const { tratativa } = req.body;
   
-  // console.log(`Atualizando feedback via PATCH para o evento ${eventId}, userId: ${userId}`);
+  // //console.log(`Atualizando feedback via PATCH para o evento ${eventId}, userId: ${userId}`);
   
   try {
     await poolConnect;
@@ -902,10 +902,10 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE e.id = @eventId
       `);
     
-    // console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
+    // //console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
     
     if (permissionCheck.recordset.length === 0) {
-      // console.log('Evento não encontrado!');
+      // //console.log('Evento não encontrado!');
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
@@ -913,11 +913,11 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
     
     // Only owner or superior can update an event's feedback
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
-      // console.log('Sem permissão para atualizar!');
+      // //console.log('Sem permissão para atualizar!');
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
     
-    // console.log('Permissão concedida, atualizando feedback');
+    // //console.log('Permissão concedida, atualizando feedback');
     
     // Update just the feedback
     await pool.request()
@@ -932,7 +932,7 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE id = @eventId
       `);
     
-    // console.log('Feedback atualizado com sucesso!');
+    // //console.log('Feedback atualizado com sucesso!');
     res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
     
   } catch (error) {
@@ -943,15 +943,15 @@ router.patch('/:eventId/feedback', authenticateToken, async (req, res) => {
 
 // Update event feedback/tratativa - rota PUT para lidar com o método do cliente
 router.put('/:eventId/feedback', authenticateToken, async (req, res) => {
-  // console.log('PUT /events/:eventId/feedback - ROTA ACESSADA');
-  // console.log('Parâmetros:', req.params);
-  // console.log('Body:', req.body);
+  // //console.log('PUT /events/:eventId/feedback - ROTA ACESSADA');
+  // //console.log('Parâmetros:', req.params);
+  // //console.log('Body:', req.body);
   
   const { eventId } = req.params;
   const { id: userId } = req.user;
   const { tratativa } = req.body;
   
-  // console.log(`Atualizando feedback via PUT para o evento ${eventId}, userId: ${userId}`);
+  // //console.log(`Atualizando feedback via PUT para o evento ${eventId}, userId: ${userId}`);
   
   try {
     await poolConnect;
@@ -969,10 +969,10 @@ router.put('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE e.id = @eventId
       `);
     
-    // console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
+    // //console.log('Resultado da verificação de permissão:', permissionCheck.recordset);
     
     if (permissionCheck.recordset.length === 0) {
-      // console.log('Evento não encontrado!');
+      // //console.log('Evento não encontrado!');
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
@@ -980,11 +980,11 @@ router.put('/:eventId/feedback', authenticateToken, async (req, res) => {
     
     // Only owner or superior can update an event's feedback
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
-      // console.log('Sem permissão para atualizar!');
+      // //console.log('Sem permissão para atualizar!');
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
     
-    // console.log('Permissão concedida, atualizando feedback');
+    // //console.log('Permissão concedida, atualizando feedback');
     
     // Update just the feedback
     await pool.request()
@@ -999,7 +999,7 @@ router.put('/:eventId/feedback', authenticateToken, async (req, res) => {
         WHERE id = @eventId
       `);
     
-    // console.log('Feedback atualizado com sucesso!');
+    // //console.log('Feedback atualizado com sucesso!');
     res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
     
   } catch (error) {

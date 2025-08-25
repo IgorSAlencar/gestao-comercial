@@ -81,7 +81,7 @@ async function fixDatabase() {
     await poolConnect;
     const sqlScript = fs.readFileSync('./sql/fix_tratadas_hotlist.sql', 'utf8');
     await sql.query(sqlScript);
-    console.log('Tabela TRATADAS_HOTLIST corrigida com sucesso!');
+    //console.log('Tabela TRATADAS_HOTLIST corrigida com sucesso!');
   } catch (error) {
     console.error('Erro ao corrigir tabela:', error);
   }

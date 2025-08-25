@@ -23,10 +23,10 @@ const normalizeUUID = (uuid) => {
 
 async function testPermission() {
   try {
-    console.log('Conectando ao banco de dados...');
+    //console.log('Conectando ao banco de dados...');
     await poolConnect;
     
-    console.log('\n=== TESTE DE PERMISSÃO PARA CRIAÇÃO DE EVENTOS ===\n');
+    //console.log('\n=== TESTE DE PERMISSÃO PARA CRIAÇÃO DE EVENTOS ===\n');
     
     // 1. Obter os usuários do sistema
     const users = await pool.request().query(`
@@ -34,21 +34,21 @@ async function testPermission() {
       ORDER BY role, name
     `);
     
-    console.log('Usuários disponíveis:');
+    //console.log('Usuários disponíveis:');
     users.recordset.forEach((user, index) => {
-      console.log(`${index + 1}. ${user.name} (${user.role}) - ID: ${user.id}`);
+      //console.log(`${index + 1}. ${user.name} (${user.role}) - ID: ${user.id}`);
     });
     
     // Testar todas as combinações
-    console.log('\n=== MATRIZ DE PERMISSÕES ===');
-    console.log('(Quem pode criar evento para quem)\n');
+    //console.log('\n=== MATRIZ DE PERMISSÕES ===');
+    //console.log('(Quem pode criar evento para quem)\n');
     
     // Cabeçalho
     let header = 'CRIADOR ↓ / ALVO →';
     users.recordset.forEach(user => {
       header += `\t${user.name.substring(0, 10)}`;
     });
-    console.log(header);
+    //console.log(header);
     
     // Linhas
     for (const creator of users.recordset) {
@@ -114,17 +114,17 @@ async function testPermission() {
         row += `\t${hasPermission ? 'SIM' : 'NÃO'}`;
       }
       
-      console.log(row);
+      //console.log(row);
     }
     
-    console.log('\n=== TESTES ESPECÍFICOS ===\n');
+    //console.log('\n=== TESTES ESPECÍFICOS ===\n');
     
     // Teste específico do gerente para os supervisores
     const gerente = users.recordset.find(u => u.role === 'gerente');
     const supervisores = users.recordset.filter(u => u.role === 'supervisor');
     
     if (gerente && supervisores.length > 0) {
-      console.log(`Testando gerente ${gerente.name} criando para supervisores:`);
+      //console.log(`Testando gerente ${gerente.name} criando para supervisores:`);
       
       for (const supervisor of supervisores) {
         // Verificar permissão direta
@@ -151,14 +151,14 @@ async function testPermission() {
         
         const temRelacaoIndireta = indiretaResult.recordset[0].count > 0;
         
-        console.log(`- Para ${supervisor.name}:`);
-        console.log(`  * Relação direta: ${temRelacaoDireta ? 'SIM' : 'NÃO'}`);
-        console.log(`  * Relação indireta: ${temRelacaoIndireta ? 'SIM' : 'NÃO'}`);
-        console.log(`  * Permissão final: ${temRelacaoDireta || temRelacaoIndireta ? 'SIM' : 'NÃO'}`);
+        //console.log(`- Para ${supervisor.name}:`);
+        //console.log(`  * Relação direta: ${temRelacaoDireta ? 'SIM' : 'NÃO'}`);
+        //console.log(`  * Relação indireta: ${temRelacaoIndireta ? 'SIM' : 'NÃO'}`);
+        //console.log(`  * Permissão final: ${temRelacaoDireta || temRelacaoIndireta ? 'SIM' : 'NÃO'}`);
       }
     }
     
-    console.log('\nTeste de permissão concluído!\n');
+    //console.log('\nTeste de permissão concluído!\n');
     
   } catch (error) {
     console.error('Erro ao testar permissões:', error);

@@ -48,6 +48,7 @@ import { Progress } from "@/components/ui/progress";
 import DashboardGerencial from "@/components/DashboardGerencial";
 import AgendaStats from "@/components/AgendaStats";
 import { eventApi, Event, hotListApi, municipiosPrioritariosApi } from "@/services/api";
+import { estrategiaComercialApi } from "@/services/estrategiaComercialService";
 import { format, isPast, isToday, parseISO, addHours, startOfWeek, endOfWeek, isWithinInterval, isFuture, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/components/ui/use-toast";
@@ -90,6 +91,16 @@ const Index = () => {
     semVisitas: 0,
     totalEmpresas: 0,
     aceites: 0
+  });
+  const [pontosAtivosData, setPontosAtivosData] = useState({
+    totalPontos: 0,
+    pontosAtivos: 0,
+    pontosInativos: 0,
+    variacaoMensal: 0,
+    pontosQueZeraram: 0,
+    pontosNovos: 0,
+    percentualAtivos: 0,
+    percentualInativos: 0
   });
   
   // Função para verificar se um evento ocorre no dia atual
@@ -149,7 +160,7 @@ const Index = () => {
     const fimSemana = endOfWeek(hoje, { weekStartsOn: 1 });
     
     // Para debug
-    //console.log('Analisando evento:', {
+    ////console.log('Analisando evento:', {
       //titulo: evento.titulo,
       //dataInicio: format(dataInicio, 'dd/MM/yyyy HH:mm'),
       //dataFim: format(dataFim, 'dd/MM/yyyy HH:mm'),
@@ -172,7 +183,7 @@ const Index = () => {
     const resultado = eventoFuturo && dentroDaSemana;
     
     // Log do resultado
-    //console.log('Resultado análise:', {
+    ////console.log('Resultado análise:', {
       //titulo: evento.titulo,
       //eventoFuturo,
       //dentroDaSemana,
@@ -184,23 +195,23 @@ const Index = () => {
   
   // Função para incluir eventos de hoje, da semana e pendentes de tratativas
   const eventosParaMostrar = (eventos: Event[]) => {
-    //console.log('Analisando eventos para mostrar:', eventos.length);
+    ////console.log('Analisando eventos para mostrar:', eventos.length);
     
     // 1. Eventos de hoje (prioridade máxima)
     const eventosDeHoje = eventos.filter(eventoHoje);
-    //console.log('Eventos de hoje:', eventosDeHoje.length);
+    ////console.log('Eventos de hoje:', eventosDeHoje.length);
     
     // 2. Eventos da semana atual (excluindo os de hoje)
     const eventosDaSemana = eventos.filter(evento => 
       eventoDestaSemana(evento) && !eventoHoje(evento) && !eventoPassado(evento)
     );
-    //console.log('Eventos da semana (excluindo hoje):', eventosDaSemana.length);
+    ////console.log('Eventos da semana (excluindo hoje):', eventosDaSemana.length);
     
     // 3. Eventos pendentes de tratativas (prioridade alta, independente da data)
     const eventosPendentes = eventos.filter(evento => 
       eventoPassado(evento) && !temTratativa(evento)
     );
-    //console.log('Eventos pendentes de tratativas:', eventosPendentes.length);
+    ////console.log('Eventos pendentes de tratativas:', eventosPendentes.length);
     
     // 4. Combinar todos os eventos com prioridades
     const eventosParaExibir = [
@@ -214,7 +225,7 @@ const Index = () => {
       array.findIndex(e => e.id === evento.id) === index
     );
     
-    //console.log('Eventos únicos para exibir:', eventosUnicos.length);
+    ////console.log('Eventos únicos para exibir:', eventosUnicos.length);
     
     return eventosUnicos;
   };
@@ -227,7 +238,7 @@ const Index = () => {
     setLoadingError(null);
     
     try {
-      //console.log(`Carregando dados... Tentativa ${tentativa + 1}`);
+      ////console.log(`Carregando dados... Tentativa ${tentativa + 1}`);
       
       // Array para armazenar as promessas
       const promises = [];
@@ -248,8 +259,8 @@ const Index = () => {
             eventosData = [];
           }
           
-          //console.log(`Eventos carregados:`, eventosData);
-          //console.log(`Total de eventos: ${eventosData.length}`);
+          ////console.log(`Eventos carregados:`, eventosData);
+          ////console.log(`Total de eventos: ${eventosData.length}`);
           
           return eventosData;
         } catch (error) {
@@ -263,7 +274,7 @@ const Index = () => {
       const hotlistPromise = (async () => {
         try {
         const hotListSummary = await hotListApi.getHotListSummary(user.id);
-          //console.log('Hotlist summary carregado:', hotListSummary);
+          ////console.log('Hotlist summary carregado:', hotListSummary);
           return hotListSummary;
         } catch (error) {
           //console.error("Erro ao carregar hotlist:", error);
@@ -272,7 +283,67 @@ const Index = () => {
         }
       })();
 
-      // 3. Carregar municípios (apenas para supervisores, coordenadores e gerentes)
+      // 3. Carregar pontos ativos (apenas para supervisores, coordenadores e gerentes)
+      const pontosAtivosPromise = (async () => {
+        if (isSupervisor || isCoordinator || isManager) {
+          try {
+            const response = await estrategiaComercialApi.getEstrategia('pontos-ativos');
+            const pontos = response.dadosAnaliticos || [];
+            
+            // Calcular estatísticas dos pontos ativos
+            const totalPontos = pontos.length;
+            const pontosAtivos = pontos.filter(p => p.mesM0 > 0).length;
+            const pontosInativos = totalPontos - pontosAtivos;
+            
+            // Cálculos para variação mensal
+            const pontosAtivosM1 = pontos.filter(p => p.mesM1 > 0).length;
+            const variacaoMensal = pontosAtivos - pontosAtivosM1;
+            
+            // Pontos que zeraram e pontos novos
+            const pontosQueZeraram = pontos.filter(p => p.mesM0 === 0).length;
+            const pontosNovos = pontos.filter(p => p.mesM0 > 0).length;
+            
+            // Percentual de pontos ativos
+            const percentualAtivos = totalPontos > 0 ? Math.round((pontosAtivos / totalPontos) * 100) : 0;
+            const percentualInativos = totalPontos > 0 ? Math.round((pontosInativos / totalPontos) * 100) : 0;
+            
+            return {
+              totalPontos,
+              pontosAtivos,
+              pontosInativos,
+              variacaoMensal,
+              pontosQueZeraram,
+              pontosNovos,
+              percentualAtivos,
+              percentualInativos
+            };
+          } catch (error) {
+            //console.error("Erro ao carregar pontos ativos:", error);
+            return {
+              totalPontos: 0,
+              pontosAtivos: 0,
+              pontosInativos: 0,
+              variacaoMensal: 0,
+              pontosQueZeraram: 0,
+              pontosNovos: 0,
+              percentualAtivos: 0,
+              percentualInativos: 0
+            };
+          }
+        }
+        return {
+          totalPontos: 0,
+          pontosAtivos: 0,
+          pontosInativos: 0,
+          variacaoMensal: 0,
+          pontosQueZeraram: 0,
+          pontosNovos: 0,
+          percentualAtivos: 0,
+          percentualInativos: 0,
+        };
+      })();
+
+      // 4. Carregar municípios (apenas para supervisores, coordenadores e gerentes)
       const municipiosPromise = (async () => {
         if (isSupervisor || isCoordinator || isManager) {
           try {
@@ -365,9 +436,10 @@ const Index = () => {
         ]);
       
       // Aguardar todas as promessas
-      const [eventosData, hotListSummary, municipiosStats, estatisticasData, alertasData] = await Promise.all([
+      const [eventosData, hotListSummary, pontosAtivosStats, municipiosStats, estatisticasData, alertasData] = await Promise.all([
         eventosPromise,
         hotlistPromise,
+        pontosAtivosPromise,
         municipiosPromise,
         estatisticasPromise,
         alertasPromise
@@ -378,16 +450,17 @@ const Index = () => {
       
       // Processar eventos para exibição (hoje, semana e pendentes)
       const hoje = new Date();
-      //console.log(`Data atual para comparação: ${format(hoje, 'yyyy-MM-dd HH:mm:ss')}`);
+      ////console.log(`Data atual para comparação: ${format(hoje, 'yyyy-MM-dd HH:mm:ss')}`);
       
       // Aplicar a lógica de filtragem para mostrar eventos relevantes
       const eventosRelevantes = eventosParaMostrar(eventosData);
       
-      //console.log(`Eventos relevantes para exibição: ${eventosRelevantes.length}`, eventosRelevantes);
+      ////console.log(`Eventos relevantes para exibição: ${eventosRelevantes.length}`, eventosRelevantes);
       setEventosHoje(eventosRelevantes);
       
       setTotalLeadsPendentes(hotListSummary.leadsPendentes || 0);
       setTotalLeadsUsuario(hotListSummary.totalLeads || 0);
+      setPontosAtivosData(pontosAtivosStats);
       setMunicipiosData(municipiosStats);
       setEstatisticas(estatisticasData);
       setAlertas(alertasData);
@@ -396,7 +469,7 @@ const Index = () => {
       setDataLoadedSuccessfully(true);
       setRetryCount(0);
       
-      //console.log("Todos os dados carregados com sucesso!");
+      ////console.log("Todos os dados carregados com sucesso!");
       
       } catch (error) {
       //console.error("Erro ao carregar dados:", error);
@@ -929,6 +1002,76 @@ const Index = () => {
         
           {/* Coluna 2: Ações Diárias, Estratégias e Acesso Rápido */}
           <div className="space-y-6">
+            {/* Card de Pontos Ativos - apenas para supervisores, coordenadores e gerentes */}
+            {(isSupervisor || isCoordinator || isManager) && (
+              <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">
+                {/* Elementos decorativos de fundo */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 via-white to-slate-50 pointer-events-none"></div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-100/20 to-transparent rounded-full transform translate-x-32 -translate-y-32 pointer-events-none"></div>
+                
+                <CardHeader className="relative z-10">
+                  <CardTitle className="text-lg text-slate-800 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600">
+                      <Activity className="h-5 w-5" />
+                    </div>
+                    Pontos Ativos
+                  </CardTitle>
+                  <CardDescription className="text-slate-600">Gestão dos pontos que realizaram no mínimo uma transação</CardDescription>
+                </CardHeader>
+                <CardContent className="relative z-10">
+                  <div className="space-y-3 mb-4">
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-indigo-50 to-white rounded-lg border border-indigo-100">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-indigo-800">Total de Lojas para Estratégia</span>
+                      </div>
+                      <span className="text-lg font-bold text-indigo-700">{pontosAtivosData.totalPontos.toLocaleString('pt-BR')}</span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center p-3 bg-gradient-to-r from-emerald-50 to-white rounded-lg border border-emerald-100">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-emerald-800">Pontos Ativos</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-emerald-700">{pontosAtivosData.pontosAtivos.toLocaleString('pt-BR')}</span>
+                        <span className="text-sm font-medium text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">
+                          {pontosAtivosData.percentualAtivos}%
+                        </span>
+                      </div>
+                    </div>
+
+                    
+
+                    {pontosAtivosData.pontosQueZeraram > 0 && (
+                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-red-50 to-white rounded-lg border border-red-100">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
+                          <span className="text-sm font-medium text-red-800">Lojas Inativas</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-red-700">{pontosAtivosData.pontosQueZeraram.toLocaleString('pt-BR')}</span>
+                          <span className="text-sm font-medium text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                            {pontosAtivosData.percentualInativos}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                  
+                  <Button 
+                    onClick={() => navegarPara('/pontos-ativos')}
+                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg group"
+                  >
+                    <Activity className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+                    Gerenciar Pontos Ativos
+                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Card de Meus Municípios - apenas para supervisores, coordenadores e gerentes */}
             {(isSupervisor || isCoordinator || isManager) && (
               <Card className="bg-white shadow-lg hover:shadow-xl transition-all duration-300 relative overflow-hidden">

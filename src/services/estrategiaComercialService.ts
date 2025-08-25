@@ -2,6 +2,11 @@ import { API_CONFIG } from '@/config/api.config';
 
 const API_BASE_URL = API_CONFIG.baseUrl;
 
+// Função para obter token do sessionStorage (alinhada com api.ts)
+const getAuthToken = (): string | null => {
+  return window.sessionStorage.getItem("token");
+};
+
 export interface EstratégiaFilter {
   produto: 'credito' | 'abertura-conta' | 'seguro' | 'pontos-ativos' | 'pontos-realizando-negocio' | 'pontos-bloqueados';
   userChave: number;
@@ -124,10 +129,10 @@ export const estrategiaComercialApi = {
    * Busca dados completos de uma estratégia específica
    */
   getEstrategia: async (produto: string): Promise<DadosEstrategiaResponse> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
-    console.log(`🔐 Enviando requisição para estratégia ${produto} com token: ${token ? 'Presente' : 'Ausente'}`);
+    //console.log(`🔐 Enviando requisição para estratégia ${produto} com token: ${token ? 'Presente' : 'Ausente'}`);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/estrategia/${produto}`, {
@@ -155,10 +160,10 @@ export const estrategiaComercialApi = {
    * Busca métricas calculadas no SQL para uma estratégia específica
    */
   getMetricasEstrategia: async (produto: string): Promise<MetricasEstrategiaResponse> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
-    console.log(`📊 Buscando métricas calculadas para estratégia ${produto}`);
+    //console.log(`📊 Buscando métricas calculadas para estratégia ${produto}`);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/estrategia/${produto}/metricas`, {
@@ -186,10 +191,10 @@ export const estrategiaComercialApi = {
    * Busca métricas gerenciais por supervisão
    */
   getMetricasGerenciais: async (produto: string): Promise<MetricasGerenciaisResponse> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
-    console.log(`📊 Buscando métricas gerenciais para estratégia ${produto}`);
+    //console.log(`📊 Buscando métricas gerenciais para estratégia ${produto}`);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/estrategia/${produto}/metricas-gerenciais`, {
@@ -217,7 +222,7 @@ export const estrategiaComercialApi = {
    * Busca lojas baseado na hierarquia do usuário
    */
   getLojasByHierarchy: async (filter: EstratégiaFilter): Promise<LojaEstrategia[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     try {
@@ -247,7 +252,7 @@ export const estrategiaComercialApi = {
    * Busca dados específicos de um produto para uma lista de lojas
    */
   getDadosProduto: async (produto: string, chaveLojas: number[]): Promise<any[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     try {

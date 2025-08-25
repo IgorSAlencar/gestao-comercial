@@ -60,13 +60,13 @@ app.get('/api/health', async (req, res) => {
         `);
 
         const existingTables = result.recordset.map(r => r.TABLE_NAME);
-        console.log("Tabelas existentes:", existingTables);
+        //console.log("Tabelas existentes:", existingTables);
 
         // Verificar contagem de registros em cada tabela
         for (const table of existingTables) {
           const countQuery = `SELECT COUNT(*) AS count FROM teste..${table}`;
           const countResult = await pool.request().query(countQuery);
-          console.log(`Registros em ${table}:`, countResult.recordset[0].count);
+          //console.log(`Registros em ${table}:`, countResult.recordset[0].count);
         }
 
         return true;
@@ -97,7 +97,7 @@ app.get('/api/health', async (req, res) => {
 
 // Rota direta para feedback de eventos
 app.put('/api/events/:eventId/feedback', authenticateToken, async (req, res) => {
-  console.log('PUT /api/events/:eventId/feedback - Rota direta acessada');
+  //console.log('PUT /api/events/:eventId/feedback - Rota direta acessada');
   const { eventId } = req.params;
   const { id: userId } = req.user;
   const { tratativa } = req.body;
@@ -119,7 +119,7 @@ app.put('/api/events/:eventId/feedback', authenticateToken, async (req, res) => 
       `);
     
     if (permissionCheck.recordset.length === 0) {
-      console.log('Evento não encontrado!');
+      //console.log('Evento não encontrado!');
       return res.status(404).json({ message: 'Evento não encontrado' });
     }
     
@@ -127,11 +127,11 @@ app.put('/api/events/:eventId/feedback', authenticateToken, async (req, res) => 
     
     // Only owner or superior can update an event's feedback
     if (!eventPermission.is_owner && !eventPermission.is_superior) {
-      console.log('Sem permissão para atualizar!');
+      //console.log('Sem permissão para atualizar!');
       return res.status(403).json({ message: 'Sem permissão para atualizar este evento' });
     }
     
-    console.log('Permissão concedida, atualizando feedback via rota direta');
+    //console.log('Permissão concedida, atualizando feedback via rota direta');
     
     // Update just the feedback
     await pool.request()
@@ -146,7 +146,7 @@ app.put('/api/events/:eventId/feedback', authenticateToken, async (req, res) => 
         WHERE id = @eventId
       `);
     
-    console.log('Feedback atualizado com sucesso!');
+    //console.log('Feedback atualizado com sucesso!');
     res.json({ message: 'Tratativa/feedback atualizado com sucesso' });
     
   } catch (error) {

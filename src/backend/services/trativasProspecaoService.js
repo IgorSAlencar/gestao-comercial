@@ -8,11 +8,11 @@ const salvarTrativaProspepcao = async ({ eventoId, userId, userName, cnpjs, dtAg
   let transaction;
   
   try {
-    console.log('Iniciando salvamento de tratativas de prospecção:', {
-      eventoId,
-      userId,
-      cnpjs: cnpjs.length
-    });
+    //console.log('Iniciando salvamento de tratativas de prospecção:', {
+    //  eventoId,
+    //  userId,
+    //  cnpjs: cnpjs.length
+    //});
 
     // Validações básicas
     if (!eventoId || !userId || !cnpjs || !Array.isArray(cnpjs)) {
@@ -24,20 +24,20 @@ const salvarTrativaProspepcao = async ({ eventoId, userId, userName, cnpjs, dtAg
     
     // Cria a transação
     transaction = new sql.Transaction(pool);
-    console.log('Transação criada');
+    //console.log('Transação criada');
     
     // Inicia a transação
     await transaction.begin();
-    console.log('Transação iniciada');
+    //console.log('Transação iniciada');
     
     // Para cada CNPJ, inserir uma linha na tabela
     for (const cnpj of cnpjs) {
       const cnpjLimpo = limparCNPJ(cnpj.cnpj);
-      console.log('Processando CNPJ:', {
-        original: cnpj.cnpj,
-        limpo: cnpjLimpo,
-        tratado: cnpj.tratado
-      });
+      //console.log('Processando CNPJ:', {
+      //  original: cnpj.cnpj,
+      //  limpo: cnpjLimpo,
+      //  tratado: cnpj.tratado
+      //});
       
       if (!cnpjLimpo || cnpjLimpo.length !== 14) {
         throw new Error(`CNPJ inválido: ${cnpj.cnpj}`);
@@ -78,12 +78,12 @@ const salvarTrativaProspepcao = async ({ eventoId, userId, userName, cnpjs, dtAg
         END
       `);
       
-      console.log('CNPJ processado com sucesso:', cnpjLimpo);
+      //console.log('CNPJ processado com sucesso:', cnpjLimpo);
     }
     
     // Commit da transação
     await transaction.commit();
-    console.log('Transação commitada com sucesso');
+    //console.log('Transação commitada com sucesso');
     
     return {
       success: true,
@@ -96,9 +96,9 @@ const salvarTrativaProspepcao = async ({ eventoId, userId, userName, cnpjs, dtAg
     // Rollback apenas se a transação existir e estiver ativa
     if (transaction) {
       try {
-        console.log('Tentando fazer rollback da transação');
+        //console.log('Tentando fazer rollback da transação');
         await transaction.rollback();
-        console.log('Rollback realizado com sucesso');
+        //console.log('Rollback realizado com sucesso');
       } catch (rollbackError) {
         console.error('Erro ao fazer rollback:', rollbackError);
       }

@@ -127,7 +127,7 @@ export function MunicipioAutocomplete({ value, onChange }: MunicipioAutocomplete
   };
 
   const handleMunicipioSelect = (municipio: MunicipioIBGE) => {
-    console.log('✅ Selecionando município:', municipio.nome);
+    //console.log('✅ Selecionando município:', municipio.nome);
     onChange({ municipio: municipio.nome, uf: value.uf });
     setSearchTerm(municipio.nome);
     setIsOpen(false);

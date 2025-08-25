@@ -20,7 +20,8 @@ router.get('/', authenticateToken, async (req, res) => {
     const user = userResult.recordset[0];
     const { chave, role } = user;
     
-    if (!chave) {
+    // Admin não precisa de chave, outros roles precisam
+    if (!chave && role !== 'admin') {
       return res.status(400).json({ message: 'Usuário não possui chave definida' });
     }
     
@@ -47,6 +48,7 @@ router.get('/', authenticateToken, async (req, res) => {
         inputParam = 'chave';
         break;
       case 'admin':
+        //console.log(`[MunicipiosPrioritarios] Usuario admin detectado: ${req.user.id} - buscando todos os municipios`);
         query = 'SELECT CD_MUNIC, MUNICIPIO, UF, CHAVE_SUP, CHAVE_COORD, CHAVE_GERENTE FROM teste..MUNICIPIOS_PRIORITARIOS';
         inputParam = null; // Admin vê todos
         break;
@@ -71,10 +73,10 @@ router.get('/', authenticateToken, async (req, res) => {
     const request = pool.request();
     
     // Adicionar parâmetro baseado na lógica acima
-    if (inputParam === 'chave') {
+    if (inputParam === 'chave' && chave) {
       // Converter chave para string se for número, ou usar como string se já for string
       const chaveStr = chave.toString();
-      //console.log(`[MunicipiosPrioritarios] Chave convertida: ${chaveStr} (tipo: ${typeof chaveStr})`);
+      ////console.log(`[MunicipiosPrioritarios] Chave convertida: ${chaveStr} (tipo: ${typeof chaveStr})`);
       request.input('chave', sql.NVarChar, chaveStr);
     } else if (inputParam === 'supervisorChave') {
       // Usar a chave do supervisor selecionado
@@ -89,6 +91,8 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     const result = await request.query(query);
+    
+    //console.log(`[MunicipiosPrioritarios] Query executada para ${role}: ${result.recordset.length} municipios encontrados`);
     
     // Buscar tratativas para cada município
     const municipiosComTratativas = [];
@@ -110,6 +114,44 @@ router.get('/', authenticateToken, async (req, res) => {
           }
         } catch (error) {
           console.error(`Erro ao buscar supervisor para chave ${row.CHAVE_SUP}:`, error);
+        }
+      }
+
+      // Buscar nome do coordenador baseado na CHAVE_COORD
+      let coordenadorNome = null;
+      let coordenadorId = null;
+      
+      if (row.CHAVE_COORD) {
+        try {
+          const coordenadorResult = await pool.request()
+            .input('chaveCoord', sql.NVarChar, row.CHAVE_COORD.toString())
+            .query('SELECT id, name FROM teste..users WHERE chave = @chaveCoord AND role = \'coordenador\'');
+          
+          if (coordenadorResult.recordset.length > 0) {
+            coordenadorNome = coordenadorResult.recordset[0].name;
+            coordenadorId = coordenadorResult.recordset[0].id;
+          }
+        } catch (error) {
+          console.error(`Erro ao buscar coordenador para chave ${row.CHAVE_COORD}:`, error);
+        }
+      }
+
+      // Buscar nome do gerente baseado na CHAVE_GERENTE
+      let gerenteNome = null;
+      let gerenteId = null;
+      
+      if (row.CHAVE_GERENTE) {
+        try {
+          const gerenteResult = await pool.request()
+            .input('chaveGerente', sql.NVarChar, row.CHAVE_GERENTE.toString())
+            .query('SELECT id, name FROM teste..users WHERE chave = @chaveGerente AND role = \'gerente\'');
+          
+          if (gerenteResult.recordset.length > 0) {
+            gerenteNome = gerenteResult.recordset[0].name;
+            gerenteId = gerenteResult.recordset[0].id;
+          }
+        } catch (error) {
+          console.error(`Erro ao buscar gerente para chave ${row.CHAVE_GERENTE}:`, error);
         }
       }
       
@@ -141,7 +183,7 @@ router.get('/', authenticateToken, async (req, res) => {
       tratativasResult.recordset.forEach(tratativa => {
         // Verificar se DATA_VISITA não é null
         if (!tratativa.DATA_VISITA) {
-          //console.log(`[MunicipiosPrioritarios] Tratativa ${tratativa.ID_TRATATIVA} tem DATA_VISITA null, ignorando...`);
+          ////console.log(`[MunicipiosPrioritarios] Tratativa ${tratativa.ID_TRATATIVA} tem DATA_VISITA null, ignorando...`);
           return; // Pular esta tratativa
         }
         
@@ -183,6 +225,10 @@ router.get('/', authenticateToken, async (req, res) => {
         chaveGerente: row.CHAVE_GERENTE,
         supervisorId: supervisorId,
         supervisorNome: supervisorNome,
+        coordenadorId: coordenadorId,
+        coordenadorNome: coordenadorNome,
+        gerenteId: gerenteId,
+        gerenteNome: gerenteNome,
         visitasAgendadas: [],
         visitasRealizadas: visitasRealizadas
       });
@@ -190,7 +236,7 @@ router.get('/', authenticateToken, async (req, res) => {
     
     const municipios = municipiosComTratativas;
     
-    //console.log(`[MunicipiosPrioritarios] Encontrados ${municipios.length} municípios para o usuário`);
+    //console.log(`[MunicipiosPrioritarios] Encontrados ${municipios.length} municípios para o usuário ${req.user.id} (${role})`);
     
     res.json(municipios);
   } catch (error) {

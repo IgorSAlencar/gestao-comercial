@@ -139,7 +139,7 @@ export function TratativaCorbanModal({
 
     try {
       // Aqui seria feita a chamada para a API
-      console.log('Dados da tratativa:', formData);
+      //console.log('Dados da tratativa:', formData);
       
       // Simulação de API call
       await new Promise(resolve => setTimeout(resolve, 1000));

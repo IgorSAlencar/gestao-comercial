@@ -156,7 +156,7 @@ router.post('/:produto', authenticateToken, async (req, res) => {
 router.get('/:produto', authenticateToken, async (req, res) => {
   const { produto } = req.params;
   
-  // console.log(`🔍 Buscando estratégia: ${produto} para usuário: ${req.userId}`);
+  // //console.log(`🔍 Buscando estratégia: ${produto} para usuário: ${req.userId}`);
   
   try {
     await poolConnect;
@@ -166,7 +166,7 @@ router.get('/:produto', authenticateToken, async (req, res) => {
       .input('userId', sql.UniqueIdentifier, req.userId)
       .query('SELECT chave, role FROM TESTE..users WHERE id = @userId');
     
-    // console.log(`📊 Resultado da busca do usuário:`, userResult.recordset);
+    // //console.log(`📊 Resultado da busca do usuário:`, userResult.recordset);
     
     if (userResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Usuário não encontrado' });
@@ -253,6 +253,7 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.DESC_GERENCIA_AREA,
             l.DESC_COORDENACAO,
             l.DESC_SUPERVISAO,
+            l.CHAVE_SUPERVISAO,
             l.DIR_REGIONAL,
             l.GER_REGIONAL,
             l.AG_RELACIONAMENTO,
@@ -260,10 +261,15 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.MUNICIPIO,
             l.UF,
             l.SALDO_CX,
-            l.LIMITE
-          FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
+            l.LIMITE,
+            ISNULL(a.DT_ULT_TRANSACAO, l.DT_ULT_TRANSACAO) as DT_ULT_TRANSACAO_ATIVO,
+            ISNULL(a.MES_M3, 0) as MES_M3,
+            ISNULL(a.MES_M2, 0) as MES_M2,
+            ISNULL(a.MES_M1, 0) as MES_M1,
+            ISNULL(a.MES_M0, 0) as MES_M0
+          FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+          LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
           ${hierarchyFilter}
-          AND l.SITUACAO = 'ATIVA'
           ORDER BY l.NOME_LOJA
         `;
         break;
@@ -344,12 +350,12 @@ router.get('/:produto', authenticateToken, async (req, res) => {
         return res.status(400).json({ message: 'Produto não reconhecido' });
     }
     
-    // console.log(`🔍 Executando query para ${produto} com filtro: ${hierarchyFilter}`);
-    // console.log(`📋 Query completa:`, query);
+    // //console.log(`🔍 Executando query para ${produto} com filtro: ${hierarchyFilter}`);
+    // //console.log(`📋 Query completa:`, query);
     
     const result = await pool.request().query(query);
     
-    // console.log(`📊 Resultados encontrados: ${result.recordset.length} lojas`);
+    // //console.log(`📊 Resultados encontrados: ${result.recordset.length} lojas`);
     
     // Mapear dados para o formato esperado pelo frontend
     const dadosFormatados = result.recordset.map(row => ({
@@ -362,7 +368,7 @@ router.get('/:produto', authenticateToken, async (req, res) => {
       mesM0: row.MES_M0 || 0,
       situacao: row.SITUACAO?.toLowerCase() || 'ativa',
       dataUltTrxContabil: row.DT_ULT_AB_CONTA,
-      dataUltTrxNegocio: row.DT_ULT_TRANSACAO,
+      dataUltTrxNegocio: row.DT_ULT_TRANSACAO_ATIVO || row.DT_ULT_TRANSACAO,
       dataBloqueio: row.DT_BLOQUEIO,
       dataInauguracao: row.DT_INAUGURACAO,
       agencia: row.COD_AG_RELACIONAMENTO?.toString() || '',
@@ -474,12 +480,12 @@ router.get('/:produto/metricas', authenticateToken, async (req, res) => {
     
     const hierarchyFilter = getHierarchyFilter(userRole, userChave);
     
-    // Query para métricas apenas para produtos que usam TB_ESTR_CONTAS
-    if (!['credito', 'abertura-conta', 'seguro'].includes(produto)) {
-      return res.status(400).json({ message: 'Métricas disponíveis apenas para produtos de conta/crédito/seguro' });
-    }
+    // Query para métricas específicas por tipo de produto
+    let metricsQuery = '';
     
-    const metricsQuery = `
+    if (['credito', 'abertura-conta', 'seguro'].includes(produto)) {
+      // Métricas para produtos que usam TB_ESTR_CONTAS
+      metricsQuery = `
       SELECT 
         -- Totais de contas
         SUM(ISNULL(c.MES_M0, 0)) as TOTAL_MES_ATUAL,
@@ -502,7 +508,36 @@ router.get('/:produto/metricas', authenticateToken, async (req, res) => {
       FROM DATAWAREHOUSE..TB_ESTR_CONTAS c
       LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = c.CHAVE_LOJA
       ${hierarchyFilter}
-    `;
+          `;
+    } else if (produto === 'pontos-ativos') {
+      // Métricas para pontos ativos que usam TB_ESTR_ATIVO
+      metricsQuery = `
+      SELECT 
+        -- Totais de atividade
+        SUM(ISNULL(a.MES_M0, 0)) as TOTAL_MES_ATUAL,
+        SUM(ISNULL(a.MES_M1, 0)) as TOTAL_MES_ANTERIOR,
+        SUM(ISNULL(a.MES_M0, 0) - ISNULL(a.MES_M1, 0)) as VARIACAO_TOTAL,
+        
+        -- Contadores de lojas
+        COUNT(*) as LOJAS_NA_ESTRATEGIA,
+        SUM(CASE WHEN ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_C_PRODUCAO_M0,
+        SUM(CASE WHEN ISNULL(a.MES_M1, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_C_PRODUCAO_M1,
+        
+        -- Análises específicas para pontos ativos
+        SUM(CASE WHEN ISNULL(a.MES_M1, 0) > 0 AND ISNULL(a.MES_M0, 0) = 0 THEN 1 ELSE 0 END) as LOJAS_QUE_ZERARAM,
+        SUM(CASE WHEN ISNULL(a.MES_M1, 0) = 0 AND ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_NOVAS,
+        SUM(CASE WHEN ISNULL(a.MES_M2, 0) > 0 AND ISNULL(a.MES_M1, 0) = 0 AND ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_QUE_VOLTARAM,
+        SUM(CASE WHEN ISNULL(a.MES_M1, 0) > 0 AND ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ESTAVEIS_ATIVAS,
+        SUM(CASE WHEN ISNULL(a.MES_M0, 0) < ISNULL(a.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_QUEDA_PRODUCAO,
+        SUM(CASE WHEN ISNULL(a.MES_M0, 0) = 0 THEN 1 ELSE 0 END) as LOJAS_SEM_MOVIMENTO
+        
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      ${hierarchyFilter}
+      `;
+    } else {
+      return res.status(400).json({ message: 'Métricas não disponíveis para este produto' });
+    }
     
     const result = await pool.request().query(metricsQuery);
     const metricas = result.recordset[0];
@@ -514,16 +549,31 @@ router.get('/:produto/metricas', authenticateToken, async (req, res) => {
     
     // Calcular tendências do lado JavaScript (sem divisão por zero no SQL)
     // Buscar dados individuais para calcular tendências
-    const dadosIndividuaisQuery = `
-      SELECT 
-        ISNULL(c.MES_M3, 0) as MES_M3,
-        ISNULL(c.MES_M2, 0) as MES_M2,
-        ISNULL(c.MES_M1, 0) as MES_M1,
-        ISNULL(c.MES_M0, 0) as MES_M0
-      FROM DATAWAREHOUSE..TB_ESTR_CONTAS c
-      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = c.CHAVE_LOJA
-      ${hierarchyFilter}
-    `;
+    let dadosIndividuaisQuery = '';
+    
+    if (['credito', 'abertura-conta', 'seguro'].includes(produto)) {
+      dadosIndividuaisQuery = `
+        SELECT 
+          ISNULL(c.MES_M3, 0) as MES_M3,
+          ISNULL(c.MES_M2, 0) as MES_M2,
+          ISNULL(c.MES_M1, 0) as MES_M1,
+          ISNULL(c.MES_M0, 0) as MES_M0
+        FROM DATAWAREHOUSE..TB_ESTR_CONTAS c
+        LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = c.CHAVE_LOJA
+        ${hierarchyFilter}
+      `;
+    } else if (produto === 'pontos-ativos') {
+      dadosIndividuaisQuery = `
+        SELECT 
+          ISNULL(a.MES_M3, 0) as MES_M3,
+          ISNULL(a.MES_M2, 0) as MES_M2,
+          ISNULL(a.MES_M1, 0) as MES_M1,
+          ISNULL(a.MES_M0, 0) as MES_M0
+        FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+        LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+        ${hierarchyFilter}
+      `;
+    }
     
     const dadosIndividuais = await pool.request().query(dadosIndividuaisQuery);
     
@@ -634,26 +684,53 @@ router.get('/:produto/metricas-gerenciais', authenticateToken, async (req, res) 
     }
 
     // Query base para buscar supervisores da região
-    const supervisoresQuery = `
-      SELECT DISTINCT 
-        l.DESC_SUPERVISAO,
-        l.CHAVE_SUPERVISAO,
-        u.name as NOME_SUPERVISOR,
-        SUM(ISNULL(c.MES_M0, 0)) as TOTAL_MES_ATUAL,
-        SUM(ISNULL(c.MES_M1, 0)) as TOTAL_MES_ANTERIOR,
-        COUNT(DISTINCT l.CHAVE_LOJA) as TOTAL_LOJAS,
-        SUM(CASE WHEN ISNULL(c.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ATIVAS,
-        SUM(CASE WHEN ISNULL(c.MES_M1, 0) > 0 AND ISNULL(c.MES_M0, 0) = 0 THEN 1 ELSE 0 END) as LOJAS_ZERARAM,
-        SUM(CASE WHEN ISNULL(c.MES_M0, 0) > ISNULL(c.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CRESCERAM,
-        SUM(CASE WHEN ISNULL(c.MES_M0, 0) < ISNULL(c.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CAIRAM,
-        SUM(CASE WHEN ISNULL(c.MES_M0, 0) = ISNULL(c.MES_M1, 0) AND ISNULL(c.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ESTAVEIS
-      FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
-      LEFT JOIN TESTE..users u ON l.CHAVE_SUPERVISAO = u.chave
-      LEFT JOIN DATAWAREHOUSE..TB_ESTR_CONTAS c ON l.CHAVE_LOJA = c.CHAVE_LOJA
-      WHERE ${userRole === 'coordenador' ? 'l.CHAVE_COORDENACAO' : 'l.CHAVE_GERENCIA_AREA'} = ${userChave}
-      GROUP BY l.DESC_SUPERVISAO, l.CHAVE_SUPERVISAO, u.name
-      ORDER BY l.DESC_SUPERVISAO
-    `;
+    let supervisoresQuery = '';
+    
+    if (['credito', 'abertura-conta', 'seguro'].includes(produto)) {
+      supervisoresQuery = `
+        SELECT DISTINCT 
+          l.DESC_SUPERVISAO,
+          l.CHAVE_SUPERVISAO,
+          u.name as NOME_SUPERVISOR,
+          SUM(ISNULL(c.MES_M0, 0)) as TOTAL_MES_ATUAL,
+          SUM(ISNULL(c.MES_M1, 0)) as TOTAL_MES_ANTERIOR,
+          COUNT(DISTINCT l.CHAVE_LOJA) as TOTAL_LOJAS,
+          SUM(CASE WHEN ISNULL(c.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ATIVAS,
+          SUM(CASE WHEN ISNULL(c.MES_M1, 0) > 0 AND ISNULL(c.MES_M0, 0) = 0 THEN 1 ELSE 0 END) as LOJAS_ZERARAM,
+          SUM(CASE WHEN ISNULL(c.MES_M0, 0) > ISNULL(c.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CRESCERAM,
+          SUM(CASE WHEN ISNULL(c.MES_M0, 0) < ISNULL(c.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CAIRAM,
+          SUM(CASE WHEN ISNULL(c.MES_M0, 0) = ISNULL(c.MES_M1, 0) AND ISNULL(c.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ESTAVEIS
+        FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
+        LEFT JOIN TESTE..users u ON l.CHAVE_SUPERVISAO = u.chave
+        LEFT JOIN DATAWAREHOUSE..TB_ESTR_CONTAS c ON l.CHAVE_LOJA = c.CHAVE_LOJA
+        WHERE ${userRole === 'coordenador' ? 'l.CHAVE_COORDENACAO' : 'l.CHAVE_GERENCIA_AREA'} = ${userChave}
+        GROUP BY l.DESC_SUPERVISAO, l.CHAVE_SUPERVISAO, u.name
+        ORDER BY l.DESC_SUPERVISAO
+      `;
+    } else if (produto === 'pontos-ativos') {
+      supervisoresQuery = `
+        SELECT DISTINCT 
+          l.DESC_SUPERVISAO,
+          l.CHAVE_SUPERVISAO,
+          u.name as NOME_SUPERVISOR,
+          SUM(ISNULL(a.MES_M0, 0)) as TOTAL_MES_ATUAL,
+          SUM(ISNULL(a.MES_M1, 0)) as TOTAL_MES_ANTERIOR,
+          COUNT(DISTINCT l.CHAVE_LOJA) as TOTAL_LOJAS,
+          SUM(CASE WHEN ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ATIVAS,
+          SUM(CASE WHEN ISNULL(a.MES_M1, 0) > 0 AND ISNULL(a.MES_M0, 0) = 0 THEN 1 ELSE 0 END) as LOJAS_ZERARAM,
+          SUM(CASE WHEN ISNULL(a.MES_M0, 0) > ISNULL(a.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CRESCERAM,
+          SUM(CASE WHEN ISNULL(a.MES_M0, 0) < ISNULL(a.MES_M1, 0) THEN 1 ELSE 0 END) as LOJAS_CAIRAM,
+          SUM(CASE WHEN ISNULL(a.MES_M0, 0) = ISNULL(a.MES_M1, 0) AND ISNULL(a.MES_M0, 0) > 0 THEN 1 ELSE 0 END) as LOJAS_ESTAVEIS
+        FROM DATAWAREHOUSE..TB_ESTR_LOJAS l
+        LEFT JOIN TESTE..users u ON l.CHAVE_SUPERVISAO = u.chave
+        LEFT JOIN DATAWAREHOUSE..TB_ESTR_ATIVO a ON l.CHAVE_LOJA = a.CHAVE_LOJA
+        WHERE ${userRole === 'coordenador' ? 'l.CHAVE_COORDENACAO' : 'l.CHAVE_GERENCIA_AREA'} = ${userChave}
+        GROUP BY l.DESC_SUPERVISAO, l.CHAVE_SUPERVISAO, u.name
+        ORDER BY l.DESC_SUPERVISAO
+      `;
+    } else {
+      return res.status(400).json({ message: 'Métricas gerenciais não disponíveis para este produto' });
+    }
     
     const result = await pool.request().query(supervisoresQuery);
     

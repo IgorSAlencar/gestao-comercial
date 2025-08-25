@@ -103,17 +103,17 @@ const DashboardGerencial: React.FC = () => {
   const processarDados = (supervisores: User[], eventos: Event[]) => {
     try {
       // Log inicial para debug
-      console.log('Dados recebidos:', {
-        totalSupervisores: supervisores.length,
-        supervisores: supervisores.map(s => ({ id: s.id, nome: s.name })),
-        totalEventos: eventos.length,
-        eventos: eventos.map(e => ({ 
-          id: e.id, 
-          titulo: e.titulo, 
-          supervisorId: e.supervisorId,
-          dataInicio: e.dataInicio
-        }))
-      });
+      //console.log('Dados recebidos:', {
+        //totalSupervisores: supervisores.length,
+        //supervisores: supervisores.map(s => ({ id: s.id, nome: s.name })),
+        //totalEventos: eventos.length,
+        //eventos: eventos.map(e => ({ 
+          //id: e.id, 
+          //titulo: e.titulo, 
+          //supervisorId: e.supervisorId,
+          //dataInicio: e.dataInicio
+        //}))
+      //});
 
       // Criar um mapa de supervisores para facilitar a busca
       const supervisorMap = new Map<string, User>();
@@ -143,12 +143,12 @@ const DashboardGerencial: React.FC = () => {
         const supervisorId = evento.supervisorId;
         const supervisorNoMapa = supervisorMap.has(supervisorId);
 
-        console.log('Processando evento:', {
-          id: evento.id,
-          titulo: evento.titulo,
-          supervisorId: supervisorId,
-          supervisorNoMapa
-        });
+        //console.log('Processando evento:', {
+         // id: evento.id,
+          //titulo: evento.titulo,
+          //supervisorId: supervisorId,
+          //supervisorNoMapa
+        //});
 
         if (supervisorNoMapa) {
           const eventosDoSupervisor = eventosPorSupervisor.get(supervisorId) || [];
@@ -159,20 +159,20 @@ const DashboardGerencial: React.FC = () => {
       });
 
       // Log dos eventos agrupados
-      console.log('Eventos agrupados por supervisor:');
+      //console.log('Eventos agrupados por supervisor:');
       supervisores.forEach(supervisor => {
         const eventos = eventosPorSupervisor.get(supervisor.id) || [];
-        console.log(`- ${supervisor.name} (${supervisor.id}): ${eventos.length} eventos`);
+        //console.log(`- ${supervisor.name} (${supervisor.id}): ${eventos.length} eventos`);
       });
 
       // Processar estatísticas para cada supervisor
       const supervisoresComAgenda = supervisores.map(supervisor => {
         const eventos = eventosPorSupervisor.get(supervisor.id) || [];
         
-        console.log(`Processando supervisor ${supervisor.name}:`, {
-          totalEventos: eventos.length,
-          eventos
-        });
+        //console.log(`Processando supervisor ${supervisor.name}:`, {
+          //totalEventos: eventos.length,
+          //eventos
+        //});
 
         const hoje = new Date();
         const inicioSemana = startOfWeek(hoje, { weekStartsOn: 1 });
@@ -197,7 +197,7 @@ const DashboardGerencial: React.FC = () => {
           proximosEventos
         };
 
-        console.log(`Dados processados do supervisor ${supervisor.name}:`, dadosProcessados);
+        //console.log(`Dados processados do supervisor ${supervisor.name}:`, dadosProcessados);
 
         return {
           supervisor: supervisor.name,
@@ -223,7 +223,7 @@ const DashboardGerencial: React.FC = () => {
         supervisoresComAgenda
       };
 
-      console.log('Estatísticas finais:', estatisticas);
+      //console.log('Estatísticas finais:', estatisticas);
       setEstatisticas(estatisticas);
 
     } catch (error) {

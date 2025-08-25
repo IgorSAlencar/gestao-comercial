@@ -204,12 +204,12 @@ const Hotlist: React.FC = () => {
     // Gerência Área - Por enquanto não implementado (campo não existe na tabela)
     if (filtros.gerenciaArea?.length > 0) {
       // TODO: Implementar quando campo estiver disponível
-      console.log('Filtro de Gerência Área ainda não implementado');
+      //console.log('Filtro de Gerência Área ainda não implementado');
     }
     // Coordenador - Por enquanto não implementado (requer consulta de hierarquia)
     if (filtros.coordenador?.length > 0) {
       // TODO: Implementar filtro por coordenador via consulta de hierarquia
-      console.log('Filtro de Coordenador ainda não implementado');
+      //console.log('Filtro de Coordenador ainda não implementado');
     }
     if (filtros.supervisor?.length > 0) {
       filtrados = filtrados.filter(loja => filtros.supervisor.includes(loja.supervisor_id));

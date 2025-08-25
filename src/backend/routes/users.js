@@ -32,7 +32,7 @@ router.get('/:userId/subordinates', authenticateToken, async (req, res) => {
   try {
     await poolConnect; // Ensure pool is connected
   
-    console.log('userId:', userId); // 🔍 Aqui você vê o valor que será enviado para o banco
+    //console.log('userId:', userId); // 🔍 Aqui você vê o valor que será enviado para o banco
   
     const userResult = await pool.request()
       .input('userId', sql.UniqueIdentifier, userId)
@@ -104,7 +104,7 @@ router.get('/:userId/supervisors', authenticateToken, async (req, res) => {
     // Normalize o UUID para garantir consistência
     const normalizedUserId = normalizeUUID(userId);
     
-    console.log(`Buscando supervisores para usuário: ${normalizedUserId} (original: ${userId})`);
+    //console.log(`Buscando supervisores para usuário: ${normalizedUserId} (original: ${userId})`);
     
     // Get user's role
     const userRoleResult = await pool.request()
@@ -112,16 +112,16 @@ router.get('/:userId/supervisors', authenticateToken, async (req, res) => {
       .query('SELECT role FROM TESTE..users WHERE id = @userId');
     
     if (userRoleResult.recordset.length === 0) {
-      console.log(`Usuário não encontrado: ${normalizedUserId}`);
+      //console.log(`Usuário não encontrado: ${normalizedUserId}`);
       return res.status(404).json({ message: 'Usuário não encontrado' });
     }
     
     const userRole = userRoleResult.recordset[0].role;
-    console.log(`Papel do usuário: ${userRole}`);
+    //console.log(`Papel do usuário: ${userRole}`);
     
     // Only managers and coordinators can fetch supervisors
     if (userRole !== 'gerente' && userRole !== 'coordenador') {
-      console.log(`Usuário ${normalizedUserId} sem permissão para acessar supervisores`);
+      //console.log(`Usuário ${normalizedUserId} sem permissão para acessar supervisores`);
       return res.status(403).json({ message: 'Sem permissão para acessar esta informação' });
     }
     
@@ -135,7 +135,7 @@ router.get('/:userId/supervisors', authenticateToken, async (req, res) => {
     
     // For manager, also get subordinates of coordinators
     if (userRole === 'gerente') {
-      console.log(`Buscando supervisores diretos e indiretos para gerente: ${normalizedUserId}`);
+      //console.log(`Buscando supervisores diretos e indiretos para gerente: ${normalizedUserId}`);
       query = `
         SELECT u.id, u.name, u.funcional, u.role, u.email 
         FROM TESTE..users u
@@ -165,8 +165,8 @@ router.get('/:userId/supervisors', authenticateToken, async (req, res) => {
       .input('userId', sql.UniqueIdentifier, normalizedUserId)
       .query(query);
     
-    console.log(`Encontrados ${result.recordset.length} supervisores para o usuário ${normalizedUserId} (${userRole})`);
-    console.log(`IDs dos supervisores encontrados: ${result.recordset.map(s => s.id).join(', ')}`);
+    //console.log(`Encontrados ${result.recordset.length} supervisores para o usuário ${normalizedUserId} (${userRole})`);
+    //console.log(`IDs dos supervisores encontrados: ${result.recordset.map(s => s.id).join(', ')}`);
     
     res.json(result.recordset);
     

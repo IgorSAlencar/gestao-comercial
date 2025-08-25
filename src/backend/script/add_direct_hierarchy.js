@@ -8,25 +8,25 @@ const { sql, pool, poolConnect } = require('../config/db');
 
 async function addDirectHierarchy() {
   try {
-    console.log('Conectando ao banco de dados...');
+    //console.log('Conectando ao banco de dados...');
     await poolConnect;
     
-    console.log('\n=== ADICIONANDO RELAÇÕES DIRETAS ===\n');
+    //console.log('\n=== ADICIONANDO RELAÇÕES DIRETAS ===\n');
     
     // 1. Identificar gerentes, coordenadores e supervisores
-    console.log('Identificando usuários por papel:');
+    //console.log('Identificando usuários por papel:');
     
     // Obter gerentes
     const gerentesResult = await pool.request().query(`
       SELECT id, name FROM TESTE..users WHERE role = 'gerente'
     `);
     
-    console.log('\nGerentes encontrados:', gerentesResult.recordset.length);
+    //console.log('\nGerentes encontrados:', gerentesResult.recordset.length);
     for (const gerente of gerentesResult.recordset) {
-      console.log(`- ${gerente.id} | ${gerente.name}`);
+      //console.log(`- ${gerente.id} | ${gerente.name}`);
       
       // Para cada gerente, encontrar os supervisores que estão abaixo dele indiretamente
-      console.log(`\nBuscando supervisores indiretos do gerente ${gerente.name}:`);
+      //console.log(`\nBuscando supervisores indiretos do gerente ${gerente.name}:`);
       
       const supervisoresIndiretos = await pool.request()
         .input('gerenteId', sql.UniqueIdentifier, gerente.id)
@@ -43,11 +43,11 @@ async function addDirectHierarchy() {
           WHERE h1.superior_id = @gerenteId
         `);
       
-      console.log(`Supervisores indiretos encontrados: ${supervisoresIndiretos.recordset.length}`);
+      //console.log(`Supervisores indiretos encontrados: ${supervisoresIndiretos.recordset.length}`);
       
       // Para cada supervisor indireto, verificar se já existe relação direta
       for (const supervisor of supervisoresIndiretos.recordset) {
-        console.log(`\nVerificando relação para: ${supervisor.supervisor_name} (via ${supervisor.coordenador_name})`);
+        //console.log(`\nVerificando relação para: ${supervisor.supervisor_name} (via ${supervisor.coordenador_name})`);
         
         const relacaoExistente = await pool.request()
           .input('gerenteId', sql.UniqueIdentifier, gerente.id)
@@ -59,9 +59,9 @@ async function addDirectHierarchy() {
           `);
         
         if (relacaoExistente.recordset[0].count > 0) {
-          console.log(`- Relação direta já existe entre ${gerente.name} e ${supervisor.supervisor_name}`);
+          //console.log(`- Relação direta já existe entre ${gerente.name} e ${supervisor.supervisor_name}`);
         } else {
-          console.log(`- Criando relação direta entre ${gerente.name} e ${supervisor.supervisor_name}`);
+          //console.log(`- Criando relação direta entre ${gerente.name} e ${supervisor.supervisor_name}`);
           
           // Inserir a nova relação direta
           await pool.request()
@@ -72,12 +72,12 @@ async function addDirectHierarchy() {
               VALUES (@gerenteId, @supervisorId)
             `);
           
-          console.log(`  → Relação criada com sucesso!`);
+          //console.log(`  → Relação criada com sucesso!`);
         }
       }
     }
     
-    console.log('\nProcesso concluído!\n');
+    //console.log('\nProcesso concluído!\n');
     
   } catch (error) {
     console.error('Erro ao adicionar relações diretas:', error);

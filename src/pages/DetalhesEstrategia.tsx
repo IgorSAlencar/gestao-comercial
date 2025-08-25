@@ -630,7 +630,7 @@ const DetalhesEstrategia: React.FC = () => {
   const checkServerStatus = async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/health`);
-      console.log('Status do servidor:', response.data);
+      //console.log('Status do servidor:', response.data);
       
       if (response.data.status === 'ok') {
         setConnectionStatus('connected');
@@ -685,21 +685,21 @@ Entre em contato com o administrador se o problema persistir.`;
         return;
       }
       
-      // console.log(`Carregando dados da estratégia: ${produto}`);
-      // console.log(`Usuário: ${user.name} (${user.role}) - Chave: ${user.chave}`);
-      // console.log(`Dados completos do usuário:`, user);
+      // //console.log(`Carregando dados da estratégia: ${produto}`);
+      // //console.log(`Usuário: ${user.name} (${user.role}) - Chave: ${user.chave}`);
+      // //console.log(`Dados completos do usuário:`, user);
       
       // Buscar dados da estratégia
       const response: DadosEstrategiaResponse = await estrategiaComercialApi.getEstrategia(produto);
       
-      // console.log('Dados recebidos da API:', response);
+      // //console.log('Dados recebidos da API:', response);
       
       // Buscar métricas calculadas no SQL apenas para produtos com TB_ESTR_CONTAS
       let metricasResponse: MetricasEstrategiaResponse | null = null;
       if (['credito', 'abertura-conta', 'seguro'].includes(produto)) {
         try {
           metricasResponse = await estrategiaComercialApi.getMetricasEstrategia(produto);
-          console.log('✅ Métricas carregadas do SQL:', metricasResponse);
+          //console.log('✅ Métricas carregadas do SQL:', metricasResponse);
         } catch (metricasError) {
           console.warn('⚠️ Erro ao carregar métricas, usando cálculo no frontend:', metricasError);
           // Métricas ficam null e o componente usa fallback
@@ -718,7 +718,7 @@ Entre em contato com o administrador se o problema persistir.`;
       setMetricas(metricasResponse);
       setConnectionStatus('connected');
       
-      // console.log(`✅ Estratégia carregada: ${response.totalLojas} lojas encontradas`);
+      // //console.log(`✅ Estratégia carregada: ${response.totalLojas} lojas encontradas`);
       
     } catch (err: any) {
       console.error('Erro ao carregar estratégia:', err);
@@ -741,7 +741,7 @@ Verifique:
       
       // Fallback para dados simulados
       if (produto && produto in dadosSimulados) {
-        // console.log('🔄 Usando dados simulados como fallback');
+        // //console.log('🔄 Usando dados simulados como fallback');
         setDados(dadosSimulados[produto]);
         if (dadosSimulados[produto].dadosAnaliticos) {
           setDadosFiltrados(dadosSimulados[produto].dadosAnaliticos || []);
@@ -907,7 +907,7 @@ Verifique:
     try {
       const response = await estrategiaComercialApi.getMetricasGerenciais(produto);
       setMetricasGerenciais(response);
-      console.log('✅ Métricas gerenciais carregadas:', response);
+      //console.log('✅ Métricas gerenciais carregadas:', response);
     } catch (error) {
       console.error('Erro ao carregar métricas gerenciais:', error);
       setError('Erro ao carregar métricas gerenciais. Por favor, tente novamente.');

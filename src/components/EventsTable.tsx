@@ -462,11 +462,11 @@ const EventsTable = ({
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="ml-auto flex items-center gap-2 border-green-600 text-green-700 hover:bg-green-50"
                   onClick={exportarParaExcel}
+                  className="flex items-center gap-2"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span className="hidden sm:inline">Exportar Excel</span>
+                  <Download size={16} />
+                  Exportar Excel
                 </Button>
               </TooltipTrigger>
               <TooltipContent>

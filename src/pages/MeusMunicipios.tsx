@@ -16,7 +16,14 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
-  Clock
+  Clock,
+  Loader2,
+  Flame,
+  AlertCircle,
+  RefreshCw,
+  TableIcon,
+  List,
+  Download
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { Label } from "@/components/ui/label";
@@ -38,6 +46,8 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { municipiosPrioritariosApi, tratativasMunicipiosApi, MunicipioPrioritario, VisitaAgendada, VisitaRealizada, CNPJVisitado } from '@/services/api';
@@ -60,10 +70,11 @@ const MeusMunicipiosPage = () => {
   const [selectedSupervisor, setSelectedSupervisor] = useState<string | null>(null);
 
   // Query para buscar municípios da API
-  const { data: municipios = [], isLoading, error } = useQuery({
+  const { data: municipios = [], isLoading, error: queryError } = useQuery<MunicipioPrioritario[], { message: string }>({
     queryKey: ['municipios-prioritarios', selectedSupervisor],
     queryFn: () => municipiosPrioritariosApi.getMunicipios(selectedSupervisor || undefined),
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 5 * 60 * 1000, // 5 minutos,
+    enabled: isSupervisor || isCoordinator || isManager || isAdmin // Habilita a query apenas para perfis autorizados
   });
 
   // Mutation para salvar tratativas
@@ -82,6 +93,9 @@ const MeusMunicipiosPage = () => {
   const [expandedMunicipios, setExpandedMunicipios] = useState<Set<string>>(new Set());
   const [expandedVisitas, setExpandedVisitas] = useState<Set<string>>(new Set());
   const [expandedCNPJs, setExpandedCNPJs] = useState<Set<string>>(new Set());
+  
+  // Estado para controlar visualização
+  const [viewMode, setViewMode] = useState<'cards' | 'contratos'>('cards');
 
   // Estados para modais
   const [isAgendarVisitaOpen, setIsAgendarVisitaOpen] = useState(false);
@@ -90,6 +104,31 @@ const MeusMunicipiosPage = () => {
   const [dataVisita, setDataVisita] = useState<Date | null>(null);
   const [cnpjsVisitados, setCnpjsVisitados] = useState<CNPJVisitadoLocal[]>([]);
   const [observacoes, setObservacoes] = useState("");
+
+  // Estado para edição
+  const [editingItems, setEditingItems] = useState<Set<string>>(new Set());
+  const [editData, setEditData] = useState<{ [key: string]: any }>({});
+  
+  // Mutation para atualizar tratativas
+  const atualizarTratativaMutation = useMutation({
+    mutationFn: ({ tratativaId, dados }: { tratativaId: string, dados: any }) => 
+      tratativasMunicipiosApi.atualizarTratativa(tratativaId, dados),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['municipios-prioritarios'] });
+      toast({
+        title: "Sucesso",
+        description: "Tratativa atualizada com sucesso!",
+      });
+    },
+    onError: (error) => {
+      console.error('Erro ao atualizar tratativa:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar tratativa. Tente novamente.",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Filtros disponíveis
   const ufs = Array.from(new Set(municipios.map(m => m.uf))).sort();
@@ -112,7 +151,169 @@ const MeusMunicipiosPage = () => {
       total + m.visitasRealizadas.reduce((visitaTotal, v) => 
         visitaTotal + v.cnpjs.filter(c => c.interesse === 'sim' && c.contratoEnviado === 'sim').length, 0
       ), 0
+    ),
+    // Estatísticas específicas para farmácia/mercado (ramo === 'sim' significa que É do ramo farmácia/mercado)
+    totalFarmaciaMercado: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.filter(c => (c.ramo as any) === 'sim').length, 0
+      ), 0
+    ),
+    aceitesFarmaciaMercado: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.filter(c => (c.ramo as any) === 'sim' && c.interesse === 'sim').length, 0
+      ), 0
+    ),
+    contratosFarmaciaMercado: municipios.reduce((total, m) => 
+      total + m.visitasRealizadas.reduce((visitaTotal, v) => 
+        visitaTotal + v.cnpjs.filter(c => (c.ramo as any) === 'sim' && c.interesse === 'sim' && c.contratoEnviado === 'sim').length, 0
+      ), 0
     )
+  };
+
+  // Função para exportar dados para Excel
+  const handleExportExcel = () => {
+    try {
+      // Obter dados dos contratos
+      const contratos = getContratosData();
+      
+      // Preparar dados para exportação
+      const dadosExportacao = contratos.map(contrato => ({
+        'Município': contrato.municipio,
+        'UF': contrato.uf,
+        'CNPJ': contrato.cnpj,
+        'Nome da Loja': contrato.nomeLoja,
+        'Data da Visita': contrato.dataVisita,
+        'Houve Interesse': contrato.houveInteresse,
+        'Contrato Enviado': contrato.contratoEnviado,
+        'Observação': contrato.observacao,
+        ...(isManager || isCoordinator || isAdmin ? { 'Gerente Comercial': contrato.supervisor } : {}),
+        ...(isAdmin ? { 'Coordenador': contrato.coordenador } : {}),
+        ...(isAdmin ? { 'Gerente de Área': contrato.gerente } : {})
+      }));
+
+      // Criar planilha
+      const ws = XLSX.utils.json_to_sheet(dadosExportacao);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Contratos");
+
+      // Ajustar largura das colunas
+      const colunas = Object.keys(dadosExportacao[0]);
+      const largurasColunas = {};
+      colunas.forEach(col => {
+        const maxLength = Math.max(
+          col.length,
+          ...dadosExportacao.map(row => String(row[col]).length)
+        );
+        largurasColunas[col] = maxLength + 2; // +2 para dar um pouco de espaço extra
+      });
+      ws['!cols'] = colunas.map(col => ({ wch: largurasColunas[col] }));
+
+      // Gerar nome do arquivo com data atual
+      const dataAtual = format(new Date(), 'dd-MM-yyyy');
+      const nomeArquivo = `contratos_enviados_${dataAtual}.xlsx`;
+
+      // Exportar arquivo
+      XLSX.writeFile(wb, nomeArquivo);
+
+      toast({
+        title: "Sucesso",
+        description: "Arquivo Excel exportado com sucesso!",
+      });
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível exportar o arquivo Excel. Tente novamente.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Função para obter dados dos contratos enviados
+  const getContratosData = () => {
+    const contratos: Array<{
+      id: string;
+      municipio: string;
+      uf: string;
+      cnpj: string;
+      nomeLoja: string;
+      dataVisita: string;
+      houveInteresse: string;
+      contratoEnviado: string;
+      observacao: string;
+      supervisor: string;
+      coordenador: string;
+      gerente: string;
+    }> = [];
+
+    // Primeiro filtra os municípios usando os mesmos critérios
+    const municipiosFiltradosParaContratos = municipios.filter(municipio => {
+      // Para supervisores, coordenadores e gerentes, os dados já vêm filtrados do backend
+      // O filtro por supervisor agora é feito via API no backend
+      
+      // Filtro por UF
+      if (selectedUF && selectedUF.trim() !== "" && selectedUF !== "default") {
+        if (municipio.uf !== selectedUF) {
+          return false;
+        }
+      }
+
+      // Filtro por busca
+      if (searchTerm && searchTerm.trim() !== "") {
+        if (!municipio.nome.toLowerCase().includes(searchTerm.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // Filtro por status de visita
+      if (selectedStatusFilter && selectedStatusFilter.trim() !== "") {
+        const hasVisitasRealizadas = municipio.visitasRealizadas.length > 0;
+        const hasVisitasAgendadas = municipio.visitasAgendadas.length > 0;
+        
+        switch (selectedStatusFilter) {
+          case 'realizadas':
+            if (!hasVisitasRealizadas) return false;
+            break;
+          case 'agendadas':
+            if (!hasVisitasAgendadas || hasVisitasRealizadas) return false;
+            break;
+          case 'sem-visitas':
+            if (hasVisitasRealizadas || hasVisitasAgendadas) return false;
+            break;
+          default:
+            break;
+        }
+      }
+
+      return true;
+    });
+
+    // Depois gera os contratos a partir dos municípios filtrados
+          municipiosFiltradosParaContratos.forEach(municipio => {
+      municipio.visitasRealizadas.forEach(visita => {
+        // Incluir todas as lojas visitadas, sem filtro
+        visita.cnpjs.forEach(cnpj => {
+          contratos.push({
+            id: cnpj.id || `${municipio.id}-${visita.id}-${cnpj.cnpj}`,
+            municipio: municipio.nome,
+            uf: municipio.uf,
+            cnpj: cnpj.semCNPJ ? 'Empresa Informal' : (cnpj.cnpj || 'Não informado'),
+            nomeLoja: cnpj.nomeLoja || cnpj.razaoSocial || 'Nome não informado',
+            dataVisita: cnpj.dataVisita || format(visita.data, 'dd/MM/yyyy'),
+            houveInteresse: cnpj.interesse === 'sim' ? 'Sim' : 'Não',
+            contratoEnviado: cnpj.interesse === 'sim' ? (cnpj.contratoEnviado === 'sim' ? 'Sim' : 'Não') : 'N/A',
+            observacao: cnpj.interesse === 'sim' 
+              ? (cnpj.contratoEnviado === 'sim' ? 'Contrato enviado' : (cnpj.motivoContrato || 'Sem observações sobre contrato'))
+              : (cnpj.motivoContrato || 'Sem interesse no momento'),
+            supervisor: municipio.supervisorNome || 'Não atribuído',
+            coordenador: (municipio as any).coordenadorNome || 'Não atribuído',
+            gerente: (municipio as any).gerenteNome || 'Não atribuído'
+          });
+        });
+      });
+    });
+
+    return contratos;
   };
 
   // Filtrar municípios baseado no usuário logado e filtros
@@ -158,10 +359,6 @@ const MeusMunicipiosPage = () => {
 
     return true;
   });
-
-
-
-
 
   // Funções para manipular municípios
   const toggleMunicipioExpansion = (municipioId: string) => {
@@ -341,7 +538,7 @@ const MeusMunicipiosPage = () => {
         }))
       };
 
-      console.log('Enviando tratativa:', tratativaData);
+      //console.log('Enviando tratativa:', tratativaData);
 
       // Salvar via API
       await salvarTratativaMutation.mutateAsync(tratativaData);
@@ -448,6 +645,102 @@ const MeusMunicipiosPage = () => {
     return <Badge variant="outline" className="text-gray-600">Sem Visitas</Badge>;
   };
 
+  // Early return para loading
+  if (isLoading) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="container mx-auto pb-12 space-y-6">
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative mb-6">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
+            </div>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando municípios...</h2>
+            <p className="text-gray-600 text-center mb-4">
+              Aguarde enquanto carregamos os dados dos municípios
+            </p>
+            {queryError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mt-4 max-w-md">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">
+                    {'Erro ao carregar dados dos municípios'}
+                  </span>
+                </div>
+                <Button 
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['municipios-prioritarios'] })}
+                  className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white"
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Função para iniciar edição
+  const handleStartEdit = (tratativaId: string, currentData: any) => {
+    setEditingItems(prev => new Set([...prev, tratativaId]));
+    setEditData(prev => ({
+      ...prev,
+      [tratativaId]: {
+        houveInteresse: currentData.interesse === 'sim' ? 'Sim' : 'Não',
+        contratoEnviado: currentData.contratoEnviado === 'sim' ? 'Sim' : 'Não',
+        observacao: currentData.motivoContrato || '',
+        ramoAtividade: currentData.ramo === 'farmacia' ? 'Sim' : 'Não'
+      }
+    }));
+  };
+
+  // Função para cancelar edição
+  const handleCancelEdit = (tratativaId: string) => {
+    setEditingItems(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(tratativaId);
+      return newSet;
+    });
+    setEditData(prev => {
+      const newData = { ...prev };
+      delete newData[tratativaId];
+      return newData;
+    });
+  };
+
+  // Função para salvar edição
+  const handleSaveEdit = async (tratativaId: string) => {
+    const dadosEdicao = editData[tratativaId];
+    if (!dadosEdicao) return;
+
+    try {
+      await atualizarTratativaMutation.mutateAsync({
+        tratativaId,
+        dados: dadosEdicao
+      });
+      
+      // Limpar edição após sucesso
+      handleCancelEdit(tratativaId);
+    } catch (error) {
+      // Erro já tratado no onError da mutation
+    }
+  };
+
+  // Função para atualizar dados de edição
+  const updateEditData = (tratativaId: string, field: string, value: string) => {
+    setEditData(prev => ({
+      ...prev,
+      [tratativaId]: {
+        ...prev[tratativaId],
+        [field]: value
+      }
+    }));
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -460,6 +753,8 @@ const MeusMunicipiosPage = () => {
         </div>
         
         <div className="flex items-center gap-3">
+
+          
           {/* Filtro por Supervisor (apenas para gerentes/coordenadores/admins) */}
           {(isManager || isCoordinator || isAdmin) && (
             <Dialog>
@@ -519,12 +814,18 @@ const MeusMunicipiosPage = () => {
         </div>
              </div>
 
+       {/* Cabeçalho da seção de estatísticas */}
+       <div className="flex items-center justify-between mb-4">
+
+
+       </div>
+
        {/* Cards de Estatísticas */}
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-         <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+       <div className="flex flex-col xl:flex-row gap-6 justify-start items-start flex-wrap">
+                   <Card className="w-full max-w-[300px] h-[200px] flex-shrink-0 bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
            <CardHeader className="pb-2">
              <div className="flex justify-between items-center">
-               <CardTitle className="text-lg font-semibold text-gray-900">Total de Municípios</CardTitle>
+               <CardTitle className="text-lg font-semibold text-gray-900">Municípios</CardTitle>
                <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
                  <MapPin className="h-5 w-5 text-blue-600" />
                </div>
@@ -532,84 +833,141 @@ const MeusMunicipiosPage = () => {
            </CardHeader>
            <CardContent>
              <div className="mt-2">
-               <p className="text-3xl font-bold text-blue-600">{estatisticas.totalMunicipios}</p>
-               <p className="text-sm text-gray-500 mt-1">Municípios prioritários</p>
+               <div className="flex items-baseline gap-2">
+                 <p className="text-3xl font-bold text-blue-600">{estatisticas.municipiosComVisita}</p>
+                 <p className="text-lg font-semibold text-gray-400">/ {estatisticas.totalMunicipios}</p>
+               </div>
+               <div className="flex items-center gap-2 mt-2">
+                 <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                   <div 
+                     className="h-full bg-blue-600 rounded-full"
+                     style={{
+                       width: `${(estatisticas.municipiosComVisita / estatisticas.totalMunicipios) * 100}%`
+                     }}
+                   />
+                 </div>
+                 <span className="text-sm font-medium text-blue-600">
+                   {Math.round((estatisticas.municipiosComVisita / estatisticas.totalMunicipios) * 100)}%
+                 </span>
+               </div>
+               <p className="text-sm text-gray-500 mt-2">Municípios visitados do total prioritário</p>
              </div>
            </CardContent>
          </Card>
 
-         <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
-           <CardHeader className="pb-2">
-             <div className="flex justify-between items-center">
-               <CardTitle className="text-lg font-semibold text-gray-900">Municípios Visitados</CardTitle>
-               <div className="p-2 rounded-full bg-green-50 border border-green-100">
-                 <Calendar className="h-5 w-5 text-green-600" />
-               </div>
-             </div>
-           </CardHeader>
-           <CardContent>
-             <div className="mt-2">
-               <p className="text-3xl font-bold text-green-600">{estatisticas.municipiosComVisita}</p>
-               <p className="text-sm text-gray-500 mt-1">Com visitas realizadas</p>
-             </div>
-           </CardContent>
-         </Card>
+         <Card className="w-full max-w-[520px] h-[200px] flex flex-col flex-shrink-0 bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-blue-300">
+  <CardHeader className="pb-2 shrink-0">
+    <div className="flex justify-between items-center">
+      <CardTitle className="text-base lg:text-lg font-semibold text-gray-900">Visão das Tratativas</CardTitle>
+      <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
+        <Building2 className="h-4 w-4 lg:h-5 lg:w-5 text-blue-600" />
+      </div>
+    </div>
+  </CardHeader>
 
-         <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
-           <CardHeader className="pb-2">
-             <div className="flex justify-between items-center">
-               <CardTitle className="text-lg font-semibold text-gray-900">Lojas Visitadas</CardTitle>
-               <div className="p-2 rounded-full bg-purple-50 border border-purple-100">
-                 <Building2 className="h-5 w-5 text-purple-600" />
-               </div>
-             </div>
-           </CardHeader>
-           <CardContent>
-             <div className="mt-2">
-               <p className="text-3xl font-bold text-purple-600">{estatisticas.totalLojasVisitadas}</p>
-               <p className="text-sm text-gray-500 mt-1">Empresas visitadas</p>
-             </div>
-           </CardContent>
-         </Card>
+  {/* ocupa o resto da altura do card */}
+  <CardContent className="flex-1 p-3 lg:p-6">
+    <div className="grid grid-cols-3 h-full items-center divide-x divide-gray-200">
 
-         <Card className="bg-gradient-to-br from-orange-50 to-white border-orange-200 shadow-sm hover:shadow-md transition-all duration-300">
-           <CardHeader className="pb-2">
-             <div className="flex justify-between items-center">
-               <CardTitle className="text-lg font-semibold text-gray-900">Aceites</CardTitle>
-               <div className="p-2 rounded-full bg-orange-50 border border-orange-100">
-                 <CheckCircle className="h-5 w-5 text-orange-600" />
-               </div>
-             </div>
-           </CardHeader>
-           <CardContent>
-             <div className="mt-2">
-               <p className="text-3xl font-bold text-orange-600">{estatisticas.totalAceites}</p>
-               <p className="text-sm text-gray-500 mt-1">Com interesse</p>
-             </div>
-           </CardContent>
-         </Card>
+      {/* Lojas Visitadas */}
+      <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+        <Building2 className="h-5 w-5 lg:h-7 lg:w-7 text-blue-600 flex-shrink-0" />
+        <div className="text-center lg:text-left">
+          <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.totalLojasVisitadas}</p>
+          <p className="text-xs lg:text-sm text-gray-500">Lojas Visitadas</p>
+        </div>
+      </div>
 
-         <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-200 shadow-sm hover:shadow-md transition-all duration-300">
-           <CardHeader className="pb-2">
-             <div className="flex justify-between items-center">
-               <CardTitle className="text-lg font-semibold text-gray-900">Contratos Enviados</CardTitle>
-               <div className="p-2 rounded-full bg-emerald-50 border border-emerald-100">
-                 <FileText className="h-5 w-5 text-emerald-600" />
-               </div>
-             </div>
-           </CardHeader>
-           <CardContent>
-             <div className="mt-2">
-               <p className="text-3xl font-bold text-emerald-600">{estatisticas.totalContratosEnviados}</p>
-               <p className="text-sm text-gray-500 mt-1">Documentos enviados</p>
-             </div>
-           </CardContent>
-         </Card>
+      {/* Aceites */}
+      <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+        <CheckCircle className="h-5 w-5 lg:h-7 lg:w-7 text-blue-600 flex-shrink-0" />
+        <div className="text-center lg:text-left">
+          <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.totalAceites}</p>
+          <p className="text-xs lg:text-sm text-gray-500">Aceites</p>
+          <p className="text-[10px] lg:text-xs text-gray-400">*respostas registradas</p>
+        </div>
+      </div>
+
+      {/* Contratos Enviados */}
+      <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+        <FileText className="h-5 w-5 lg:h-7 lg:w-7 text-blue-600 flex-shrink-0" />
+        <div className="text-center lg:text-left">
+          <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.totalContratosEnviados}</p>
+          <p className="text-xs lg:text-sm text-gray-500">Contratos</p>
+          <p className="text-[10px] lg:text-xs text-gray-400">*respostas registradas</p>
+        </div>
+      </div>
+
+    </div>
+  </CardContent>
+</Card>
+
+        <Card className="w-full max-w-[520px] h-[200px] flex flex-col flex-shrink-0 bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer hover:border-green-300">
+          <CardHeader className="pb-2 shrink-0">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-base lg:text-lg font-semibold text-gray-900">Ramo Farmácia/Mercado</CardTitle>
+              <div className="p-2 rounded-full bg-green-50 border border-green-100">
+                <Building2 className="h-4 w-4 lg:h-5 lg:w-5 text-green-600" />
+              </div>
+            </div>
+          </CardHeader>
+
+          {/* ocupa o resto da altura do card */}
+          <CardContent className="flex-1 p-3 lg:p-6">
+            <div className="grid grid-cols-3 h-full items-center divide-x divide-gray-200">
+
+              {/* Lojas Farmácia/Mercado */}
+              <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+                <Building2 className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
+                <div className="text-center lg:text-left">
+                  <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.totalFarmaciaMercado}</p>
+                  <p className="text-xs lg:text-sm text-gray-500">Farmácias/Mercados</p>
+                </div>
+              </div>
+
+              {/* Aceites Farmácia/Mercado */}
+              <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+                <CheckCircle className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
+                <div className="text-center lg:text-left">
+                  <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.aceitesFarmaciaMercado}</p>
+                  <p className="text-xs lg:text-sm text-gray-500">Aceites</p>
+                  <p className="text-[10px] lg:text-xs text-gray-400">*do ramo farmácia/mercado</p>
+                </div>
+              </div>
+
+              {/* Contratos Farmácia/Mercado */}
+              <div className="h-full flex flex-col lg:flex-row items-center gap-1 lg:gap-3 px-2 lg:px-4">
+                <FileText className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
+                <div className="text-center lg:text-left">
+                  <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.contratosFarmaciaMercado}</p>
+                  <p className="text-xs lg:text-sm text-gray-500">Contratos</p>
+                  <p className="text-[10px] lg:text-xs text-gray-400">*do ramo farmácia/mercado</p>
+                </div>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
+
        </div>
 
        {/* Filtros */}
-       
+      
+              {/* Alternador de visualização */}
+              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "cards" | "contratos")}>
+            <TabsList>
+              <TabsTrigger value="cards" className="flex items-center gap-2">
+                <List className="h-4 w-4" />
+                Municípios
+              </TabsTrigger>
+              <TabsTrigger value="contratos" className="flex items-center gap-2">
+                <TableIcon className="h-4 w-4" />
+                Tratativas
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
       <div className="flex flex-col sm:flex-row gap-4">
+
 
       <div className="flex gap-2">
           <Select value={selectedUF} onValueChange={(value) => setSelectedUF(value)}>
@@ -792,37 +1150,17 @@ const MeusMunicipiosPage = () => {
         </div>
       )}
 
-      {/* Loading state */}
-      {isLoading && (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando municípios...</p>
-        </div>
-      )}
-
-      {/* Error state */}
-      {error && (
-        <div className="text-center py-12">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-            <h3 className="text-lg font-medium text-red-800 mb-2">Erro ao carregar municípios</h3>
-            <p className="text-red-600 mb-4">
-              {error instanceof Error ? error.message : 'Erro desconhecido'}
-            </p>
-            <Button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['municipios-prioritarios'] })}
-              variant="outline"
-              className="border-red-300 text-red-700 hover:bg-red-50"
-            >
-              Tentar novamente
-            </Button>
-          </div>
-        </div>
-      )}
 
 
-      {/* Lista de Municípios */}
-      {!isLoading && !error && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-start">
+
+
+
+      {/* Conteúdo Principal - Condicional */}
+      {!queryError && (
+        <>
+          {/* Visualização de Municípios */}
+          {viewMode === 'cards' && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 items-start">
           {municipiosFiltrados.length === 0 ? (
           <div className="col-span-full">
             <Card>
@@ -1015,10 +1353,25 @@ const MeusMunicipiosPage = () => {
                                               {/* Aceite */}
                                               <div className="flex flex-col items-center w-[40px]">
                                                 <span className="text-[10px] text-gray-600 mb-1">Aceite</span>
-                                                {cnpj.interesse === 'sim' ? (
-                                                  <CheckCircle className="h-4 w-4 text-green-600" />
-                                                ) : (
-                                                  <XCircle className="h-4 w-4 text-red-500" />
+                                                                      {editingItems.has(cnpj.id) ? (
+                        <Select
+                          value={editData[cnpj.id]?.houveInteresse || (cnpj.interesse === 'sim' ? 'Sim' : 'Não')}
+                          onValueChange={(value) => updateEditData(cnpj.id, 'houveInteresse', value)}
+                        >
+                          <SelectTrigger className="w-16 h-6 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Sim">Sim</SelectItem>
+                            <SelectItem value="Não">Não</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                                                  cnpj.interesse === 'sim' ? (
+                                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                                  ) : (
+                                                    <XCircle className="h-4 w-4 text-red-500" />
+                                                  )
                                                 )}
                                               </div>
 
@@ -1026,14 +1379,25 @@ const MeusMunicipiosPage = () => {
                                               {cnpj.interesse === 'sim' && (
                                                 <div className="flex flex-col items-center w-[40px]">
                                                   <span className="text-[10px] text-gray-600 mb-1">Contrato</span>
-                                                  {cnpj.contratoEnviado ? (
+                                                                          {editingItems.has(cnpj.id) ? (
+                          <Select
+                            value={editData[cnpj.id]?.contratoEnviado || (cnpj.contratoEnviado === 'sim' ? 'Sim' : 'Não')}
+                            onValueChange={(value) => updateEditData(cnpj.id, 'contratoEnviado', value)}
+                          >
+                            <SelectTrigger className="w-16 h-6 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Sim">Sim</SelectItem>
+                              <SelectItem value="Não">Não</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
                                                     cnpj.contratoEnviado === 'sim' ? (
                                                       <CheckCircle className="h-4 w-4 text-blue-600" />
                                                     ) : (
                                                       <XCircle className="h-4 w-4 text-orange-500" />
                                                     )
-                                                  ) : (
-                                                    <div className="h-4 w-4" /> // Espaço vazio quando não se aplica
                                                   )}
                                                 </div>
                                               )}
@@ -1134,7 +1498,196 @@ const MeusMunicipiosPage = () => {
             </Card>
           ))
         )}
-        </div>
+            </div>
+          )}
+          
+          {/* Visualização de Contratos */}
+          {viewMode === 'contratos' && (
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Relatório de Visitas e Tratativas
+                      </CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Lista completa de todas as empresas visitadas e suas respectivas tratativas
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportExcel}
+                      className="flex items-center gap-2"
+                    >
+                      <Download size={16} />
+                      Exportar Excel
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const contratos = getContratosData();
+                    
+                    if (contratos.length === 0) {
+                      return (
+                        <div className="py-12 text-center">
+                          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum contrato encontrado</h3>
+                          <p className="text-gray-500">
+                            Ainda não há empresas com contratos enviados registrados
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Município</TableHead>
+                              <TableHead className="text-center">UF</TableHead>
+                              <TableHead className="text-center">CNPJ</TableHead>
+                              <TableHead>Nome da Loja</TableHead>
+                              <TableHead className="text-center">Data da Visita</TableHead>
+                              <TableHead className="text-center">Houve Interesse</TableHead>
+                              <TableHead className="text-center">Contrato Enviado</TableHead>
+                              <TableHead>Observação</TableHead>
+                              {(isManager || isCoordinator || isAdmin) && (
+                                <TableHead>Gerente Comercial</TableHead>
+                              )}
+                              {isAdmin && (
+                                <>
+                                  <TableHead>Coordenador</TableHead>
+                                  <TableHead>Gerente de Área</TableHead>
+                                </>
+                              )}
+                              <TableHead className="text-center">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {contratos.map((contrato) => (
+                              <TableRow key={contrato.id}>
+                                <TableCell className="font-medium">{contrato.municipio}</TableCell>
+                                <TableCell className="text-center">{contrato.uf}</TableCell>
+                                <TableCell className="text-center font-mono text-sm">{contrato.cnpj === 'Empresa Informal' ? '-' : contrato.cnpj}</TableCell>
+                                <TableCell>{contrato.nomeLoja === 'Nome não informado' ? '-' : contrato.nomeLoja}</TableCell>
+                                <TableCell className="text-center">{contrato.dataVisita}</TableCell>
+                                        <TableCell className="text-center">
+          {editingItems.has(contrato.id) ? (
+            <Select
+              value={editData[contrato.id]?.houveInteresse || contrato.houveInteresse}
+              onValueChange={(value) => updateEditData(contrato.id, 'houveInteresse', value)}
+            >
+              <SelectTrigger className="w-20 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Sim">Sim</SelectItem>
+                <SelectItem value="Não">Não</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Badge variant={contrato.houveInteresse === 'Sim' ? 'default' : 'secondary'}>
+              {contrato.houveInteresse}
+            </Badge>
+          )}
+        </TableCell>
+                                <TableCell className="text-center">
+                                  {editingItems.has(contrato.id) ? (
+                                    <Select
+                                      value={editData[contrato.id]?.contratoEnviado || contrato.contratoEnviado}
+                                      onValueChange={(value) => updateEditData(contrato.id, 'contratoEnviado', value)}
+                                    >
+                                      <SelectTrigger className="w-20 h-8">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="Sim">Sim</SelectItem>
+                                        <SelectItem value="Não">Não</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <Badge variant={contrato.contratoEnviado === 'Sim' ? 'default' : 'secondary'}>
+                                      {contrato.contratoEnviado}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="max-w-xs truncate" title={contrato.observacao}>
+                                  {editingItems.has(contrato.id) ? (
+                                    <Input
+                                      value={editData[contrato.id]?.observacao || contrato.observacao}
+                                      onChange={(e) => updateEditData(contrato.id, 'observacao', e.target.value)}
+                                      className="text-xs h-8"
+                                      placeholder="Observações..."
+                                    />
+                                  ) : (
+                                    contrato.observacao === 'Sem observações' ? '-' : contrato.observacao
+                                  )}
+                                </TableCell>
+                                {(isManager || isCoordinator || isAdmin) && (
+                                  <TableCell>{contrato.supervisor}</TableCell>
+                                )}
+                                {isAdmin && (
+                                  <>
+                                    <TableCell>{contrato.coordenador}</TableCell>
+                                    <TableCell>{contrato.gerente}</TableCell>
+                                  </>
+                                )}
+                                <TableCell className="text-center">
+                                  <div className="flex gap-2 justify-center">
+                                    {editingItems.has(contrato.id) ? (
+                                      <>
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          onClick={() => handleCancelEdit(contrato.id)}
+                                          disabled={atualizarTratativaMutation.isPending}
+                                        >
+                                          Cancelar
+                                        </Button>
+                                        <Button 
+                                          variant="default" 
+                                          size="sm" 
+                                          onClick={() => handleSaveEdit(contrato.id)}
+                                          disabled={atualizarTratativaMutation.isPending}
+                                        >
+                                          {atualizarTratativaMutation.isPending ? (
+                                            <>
+                                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                              Salvando...
+                                            </>
+                                          ) : (
+                                            'Salvar'
+                                          )}
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleStartEdit(contrato.id, contrato)}
+                                      >
+                                        Editar
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal Agendar Visita */}
@@ -1295,14 +1848,43 @@ const MeusMunicipiosPage = () => {
                           </div>
                           <h4 className="font-medium text-gray-900">Empresa #{index + 1}</h4>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoverCNPJ(index)}
-                          className="h-auto p-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                                                        <div className="flex justify-end gap-2 mt-4">
+                                  {editingItems.has(cnpj.id) ? (
+                                    <>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => handleCancelEdit(cnpj.id)}
+                                        disabled={atualizarTratativaMutation.isPending}
+                                      >
+                                        Cancelar
+                                      </Button>
+                                      <Button 
+                                        variant="default" 
+                                        size="sm" 
+                                        onClick={() => handleSaveEdit(cnpj.id)}
+                                        disabled={atualizarTratativaMutation.isPending}
+                                      >
+                                        {atualizarTratativaMutation.isPending ? (
+                                          <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            Salvando...
+                                          </>
+                                        ) : (
+                                          'Salvar'
+                                        )}
+                                      </Button>
+                                    </>
+                                  ) : (
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => handleStartEdit(cnpj.id, cnpj)}
+                                    >
+                                      Editar
+                                    </Button>
+                                  )}
+                                </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

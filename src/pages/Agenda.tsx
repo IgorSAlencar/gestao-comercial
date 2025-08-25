@@ -265,17 +265,17 @@ const AgendaPage = () => {
           // Para gerentes e coordenadores, buscar supervisores subordinados
           if (isManager || isCoordinator) {
             // Buscar todos os subordinados
-            console.log(`Buscando membros da equipe para usuário ${user.id} (${user.role})`);
+            //console.log(`Buscando membros da equipe para usuário ${user.id} (${user.role})`);
             const allSubordinates = await userApi.getSubordinates(user.id);
             // Filtrar apenas supervisores
             const supervisors = allSubordinates.filter(subordinate => subordinate.role === "supervisor");
-            console.log(`Encontrados ${supervisors.length} supervisores para criar eventos (de ${allSubordinates.length} subordinados)`);
+            //console.log(`Encontrados ${supervisors.length} supervisores para criar eventos (de ${allSubordinates.length} subordinados)`);
             return supervisors;
           }
           // Para admins, buscar todos os supervisores
           else if (isAdmin) {
             const supervisors = await userApi.getUsersByRole("supervisor");
-            console.log(`Admin: Encontrados ${supervisors.length} supervisores para criar eventos`);
+            //console.log(`Admin: Encontrados ${supervisors.length} supervisores para criar eventos`);
             return supervisors;
           }
         } catch (error) {
@@ -549,12 +549,12 @@ const AgendaPage = () => {
     
     // Se temos um membro da equipe selecionado, usar o ID dele
     if (selectedTeamMember && selectedTeamMember.id) {
-      console.log("Usando selectedTeamMember:", selectedTeamMember);
+      //console.log("Usando selectedTeamMember:", selectedTeamMember);
       eventSupervisorId = selectedTeamMember.id;
     } 
     // Se não temos membro da equipe mas temos supervisor selecionado (do filtro)
     else if ((isManager || isCoordinator || isAdmin) && selectedSupervisor) {
-      console.log("Usando selectedSupervisor:", selectedSupervisor);
+      //console.log("Usando selectedSupervisor:", selectedSupervisor);
       eventSupervisorId = selectedSupervisor;
     }
     
@@ -567,12 +567,12 @@ const AgendaPage = () => {
       return;
     }
     
-    console.log("Criando evento com as seguintes informações:");
-    console.log("- Usuário atual:", user?.id, user?.name, user?.role);
-    console.log("- Supervisor selecionado:", eventSupervisorId);
-    console.log("- selectedTeamMember:", selectedTeamMember);
-    console.log("- selectedSupervisor:", selectedSupervisor);
-    console.log("- ID normalizado:", normalizeUUID(eventSupervisorId));
+    //console.log("Criando evento com as seguintes informações:");
+    //console.log("- Usuário atual:", user?.id, user?.name, user?.role);
+    //console.log("- Supervisor selecionado:", eventSupervisorId);
+    //console.log("- selectedTeamMember:", selectedTeamMember);
+    //console.log("- selectedSupervisor:", selectedSupervisor);
+    //console.log("- ID normalizado:", normalizeUUID(eventSupervisorId));
     
     // Verificar se o supervisor selecionado existe na lista de membros da equipe
     const supervisorExistsInTeam = teamMembers.length > 0 && 
@@ -580,10 +580,10 @@ const AgendaPage = () => {
         normalizeUUID(member.id) === normalizeUUID(eventSupervisorId)
       );
     
-    console.log("Supervisor existe na equipe:", supervisorExistsInTeam);
+    //console.log("Supervisor existe na equipe:", supervisorExistsInTeam);
     
     if (!supervisorExistsInTeam && eventSupervisorId !== user?.id && teamMembers.length > 0) {
-      console.log("Verificação da equipe:", teamMembers.map(m => m.id));
+      //console.log("Verificação da equipe:", teamMembers.map(m => m.id));
       
       // Aviso mas ainda permite criar
       toast({
@@ -611,7 +611,7 @@ const AgendaPage = () => {
       createdByName: user?.name // Add creator name
     };
     
-    console.log("Dados do evento a serem enviados:", eventData);
+    //console.log("Dados do evento a serem enviados:", eventData);
     
     try {
       if (editingEvent) {
@@ -878,7 +878,7 @@ const AgendaPage = () => {
       cnpjs: string[],
       prospectStatus: boolean[]
     }) => {
-      console.log(`Salvando tratativas de prospecção na nova tabela`);
+      //console.log(`Salvando tratativas de prospecção na nova tabela`);
       const requestBody = {
         eventoId,
         userId: user?.id,
@@ -893,7 +893,7 @@ const AgendaPage = () => {
         dtTratativa: new Date()
       };
       
-      console.log('Request body sendo enviado:', JSON.stringify(requestBody, null, 2));
+      //console.log('Request body sendo enviado:', JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao`, {
         method: 'POST',
@@ -953,13 +953,13 @@ const AgendaPage = () => {
           ? `Descrição do Evento: ${descricaoEvento}\n\nObservações da Tratativa: ${parecerText}`
           : parecerText;
         
-        console.log('Dados sendo enviados para tratativas_prospecao:', {
-          eventoId: currentEventId,
-          supervisorId,
-          observacao: observacaoCompleta,
-          cnpjs: validCnpjs,
-          prospectStatus: validStatus
-        });
+        //console.log('Dados sendo enviados para tratativas_prospecao:', {
+          //eventoId: currentEventId,
+          //supervisorId,
+          //observacao: observacaoCompleta,
+          //cnpjs: validCnpjs,
+          //prospectStatus: validStatus
+        //});
         
         // Chama a API para salvar os CNPJs e a observação na nova tabela
         savePropectVisitaMutation.mutate({
@@ -1128,15 +1128,15 @@ const AgendaPage = () => {
 
   const handleFilterChange = (value: string) => {
     try {
-      console.log('[Agenda] Alterando filtro para:', value);
-      console.log('[Agenda] Categorias disponíveis:', eventCategories?.map(c => c.name));
+      //console.log('[Agenda] Alterando filtro para:', value);
+      //console.log('[Agenda] Categorias disponíveis:', eventCategories?.map(c => c.name));
       
       if (value === "all") {
         setSelectedFilter(null);
-        console.log('[Agenda] Filtro removido');
+        //console.log('[Agenda] Filtro removido');
       } else {
         setSelectedFilter(value);
-        console.log('[Agenda] Filtro definido para:', value);
+        //console.log('[Agenda] Filtro definido para:', value);
       }
     } catch (error) {
       console.error('[Agenda] Erro ao alterar filtro:', error);
@@ -1247,7 +1247,7 @@ const AgendaPage = () => {
 
   const loadTratativasProspecao = async (id: string) => {
     try {
-      console.log(`Carregando tratativas de prospecção para evento ${id}`);
+      //console.log(`Carregando tratativas de prospecção para evento ${id}`);
       const response = await fetch(`${API_CONFIG.apiUrl}/tratativas-prospecao/${id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1256,12 +1256,12 @@ const AgendaPage = () => {
       const data = await response.json();
       
       if (data.success && data.data && data.data.length > 0) {
-        console.log(`Encontrados ${data.data.length} registros de tratativas`, data.data);
+        //console.log(`Encontrados ${data.data.length} registros de tratativas`, data.data);
         const tratativas = data.data;
         const cnpjs = tratativas.map(t => formatCnpj(t.CNPJ));
         
         // Debug do campo TRATADO
-        console.log('Valores TRATADO originais:', tratativas.map(t => ({ valor: t.TRATADO, tipo: typeof t.TRATADO })));
+        //console.log('Valores TRATADO originais:', tratativas.map(t => ({ valor: t.TRATADO, tipo: typeof t.TRATADO })));
         
         // Conversão mais robusta para boolean
         const status = tratativas.map(t => {
@@ -1270,8 +1270,8 @@ const AgendaPage = () => {
           return tratado === 1 || tratado === '1' || tratado === true || tratado === 'true';
         });
         
-        console.log('CNPJs carregados:', cnpjs);
-        console.log('Status carregados:', status);
+        //console.log('CNPJs carregados:', cnpjs);
+        //console.log('Status carregados:', status);
         
         setCnpjValues(cnpjs);
         setCnpjProspectStatus(status);
@@ -1281,7 +1281,7 @@ const AgendaPage = () => {
           setParecerText(tratativas[0].DESCRICAO);
         }
       } else {
-        console.log('Nenhuma tratativa encontrada na nova tabela, tentando formato legado');
+        //console.log('Nenhuma tratativa encontrada na nova tabela, tentando formato legado');
         const eventoAtual = eventos.find(e => e.id === id);
         if (eventoAtual) {
           handleLegacyTratativa(eventoAtual);
@@ -1297,13 +1297,13 @@ const AgendaPage = () => {
   };
 
   const handleLegacyTratativa = (eventoAtual: Event) => {
-    console.log('Processando tratativa legada:', eventoAtual.tratativa);
+    //console.log('Processando tratativa legada:', eventoAtual.tratativa);
     if (eventoAtual.tratativa) {
       // Regex melhorada para capturar CNPJs com status
       const cnpjMatch = eventoAtual.tratativa.match(/Empresas visitadas:\s*(.*?)(?:\n\n|$)/s);
       if (cnpjMatch && cnpjMatch[1]) {
         const empresasText = cnpjMatch[1].trim();
-        console.log('Texto de empresas encontrado:', empresasText);
+        //console.log('Texto de empresas encontrado:', empresasText);
         
         // Extrai CNPJs e seus status do formato: "XX.XXX.XXX/XXXX-XX (Prospectado|Não Prospectado)"
         const empresasList = empresasText.split(',').map(item => item.trim());
@@ -1326,8 +1326,8 @@ const AgendaPage = () => {
           }
         }
         
-        console.log('CNPJs extraídos:', cnpjList);
-        console.log('Status extraídos:', statusList);
+        //console.log('CNPJs extraídos:', cnpjList);
+        //console.log('Status extraídos:', statusList);
         
         setCnpjValues(cnpjList);
         setCnpjProspectStatus(statusList);
@@ -1409,9 +1409,9 @@ const AgendaPage = () => {
     setCategoriesError(null);
     
     try {
-      //console.log('[Agenda] Iniciando busca de categorias da API...');
+      ////console.log('[Agenda] Iniciando busca de categorias da API...');
       const categories = await eventCategoryApi.getCategories();
-      //console.log('[Agenda]  sucesso:', categories);
+      ////console.log('[Agenda]  sucesso:', categories);
       setEventCategories(categories);
       setErrorNotificationShown(false);
     } catch (error) {
@@ -1421,7 +1421,7 @@ const AgendaPage = () => {
       
       // Usar categorias padrão como fallback
       setEventCategories(defaultCategories);
-      //console.log('[Agenda] Usando categorias padrão como fallback');
+      ////console.log('[Agenda] Usando categorias padrão como fallback');
       
       // Não mostrar toast de erro, apenas log
       //console.warn('[Agenda] API de categorias indisponível, usando dados padrão');

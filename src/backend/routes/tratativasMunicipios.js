@@ -13,8 +13,8 @@ router.post('/', authenticateToken, async (req, res) => {
       empresas // Array de empresas visitadas
     } = req.body;
     
-    console.log(`[TratativasMunicipios] Salvando tratativa - Usuário: ${req.user.id}, Município: ${cd_munic}`);
-    console.log(`[TratativasMunicipios] Empresas recebidas:`, empresas);
+    //console.log(`[TratativasMunicipios] Salvando tratativa - Usuário: ${req.user.id}, Município: ${cd_munic}`);
+    //console.log(`[TratativasMunicipios] Empresas recebidas:`, empresas);
     
     // Buscar dados do usuário para obter USER_ID e nome
     const userResult = await pool.request()
@@ -69,10 +69,10 @@ router.post('/', authenticateToken, async (req, res) => {
       
       tratativaIds.push(result.recordset[0].ID_TRATATIVA);
       
-      console.log(`[TratativasMunicipios] Tratativa salva com ID: ${result.recordset[0].ID_TRATATIVA}`);
+      //console.log(`[TratativasMunicipios] Tratativa salva com ID: ${result.recordset[0].ID_TRATATIVA}`);
     }
     
-    console.log(`[TratativasMunicipios] ${tratativaIds.length} tratativas salvas para o município ${cd_munic}`);
+    //console.log(`[TratativasMunicipios] ${tratativaIds.length} tratativas salvas para o município ${cd_munic}`);
     
     res.json({
       message: 'Tratativas salvas com sucesso',
@@ -96,7 +96,7 @@ router.get('/municipio/:cdMunic', authenticateToken, async (req, res) => {
     
     const { cdMunic } = req.params;
     
-    console.log(`[TratativasMunicipios] Buscando tratativas para o município: ${cdMunic}`);
+    //console.log(`[TratativasMunicipios] Buscando tratativas para o município: ${cdMunic}`);
     
     const result = await pool.request()
       .input('cdMunic', sql.Int, cdMunic)
@@ -137,7 +137,7 @@ router.get('/municipio/:cdMunic', authenticateToken, async (req, res) => {
       observacao: row.OBSERVACAO
     }));
     
-    console.log(`[TratativasMunicipios] Encontradas ${tratativas.length} tratativas para o município ${cdMunic}`);
+    //console.log(`[TratativasMunicipios] Encontradas ${tratativas.length} tratativas para o município ${cdMunic}`);
     
     res.json(tratativas);
     
@@ -150,12 +150,111 @@ router.get('/municipio/:cdMunic', authenticateToken, async (req, res) => {
   }
 });
 
+// Rota para atualizar uma tratativa específica
+router.put('/:tratativaId', authenticateToken, async (req, res) => {
+  try {
+    await poolConnect;
+    
+    const { tratativaId } = req.params;
+    const { 
+      houveInteresse,
+      contratoEnviado,
+      observacao,
+      ramoAtividade
+    } = req.body;
+    
+    //console.log(`[TratativasMunicipios] Atualizando tratativa ${tratativaId} - Usuário: ${req.user.id}`);
+    //console.log(`[TratativasMunicipios] Dados para atualização:`, req.body);
+    
+    // Verificar se a tratativa existe e pertence ao usuário (ou se o usuário tem permissão)
+    const verificarTratativa = await pool.request()
+      .input('tratativaId', sql.UniqueIdentifier, tratativaId)
+      .input('userId', sql.UniqueIdentifier, req.user.id)
+      .query(`
+        SELECT ID_TRATATIVA, USER_ID 
+        FROM teste..MUNICIPIOS_PRIORITARIOS_TRATATIVAS 
+        WHERE ID_TRATATIVA = @tratativaId
+      `);
+    
+    if (verificarTratativa.recordset.length === 0) {
+      return res.status(404).json({ message: 'Tratativa não encontrada' });
+    }
+    
+    const tratativa = verificarTratativa.recordset[0];
+    
+    // Verificar permissão: próprio usuário ou usuário com papel de gerente/coordenador/admin
+    const userResult = await pool.request()
+      .input('userId', sql.UniqueIdentifier, req.user.id)
+      .query('SELECT role FROM teste..users WHERE id = @userId');
+    
+    const userRole = userResult.recordset[0]?.role;
+    const isAuthorized = tratativa.USER_ID === req.user.id || 
+                        ['manager', 'coordinator', 'admin'].includes(userRole);
+    
+    if (!isAuthorized) {
+      return res.status(403).json({ message: 'Sem permissão para editar esta tratativa' });
+    }
+    
+    // Atualizar a tratativa
+    const updateRequest = pool.request()
+      .input('tratativaId', sql.UniqueIdentifier, tratativaId);
+    
+    let updateFields = [];
+    
+    if (houveInteresse !== undefined) {
+      updateRequest.input('houveInteresse', sql.NVarChar(3), houveInteresse);
+      updateFields.push('HOUVE_INTERESSE = @houveInteresse');
+    }
+    
+    if (contratoEnviado !== undefined) {
+      updateRequest.input('contratoEnviado', sql.NVarChar(3), contratoEnviado);
+      updateFields.push('CONTRATO_ENVIADO = @contratoEnviado');
+    }
+    
+    if (observacao !== undefined) {
+      updateRequest.input('observacao', sql.NVarChar, observacao);
+      updateFields.push('OBSERVACAO = @observacao');
+    }
+    
+    if (ramoAtividade !== undefined) {
+      updateRequest.input('ramoAtividade', sql.NVarChar(3), ramoAtividade);
+      updateFields.push('RAMO_ATIVIDADE_REFERENCIA = @ramoAtividade');
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: 'Nenhum campo para atualizar foi fornecido' });
+    }
+    
+    const updateQuery = `
+      UPDATE teste..MUNICIPIOS_PRIORITARIOS_TRATATIVAS 
+      SET ${updateFields.join(', ')}
+      WHERE ID_TRATATIVA = @tratativaId
+    `;
+    
+    await updateRequest.query(updateQuery);
+    
+    //console.log(`[TratativasMunicipios] Tratativa ${tratativaId} atualizada com sucesso`);
+    
+    res.json({ 
+      message: 'Tratativa atualizada com sucesso',
+      tratativaId: tratativaId
+    });
+    
+  } catch (error) {
+    console.error('Erro ao atualizar tratativa:', error);
+    res.status(500).json({ 
+      message: 'Erro interno do servidor ao atualizar tratativa',
+      error: error.message 
+    });
+  }
+});
+
 // Rota para buscar tratativas por usuário
 router.get('/usuario', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
     
-    console.log(`[TratativasMunicipios] Buscando tratativas do usuário: ${req.user.id}`);
+    //console.log(`[TratativasMunicipios] Buscando tratativas do usuário: ${req.user.id}`);
     
     const result = await pool.request()
       .input('userId', sql.UniqueIdentifier, req.user.id)
@@ -213,7 +312,7 @@ router.get('/usuario', authenticateToken, async (req, res) => {
     
     const tratativasArray = Object.values(tratativasGrouped);
     
-    console.log(`[TratativasMunicipios] Encontradas ${tratativasArray.length} tratativas agrupadas para o usuário`);
+    //console.log(`[TratativasMunicipios] Encontradas ${tratativasArray.length} tratativas agrupadas para o usuário`);
     
     res.json(tratativasArray);
     

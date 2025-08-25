@@ -4,6 +4,18 @@ import { API_CONFIG } from "@/config/api.config";
 
 const API_URL = API_CONFIG.apiUrl; // Using centralized configuration
 
+// Função centralizada para obter token (preferencialmente do sessionStorage como fallback)
+const getAuthToken = (): string | null => {
+  // Primeiro tenta obter do sessionStorage (onde é salvo no login)
+  const sessionToken = window.sessionStorage.getItem("token");
+  if (sessionToken) {
+    return sessionToken;
+  }
+  
+  // Se não encontrar, retorna null (usuário não autenticado)
+  return null;
+};
+
 export interface User {
   id: string;
   name: string;
@@ -116,7 +128,7 @@ const handleApiError = (error: unknown): never => {
 // Improved fetch function with proper error handling
 const fetchWithErrorHandling = async (url: string, options?: RequestInit) => {
   try {
-    console.log(`[API] Chamando endpoint: ${url} - Método: ${options?.method || 'GET'}`);
+    //console.log(`[API] Chamando endpoint: ${url} - Método: ${options?.method || 'GET'}`);
     
     const response = await fetch(url, options);
     
@@ -224,7 +236,7 @@ export const authApi: AuthApi = {
 // User hierarchy APIs
 export const userApi = {
   getSubordinates: async (userId: string): Promise<User[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -237,7 +249,7 @@ export const userApi = {
   },
 
   getUserSubordinates: async (targetUserId: string): Promise<User[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -255,7 +267,7 @@ export const userApi = {
   },
 
   getSuperior: async (userId: string): Promise<User | null> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -276,7 +288,7 @@ export const userApi = {
   },
 
   getSupervisors: async (userId: string): Promise<User[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -286,18 +298,18 @@ export const userApi = {
     };
     
     try {
-      console.log(`[API] Buscando supervisores para o usuário ${userId}`);
+      //console.log(`[API] Buscando supervisores para o usuário ${userId}`);
       const result = await fetchWithErrorHandling(`${API_URL}/users/${userId}/supervisors`, options);
-      console.log(`[API] Retornados ${result?.length || 0} supervisores para o usuário ${userId}`);
+      //console.log(`[API] Retornados ${result?.length || 0} supervisores para o usuário ${userId}`);
       return result || [];
     } catch (error) {
       console.error(`[API] Erro ao buscar supervisores do usuário ${userId}:`, error);
       // Tente obter subordinados e filtrar supervisores como fallback
       try {
-        console.log(`[API] Tentando buscar subordinados para o usuário ${userId} como alternativa`);
+        //console.log(`[API] Tentando buscar subordinados para o usuário ${userId} como alternativa`);
         const allSubordinates = await userApi.getSubordinates(userId);
         const supervisors = allSubordinates.filter(user => user.role === "supervisor");
-        console.log(`[API] Encontrados ${supervisors.length} supervisores no fallback`);
+        //console.log(`[API] Encontrados ${supervisors.length} supervisores no fallback`);
         return supervisors;
       } catch (fallbackError) {
         console.error(`[API] Erro no fallback ao buscar subordinados:`, fallbackError);
@@ -307,7 +319,7 @@ export const userApi = {
   },
   
   getAllUsers: async (): Promise<User[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -357,7 +369,7 @@ export const userApi = {
   },
 
   getUsersByRole: async (role: "gerente" | "coordenador" | "supervisor" | "admin"): Promise<User[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -379,7 +391,7 @@ export const userApi = {
 // Events API
 export const eventApi = {
   getEvents: async (date?: string, supervisorId?: string): Promise<Event[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     let url = `${API_URL}/events`;
@@ -427,7 +439,7 @@ export const eventApi = {
 
   // Novo método para buscar eventos de toda a equipe para gerentes/coordenadores
   getTeamEvents: async (startDate?: string, endDate?: string): Promise<Event[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     let url = `${API_URL}/events/team`;
@@ -450,9 +462,9 @@ export const eventApi = {
     
     try {
       // Buscar usuário atual
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const user = JSON.parse(window.sessionStorage.getItem("user") || "{}");
       if (!user.id) {
-        console.error("[EventsAPI] Usuário não encontrado no localStorage");
+        console.error("[EventsAPI] Usuário não encontrado no sessionStorage");
         return [];
       }
 
@@ -538,7 +550,7 @@ export const eventApi = {
   },
 
   getEvent: async (eventId: string): Promise<Event> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -551,12 +563,12 @@ export const eventApi = {
   },
 
   createEvent: async (eventData: Omit<Event, "id">): Promise<{ id: string }> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     // Verificar e logar informações importantes sobre o evento
     if (eventData.supervisorId) {
-      console.log("API - Criando evento para supervisorId:", eventData.supervisorId);
+      //console.log("API - Criando evento para supervisorId:", eventData.supervisorId);
       
       if (typeof eventData.supervisorId !== 'string') {
         console.error("supervisorId inválido:", eventData.supervisorId);
@@ -588,7 +600,7 @@ export const eventApi = {
       body: JSON.stringify(processedEventData),
     };
     
-    console.log("API - Enviando dados do evento:", JSON.stringify(processedEventData, null, 2));
+    //console.log("API - Enviando dados do evento:", JSON.stringify(processedEventData, null, 2));
     
     try {
       return await fetchWithErrorHandling(`${API_URL}/events`, options);
@@ -606,7 +618,7 @@ export const eventApi = {
   },
 
   updateEvent: async (eventId: string, eventData: Omit<Event, "id">): Promise<void> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -622,7 +634,7 @@ export const eventApi = {
   },
 
   updateEventFeedback: async (eventId: string, tratativa: string): Promise<void> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -635,7 +647,7 @@ export const eventApi = {
     };
     
     try {
-      console.log(`Chamando endpoint: ${API_URL}/events/${eventId}/feedback - Método: PUT`);
+      //console.log(`Chamando endpoint: ${API_URL}/events/${eventId}/feedback - Método: PUT`);
       const response = await fetch(`${API_URL}/events/${eventId}/feedback`, options);
       
       if (!response.ok) {
@@ -652,7 +664,7 @@ export const eventApi = {
   },
 
   deleteEvent: async (eventId: string): Promise<void> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -683,7 +695,7 @@ export interface Tratativa {
 
 // Função auxiliar para fazer chamadas POST
 const post = async (url: string, data: any) => {
-  const token = localStorage.getItem("token");
+  const token = getAuthToken();
   if (!token) throw new Error("Usuário não autenticado");
 
   const options = {
@@ -701,7 +713,7 @@ const post = async (url: string, data: any) => {
 // HotList APIs
 export const hotListApi = {
   getHotList: async (userId: string): Promise<HotListItem[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -714,7 +726,7 @@ export const hotListApi = {
   },
 
   getHotListSummary: async (userId: string): Promise<HotListSummary> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -727,7 +739,7 @@ export const hotListApi = {
   },
 
   updateHotListItem: async (itemId: string, data: Partial<HotListItem>): Promise<HotListItem> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -747,7 +759,7 @@ export const hotListApi = {
   },
 
   getTratativas: async (itemId: string): Promise<Tratativa[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -819,7 +831,7 @@ export interface EventSubcategory {
 // Serviço para categorias de eventos
 export const eventCategoryApi = {
   getCategories: async (): Promise<EventCategory[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) {
       console.error('[EventCategoryAPI] Token não encontrado');
       throw new Error("Usuário não autenticado");
@@ -833,14 +845,14 @@ export const eventCategoryApi = {
     };
     
     try {
-      console.log('[EventCategoryAPI] Iniciando busca de categorias...');
-      console.log('[EventCategoryAPI] URL:', `${API_URL}/events/categories`);
-      console.log('[EventCategoryAPI] Headers:', options.headers);
+      //console.log('[EventCategoryAPI] Iniciando busca de categorias...');
+      //console.log('[EventCategoryAPI] URL:', `${API_URL}/events/categories`);
+      //console.log('[EventCategoryAPI] Headers:', options.headers);
       
       const response = await fetch(`${API_URL}/events/categories`, options);
       
-      console.log('[EventCategoryAPI] Status da resposta:', response.status);
-      console.log('[EventCategoryAPI] Headers da resposta:', Object.fromEntries(response.headers.entries()));
+      //console.log('[EventCategoryAPI] Status da resposta:', response.status);
+      //console.log('[EventCategoryAPI] Headers da resposta:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -862,7 +874,7 @@ export const eventCategoryApi = {
       }
       
       const categories = await response.json();
-      console.log('[EventCategoryAPI] Categorias recebidas:', categories);
+      //console.log('[EventCategoryAPI] Categorias recebidas:', categories);
       
       if (!Array.isArray(categories)) {
         console.error('[EventCategoryAPI] Resposta não é um array:', categories);
@@ -885,7 +897,7 @@ export const eventCategoryApi = {
 // API para municípios prioritários
 export const municipiosPrioritariosApi = {
   getMunicipios: async (supervisorId?: string): Promise<MunicipioPrioritario[]> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     // Construir URL com parâmetro de query se supervisorId for fornecido
@@ -901,7 +913,7 @@ export const municipiosPrioritariosApi = {
     };
     
     try {
-      console.log('[MunicipiosAPI] Buscando municípios prioritários...', supervisorId ? `para supervisor ${supervisorId}` : '');
+      //console.log('[MunicipiosAPI] Buscando municípios prioritários...', supervisorId ? `para supervisor ${supervisorId}` : '');
       const data = await fetchWithErrorHandling(url, options);
       
       // Converter as datas dos objetos aninhados
@@ -917,7 +929,7 @@ export const municipiosPrioritariosApi = {
         }))
       }));
       
-      console.log(`[MunicipiosAPI] ${municipios.length} municípios carregados`);
+      //console.log(`[MunicipiosAPI] ${municipios.length} municípios carregados`);
       return municipios;
     } catch (error) {
       console.error('Erro ao buscar municípios prioritários:', error);
@@ -926,7 +938,7 @@ export const municipiosPrioritariosApi = {
   },
 
   getMunicipio: async (municipioId: string): Promise<MunicipioPrioritario> => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -936,7 +948,7 @@ export const municipiosPrioritariosApi = {
     };
     
     try {
-      console.log(`[MunicipiosAPI] Buscando município ${municipioId}...`);
+      //console.log(`[MunicipiosAPI] Buscando município ${municipioId}...`);
       const data = await fetchWithErrorHandling(`${API_URL}/municipios-prioritarios/${municipioId}`, options);
       
       // Converter as datas dos objetos aninhados
@@ -952,7 +964,7 @@ export const municipiosPrioritariosApi = {
         }))
       };
       
-      console.log(`[MunicipiosAPI] Município ${municipio.nome} carregado`);
+      //console.log(`[MunicipiosAPI] Município ${municipio.nome} carregado`);
       return municipio;
     } catch (error) {
       console.error(`Erro ao buscar município ${municipioId}:`, error);
@@ -976,7 +988,7 @@ export const tratativasMunicipiosApi = {
       dataVisita?: string;
     }>;
   }) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -989,9 +1001,9 @@ export const tratativasMunicipiosApi = {
     };
     
     try {
-      console.log('[TratativasAPI] Salvando tratativa:', tratativaData);
+      //console.log('[TratativasAPI] Salvando tratativa:', tratativaData);
       const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios`, options);
-      console.log('[TratativasAPI] Tratativa salva com sucesso:', data);
+      //console.log('[TratativasAPI] Tratativa salva com sucesso:', data);
       return data;
     } catch (error) {
       console.error('Erro ao salvar tratativa:', error);
@@ -1000,7 +1012,7 @@ export const tratativasMunicipiosApi = {
   },
 
   buscarTratativasMunicipio: async (cdMunic: number) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -1010,9 +1022,9 @@ export const tratativasMunicipiosApi = {
     };
     
     try {
-      console.log(`[TratativasAPI] Buscando tratativas do município ${cdMunic}...`);
+      //console.log(`[TratativasAPI] Buscando tratativas do município ${cdMunic}...`);
       const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios/municipio/${cdMunic}`, options);
-      console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o município ${cdMunic}`);
+      //console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o município ${cdMunic}`);
       return data;
     } catch (error) {
       console.error(`Erro ao buscar tratativas do município ${cdMunic}:`, error);
@@ -1020,8 +1032,8 @@ export const tratativasMunicipiosApi = {
     }
   },
 
-  buscarTratavisUsuario: async () => {
-    const token = localStorage.getItem("token");
+  buscarTratativasUsuario: async () => {
+    const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     const options = {
@@ -1031,12 +1043,41 @@ export const tratativasMunicipiosApi = {
     };
     
     try {
-      console.log('[TratativasAPI] Buscando tratativas do usuário...');
+      //console.log('[TratativasAPI] Buscando tratativas do usuário...');
       const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios/usuario`, options);
-      console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o usuário`);
+      //console.log(`[TratativasAPI] ${data.length} tratativas encontradas para o usuário`);
       return data;
     } catch (error) {
       console.error('Erro ao buscar tratativas do usuário:', error);
+      throw error;
+    }
+  },
+
+  atualizarTratativa: async (tratativaId: string, dadosAtualizacao: {
+    houveInteresse?: 'Sim' | 'Não';
+    contratoEnviado?: 'Sim' | 'Não';
+    observacao?: string;
+    ramoAtividade?: 'Sim' | 'Não';
+  }) => {
+    const token = getAuthToken();
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "PUT",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(dadosAtualizacao),
+    };
+    
+    try {
+      //console.log('[TratativasAPI] Atualizando tratativa:', tratativaId, dadosAtualizacao);
+      const data = await fetchWithErrorHandling(`${API_URL}/tratativas-municipios/${tratativaId}`, options);
+      //console.log('[TratativasAPI] Tratativa atualizada com sucesso:', data);
+      return data;
+    } catch (error) {
+      console.error('Erro ao atualizar tratativa:', error);
       throw error;
     }
   }

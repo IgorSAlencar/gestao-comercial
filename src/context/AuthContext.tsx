@@ -70,31 +70,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastRefreshSubordinates = React.useRef<number>(0);
   const lastRefreshAllUsers = React.useRef<number>(0);
 
-  // useEffect para recuperar dados do localStorage na inicialização
+  // Inicialização do estado de autenticação
   useEffect(() => {
-    const initializeAuth = () => {
-      try {
-        const savedUser = localStorage.getItem("user");
-        const savedToken = localStorage.getItem("token");
-        
-        if (savedUser && savedToken) {
-          const userData = JSON.parse(savedUser);
-          console.log(`🔄 Recuperando sessão do localStorage - User: ${userData.name}, ID: ${userData.id}`);
-          
-          setUser(userData);
-          setToken(savedToken);
-        }
-      } catch (error) {
-        console.error("Erro ao recuperar dados do localStorage:", error);
-        // Se houver erro, limpar localStorage
-        localStorage.removeItem("user");
-        localStorage.removeItem("token");
-      } finally {
-        setIsInitializing(false);
-      }
-    };
-
-    initializeAuth();
+    // Apenas finaliza a inicialização sem recuperar dados do sessionStorage
+    setIsInitializing(false);
   }, []);
 
   // Carregar subordinados quando o usuário for autenticado
@@ -208,13 +187,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const normalized = normalizeFuncional(funcional, { maxLength: 7 });
       const { user: userData, token: authToken } = await authApi.login(normalized, password);
       
-      console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Chave: ${userData.chave}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
+      //console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Chave: ${userData.chave}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
       
       setUser(userData);
       setToken(authToken);
       
-      localStorage.setItem("user", JSON.stringify(userData));
-      localStorage.setItem("token", authToken);
+      // Salva no sessionStorage para uso posterior (sem recuperação automática)
+      window.sessionStorage.setItem("user", JSON.stringify(userData));
+      window.sessionStorage.setItem("token", authToken);
       
       toast({
         title: "Login realizado com sucesso",
@@ -234,8 +214,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSubordinates([]);
     setSuperior(null);
     setAllUsers([]);
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
+    
+    // Limpa os dados do sessionStorage
+    window.sessionStorage.removeItem("user");
+    window.sessionStorage.removeItem("token");
+    
     navigate("/login");
   };
 

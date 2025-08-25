@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { TrendingUp, Activity, AlertTriangle, TrendingDown, Target, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Minus, Info } from "lucide-react";
+import { TrendingUp, Activity, AlertTriangle, TrendingDown, Target, AlertCircle, BarChart3, ArrowUpRight, ArrowDownRight, Minus, Info, CheckCircle } from "lucide-react";
 import { DadosLoja } from "@/shared/types/lead";
 import { getRelativeMonths } from "@/utils/formatDate";
 import {
@@ -19,6 +19,8 @@ interface GraficoTendenciaProps {
   onTendenciaClick: (tendencia: string) => void;
   onZeradosClick?: () => void;
   onQuedaProducaoClick?: () => void;
+  showTendenciaCard?: boolean; // Nova prop para controlar exibição do card de tendência
+  tipoMetrica?: 'contas' | 'ativos'; // Nova prop para controlar o tipo de métrica (contas ou ativos)
 }
 
 const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({ 
@@ -26,7 +28,9 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
   metricas,
   onTendenciaClick,
   onZeradosClick,
-  onQuedaProducaoClick
+  onQuedaProducaoClick,
+  showTendenciaCard = true,
+  tipoMetrica = 'contas'
 }) => {
   const [showAnaliseDetalhada, setShowAnaliseDetalhada] = useState(false);
 
@@ -116,114 +120,114 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
 
   return (
     <div className="flex flex-col min-h-0 space-y-4">
-      {/* Card Principal - Resumo Executivo */}
+      {/* Card Principal Unificado - Dashboard Completo */}
       <Card className="flex-none">
         <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5 text-blue-600" />
-              Resumo Executivo
-
-            </CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <BarChart3 className="h-5 w-5 text-blue-600" />
+            Resumo de Produção
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                    <CardTitle className="text-sm font-semibold text-gray-900">Total Contas <br />em {mesesFormatados.M0}</CardTitle>
-                  <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
-                    <BarChart3 className="h-4 w-4 text-blue-600" />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div>
-                  <p className="text-2xl font-bold text-blue-800">{formatNumber(totalContasM0)}</p>
-                  <div className={`text-xs flex items-center gap-1 mt-1 ${crescimento >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {crescimento >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                    {formatPercent(Math.abs(crescimento))}% vs {mesesFormatados.M1}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <CardContent className="space-y-6">
+          {/* Resumo Executivo */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
 
-            <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Total de Lojas</CardTitle>
-                  <div className="p-2 rounded-full bg-purple-50 border border-purple-100">
-                    <Target className="h-4 w-4 text-purple-600" />
+            </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Total de Contas/Ativos */}
+              <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg font-semibold text-gray-900">Total de {tipoMetrica === 'ativos' ? 'Ativos' : 'Contas'}</CardTitle>
+                    <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
+                      <BarChart3 className="h-5 w-5 text-blue-600" />
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div>
-                  <p className="text-2xl font-bold text-purple-800">{formatNumber(totalLojas)}</p>
-                  <p className="text-xs text-gray-600 mt-1">Na estratégia</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Quantidade de Lojas <br /> c/ Produção em {mesesFormatados.M0}</CardTitle>
-                  <div className="p-2 rounded-full bg-green-50 border border-green-100">
-                    <Activity className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="mt-2">
+                    <p className="text-3xl font-bold text-blue-800">{formatNumber(totalContasM0)}</p>
+                    <p className="text-sm text-gray-500 mt-1">em {mesesFormatados.M0}</p>
+                    <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium mt-2 ${crescimento >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {crescimento >= 0 ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {formatPercent(Math.abs(crescimento))}% vs {mesesFormatados.M1}
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div>
-                  <p className="text-2xl font-bold text-green-800">{formatNumber(lojasQueProduziraM0.length)}</p>
-                  <p className="text-xs text-gray-600 mt-1">{formatPercent(produtividadeGeral)}% do total</p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-200 shadow-sm hover:shadow-md transition-all duration-300">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-sm font-semibold text-gray-900">Lojas sem Produção <br /> De {mesesFormatados.M1} para {mesesFormatados.M0}</CardTitle>
-                  <div className="p-2 rounded-full bg-amber-50 border border-amber-100">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+              {/* Lojas com Produção */}
+              <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg font-semibold text-gray-900">{tipoMetrica === 'ativos' ? 'Pontos' : 'Lojas'} com Produção</CardTitle>
+                    <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
+                      <Activity className="h-5 w-5 text-blue-600" />
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div>
-                  <p className="text-2xl font-bold text-amber-800">{formatNumber(lojasQueZeraram.length)}</p>
-                  <p className="text-xs text-gray-600 mt-1">Requer atenção</p>
-                </div>
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  <div className="mt-2">
+                    <p className="text-3xl font-bold text-blue-800">{formatNumber(lojasQueProduziraM0.length)}</p>
+                    <p className="text-sm text-gray-500 mt-1">de {formatNumber(totalLojas)} {tipoMetrica === 'ativos' ? 'pontos' : 'lojas'}</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-3 mb-2">
+                      <div 
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-500" 
+                        style={{ width: `${produtividadeGeral}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-blue-600 font-medium">{formatPercent(produtividadeGeral)}% de produtividade</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-
+              {/* Lojas que Zeraram */}
+              <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg font-semibold text-gray-900">{tipoMetrica === 'ativos' ? 'Pontos' : 'Lojas'} que Zeraram</CardTitle>
+                    <div className="p-2 rounded-full bg-blue-50 border border-blue-100">
+                      <AlertTriangle className="h-5 w-5 text-amber-600" />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mt-2">
+                    <p className="text-3xl font-bold text-gray-900">{formatNumber(lojasQueZeraram.length)}</p>
+                    <p className="text-sm text-gray-500 mt-1">{mesesFormatados.M1} → {mesesFormatados.M0}</p>
+                    {lojasQueZeraram.length > 0 ? (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 mt-2">
+                        <AlertCircle size={12} />
+                        Requer atenção
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 mt-2">
+                        <CheckCircle size={12} />
+                        Excelente performance
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Cards de Performance */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-none">
-        {/* Card Performance & Evolução Unificado */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="h-5 w-5 text-blue-600" />
-              Performance & Evolução
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Indicadores de Evolução */}
+          {/* Linha Divisória */}
+          <hr className="border-gray-200" />
+
+                    {/* Performance & Evolução */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Evolução de Contas */}
+            <div className="h-full">
               <div 
-                className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-50/70 transition-all duration-200"
+                className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-50/70 transition-all duration-200 h-full flex flex-col"
                 onClick={() => setShowAnaliseDetalhada(true)}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-5 w-5 text-blue-600" />
-                    <span className="font-medium text-blue-800">Evolução de Contas</span>
+                    <span className="font-medium text-blue-800">Evolução de {tipoMetrica === 'ativos' ? 'Pontos Ativos' : 'Contas'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={`flex items-center gap-1 ${crescimento >= 0 ? 'text-green-600' : 'text-red-600'} font-bold text-lg`}>
@@ -234,43 +238,84 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 flex-1">
                   {/* Variação Total */}
-                  <div className="bg-white p-3 rounded-lg border border-blue-100">
-                    <div className="text-sm text-blue-600 mb-1">Variação Total</div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-xl font-bold text-blue-800">
-                        {totalContasM0 - totalContasM1 >= 0 ? '+' : ''}{formatNumber(totalContasM0 - totalContasM1)}
-                      </span>
-                      <span className="text-sm text-blue-600">contas</span>
-                    </div>
-                    <div className="text-xs text-blue-500 mt-1">
-                      {mesesFormatados.M1} → {mesesFormatados.M0}
+                  <div className="bg-white p-4 rounded-lg border border-blue-100 flex flex-col justify-center">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center mb-2">
+                        {crescimento >= 0 ? (
+                          <div className="flex items-center gap-1 text-green-600">
+                            <ArrowUpRight className="h-5 w-5" />
+                            <span className="text-sm font-medium">Crescimento</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-red-600">
+                            <ArrowDownRight className="h-5 w-5" />
+                            <span className="text-sm font-medium">Redução</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="mb-2">
+                        <div className={`text-3xl font-bold ${crescimento >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          {totalContasM0 - totalContasM1 >= 0 ? '+' : ''}{formatNumber(Math.abs(totalContasM0 - totalContasM1))}
+                        </div>
+                        <div className="text-sm text-gray-600">{tipoMetrica === 'ativos' ? 'pontos' : 'contas'}</div>
+                      </div>
+                      
+                      <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded">{mesesFormatados.M1}</span>
+                        <ArrowUpRight className="h-3 w-3" />
+                        <span className="bg-blue-50 px-2 py-1 rounded border border-blue-200">{mesesFormatados.M0}</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Comparativo de Lojas Ativas */}
-                  <div className="bg-white p-3 rounded-lg border border-green-100">
-                    <div className="text-sm text-green-600 mb-1">Lojas com Produção</div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-gray-600">{mesesFormatados.M1}</div>
-                        <div className="text-lg font-bold text-green-800">{formatNumber(lojasQueProduziraM1.length)}</div>
+                  <div className="bg-white p-4 rounded-lg border border-green-100 flex flex-col justify-center">
+                    <div className="text-center mb-3">
+                      <div className="flex items-center justify-center gap-1 text-green-600 mb-2">
+                        <Activity className="h-4 w-4" />
+                        <span className="text-sm font-medium">Lojas com Produção</span>
                       </div>
-                      <div className="text-xl font-bold text-gray-300">→</div>
-                      <div>
-                        <div className="text-sm text-gray-600">{mesesFormatados.M0}</div>
-                        <div className="text-lg font-bold text-green-800">{formatNumber(lojasQueProduziraM0.length)}</div>
+                    </div>
+                    
+                    <div className="flex items-center justify-center gap-3">
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 mb-1">{mesesFormatados.M1}</div>
+                        <div className="w-20 h-12 rounded-full bg-gray-100 flex items-center justify-center border-2 border-gray-200">
+                          <span className="text-lg font-bold text-gray-700">{lojasQueProduziraM1.length.toLocaleString('pt-BR')}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-center">
+                        <ArrowUpRight className={`h-5 w-5 ${lojasQueProduziraM0.length >= lojasQueProduziraM1.length ? 'text-green-500' : 'text-red-500'}`} />
+                        <div className={`text-xs font-medium ${lojasQueProduziraM0.length >= lojasQueProduziraM1.length ? 'text-green-600' : 'text-red-600'}`}>
+                          {lojasQueProduziraM0.length >= lojasQueProduziraM1.length ? '+' : ''}{lojasQueProduziraM0.length - lojasQueProduziraM1.length}
+                        </div>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 mb-1">{mesesFormatados.M0}</div>
+                        <div className="w-20 h-12 rounded-full bg-green-50 flex items-center justify-center border-2 border-green-200">
+                          <span className="text-lg font-bold text-green-700">{lojasQueProduziraM0.length.toLocaleString('pt-BR')}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="text-center mt-2">
+                      <div className="text-xs text-gray-500">
+                        {formatPercent((lojasQueProduziraM0.length / totalLojas) * 100)}% do total
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+            </div>
 
-
-
-              {/* Indicadores de Performance */}
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
+            {/* Performance Atual */}
+            <div className="h-full">
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Target className="h-5 w-5 text-green-600" />
@@ -282,7 +327,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                 </div>
 
                 {/* Barra de Progresso */}
-                <div className="relative pt-1">
+                <div className="relative pt-1 flex-1">
                   <div className="flex mb-2 items-center justify-between">
                     <div>
                       <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-green-600 bg-green-100">
@@ -306,7 +351,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                 {/* Detalhamento */}
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="bg-white p-3 rounded-lg border border-green-100">
-                    <div className="text-sm text-green-600">Lojas Ativas</div>
+                    <div className="text-sm text-green-600">Lojas com Produção</div>
                     <div className="text-xl font-bold text-green-800">{formatNumber(lojasQueProduziraM0.length)}</div>
                     <div className="text-xs text-green-500">{mesesFormatados.M0}</div>
                   </div>
@@ -320,99 +365,13 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Card Atenção */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
-              Pontos de Atenção
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Card de Lojas que Zeraram */}
-              <div 
-                className="bg-gradient-to-r from-amber-50 to-red-50 p-4 rounded-lg border border-amber-200 cursor-pointer hover:bg-amber-100/70 transition-colors duration-200"
-                onClick={onZeradosClick}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-amber-600" />
-                    <span className="font-medium text-amber-800">Lojas que Zeraram</span>
-                  </div>
-                  <div className="text-lg font-bold text-amber-800">
-                    {formatNumber(lojasQueZeraram.length)}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <div className="text-sm text-amber-600">Período</div>
-                    <div className="text-base font-semibold text-amber-800">
-                      {mesesFormatados.M1} → {mesesFormatados.M0}
-                    </div>
-                    <div className="text-xs text-amber-500">Clique para filtrar</div>
-                  </div>
-                  <div className="bg-white p-3 rounded-lg border border-amber-100">
-                    <div className="text-sm text-amber-600">Impacto</div>
-                    <div className="text-base font-semibold text-amber-800">
-                      {formatPercent(totalLojas > 0 ? ((lojasQueZeraram.length / totalLojas) * 100) : 0)}%
-                    </div>
-                    <div className="text-xs text-amber-500">do total de lojas</div>
-                  </div>
-                </div>
-
-                {lojasQueZeraram.length > 0 && (
-                  <div className="mt-4 text-sm text-amber-800 bg-amber-100 p-3 rounded-lg border border-amber-200 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                    <span>Essas lojas precisam de acompanhamento especial para recuperação</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Outros Indicadores de Atenção */}
-              <div className="bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-lg border border-orange-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Activity className="h-5 w-5 text-orange-600" />
-                  <span className="font-medium text-orange-800">Indicadores de Atenção</span>
-                </div>
-
-                <div className="space-y-3">
-                  <div 
-                    className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors duration-200"
-                    onClick={onQuedaProducaoClick}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-orange-600">Queda na Produção</span>
-                      <span className="text-base font-semibold text-orange-800">
-                        {formatNumber(lojasQuedaProducao.length)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-orange-500 mt-1">Lojas com redução vs mês anterior</div>
-                    <div className="text-xs text-orange-500 mt-1">Clique para filtrar</div>
-                  </div>
-
-                  <div className="bg-white p-3 rounded-lg border border-orange-100">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-orange-600">Sem Movimento</span>
-                      <span className="text-base font-semibold text-orange-800">
-                        {formatNumber(lojasSemMovimento.length)}
-                      </span>
-                    </div>
-                    <div className="text-xs text-orange-500 mt-1">Lojas sem contas no mês atual</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Cards de Tendência */}
-      <Card className="flex-none">
+      {/* Cards de Tendência - Condicional */}
+      {showTendenciaCard && (
+        <Card className="flex-none">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-600" />
@@ -539,6 +498,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Modal de Análise Detalhada */}
       <div className="flex-1 min-h-0">
