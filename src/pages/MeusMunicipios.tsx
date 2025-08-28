@@ -51,6 +51,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MunicipioAutocomplete } from '@/components/ui/municipio-autocomplete';
 import { municipiosPrioritariosApi, tratativasMunicipiosApi, MunicipioPrioritario, VisitaAgendada, VisitaRealizada, CNPJVisitado } from '@/services/api';
+import { API_CONFIG } from '@/config/api.config';
 
 // Usar os tipos da API
 type Municipio = MunicipioPrioritario;
@@ -297,7 +298,7 @@ const MeusMunicipiosPage = () => {
             id: cnpj.id || `${municipio.id}-${visita.id}-${cnpj.cnpj}`,
             municipio: municipio.nome,
             uf: municipio.uf,
-            cnpj: cnpj.semCNPJ ? 'Empresa Informal' : (cnpj.cnpj || 'Não informado'),
+            cnpj: cnpj.semCNPJ ? '-' : (cnpj.cnpj ? formatCnpj(cnpj.cnpj) : '-'),
             nomeLoja: cnpj.nomeLoja || cnpj.razaoSocial || 'Nome não informado',
             dataVisita: cnpj.dataVisita || format(visita.data, 'dd/MM/yyyy'),
             houveInteresse: cnpj.interesse === 'sim' ? 'Sim' : 'Não',
@@ -406,6 +407,167 @@ const MeusMunicipiosPage = () => {
   };
 
   // Funções para agendar visita
+  // Mutation para criar evento (integração com Agenda)
+  const auth = useAuth();
+
+  const createEventMutation = useMutation({
+    mutationFn: async (eventData: any) => {
+      try {
+        console.log('Iniciando criação de evento com dados:', eventData);
+        
+        // Primeiro, tenta com o token atual
+        const token = auth.token || localStorage.getItem('token');
+        if (!token) {
+          console.error('Token não encontrado no contexto de autenticação nem no localStorage');
+          console.log('Contexto de autenticação:', auth);
+          throw new Error('Token não encontrado');
+        }
+        console.log('Token encontrado:', token.substring(0, 10) + '...');
+
+        console.log('Fazendo requisição para:', `${API_CONFIG.apiUrl}/events`);
+        const response = await fetch(`${API_CONFIG.apiUrl}/events`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(eventData)
+        });
+
+        console.log('Status da resposta:', response.status);
+        const responseData = await response.json();
+        console.log('Dados da resposta:', responseData);
+
+        // Se receber 401 ou 403, tenta renovar o token e tentar novamente
+        if (response.status === 401 || response.status === 403) {
+          console.log('Token expirado, tentando renovar...');
+          
+          // Fallback para a API de refresh
+          console.log('Fazendo requisição para renovar token:', `${API_CONFIG.apiUrl}/auth/refresh`);
+          const refreshResponse = await fetch(`${API_CONFIG.apiUrl}/auth/refresh`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          console.log('Status da resposta de refresh:', refreshResponse.status);
+          const refreshData = await refreshResponse.json();
+          console.log('Dados do refresh:', refreshData);
+
+          if (!refreshResponse.ok) {
+            console.error('Falha ao renovar token:', refreshData);
+            throw new Error('Não foi possível renovar o token');
+          }
+
+          const { token: newToken } = refreshData;
+          if (!newToken) {
+            console.error('Token não encontrado na resposta de refresh');
+            throw new Error('Não foi possível renovar o token');
+          }
+
+          console.log('Token renovado com sucesso, tentando requisição novamente');
+          // Tenta novamente com o novo token
+          const retryResponse = await fetch(`${API_CONFIG.apiUrl}/events`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newToken}`
+            },
+            body: JSON.stringify(eventData)
+          });
+
+          console.log('Status da nova tentativa:', retryResponse.status);
+          const retryData = await retryResponse.json();
+          console.log('Dados da nova tentativa:', retryData);
+
+          if (!retryResponse.ok) {
+            console.error('Falha na nova tentativa:', retryData);
+            throw new Error(retryData.message || 'Erro ao criar evento após renovação do token');
+          }
+
+          return retryData;
+        }
+
+        if (!response.ok) {
+          console.error('Falha na requisição original:', responseData);
+          throw new Error(responseData.message || 'Erro ao criar evento');
+        }
+
+        console.log('Evento criado com sucesso:', responseData);
+        return responseData;
+      } catch (error: any) {
+        console.error('Erro completo:', error);
+        console.error('Stack trace:', error.stack);
+        
+        // Se for erro de autenticação, redireciona para login
+        if (error.message?.includes('token') || error.message?.includes('autenticação')) {
+          console.log('Erro de autenticação detectado, redirecionando para login');
+          window.location.href = '/login';
+          throw new Error('Sessão expirada. Por favor, faça login novamente.');
+        }
+        throw error;
+      }
+    },
+    onSuccess: (data, variables) => {
+      console.log('Evento criado com sucesso:', data);
+      console.log('Variáveis enviadas:', variables);
+      
+      // Atualiza o cache local para refletir a nova visita no card
+      if (selectedMunicipio && variables) {
+        queryClient.setQueryData(['municipios-prioritarios'], (oldData: any) => {
+          if (oldData && oldData.municipios) {
+            return {
+              ...oldData,
+              municipios: oldData.municipios.map((m: any) => 
+                m.id === selectedMunicipio.id 
+                  ? { 
+                      ...m, 
+                      visitasAgendadas: [
+                        ...(m.visitasAgendadas || []), 
+                        {
+                          id: `v${Date.now()}`,
+                          data: variables.dataInicio,
+                          status: 'agendada'
+                        }
+                      ],
+                      proximaVisita: variables.dataInicio,
+                      statusVisita: 'agendada'
+                    }
+                  : m
+              )
+            };
+          }
+          return oldData;
+        });
+      }
+      
+      toast({
+        title: "Sucesso",
+        description: `Visita agendada para ${selectedMunicipio?.nome} em ${format(variables.dataInicio, "dd/MM/yyyy", { locale: ptBR })}`,
+      });
+      setIsAgendarVisitaOpen(false);
+      setDataVisita(null);
+      setSelectedMunicipio(null);
+    },
+    onError: (error: Error) => {
+      // Mensagem mais específica para o usuário
+      let mensagem = "Erro ao agendar visita";
+      if (error.message.includes('token') || error.message.includes('autenticação')) {
+        mensagem = "Sua sessão expirou. Você será redirecionado para fazer login novamente.";
+      } else if (error.message.includes('permissão')) {
+        mensagem = "Você não tem permissão para agendar visitas.";
+      }
+
+      toast({
+        title: "Erro",
+        description: mensagem,
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleAgendarVisita = (municipio: Municipio) => {
     setSelectedMunicipio(municipio);
     setDataVisita(null);
@@ -413,7 +575,15 @@ const MeusMunicipiosPage = () => {
   };
 
   const handleSalvarAgendamento = () => {
+    console.log('Iniciando salvamento de agendamento...');
+    console.log('Município selecionado:', selectedMunicipio);
+    console.log('Data selecionada:', dataVisita);
+
     if (!selectedMunicipio || !dataVisita) {
+      console.error('Dados obrigatórios faltando:', {
+        temMunicipio: !!selectedMunicipio,
+        temData: !!dataVisita
+      });
       toast({
         title: "Erro",
         description: "Selecione uma data para a visita",
@@ -422,31 +592,39 @@ const MeusMunicipiosPage = () => {
       return;
     }
 
-    const novaVisita: VisitaAgendada = {
-      id: `v${Date.now()}`,
-      data: dataVisita,
-      status: 'agendada'
-    };
+    try {
+      // Preparar dados do evento para a API da Agenda
+      const eventData = {
+        titulo: `Visita - ${selectedMunicipio.nome}`,
+        dataInicio: dataVisita,
+        dataFim: dataVisita, // Mesmo dia para visitas simples
+        tipo: "visita",
+        location: "Municípios Prioritários", // Categoria padrão
+        subcategory: "Prospecção", // Subcategoria padrão
+        other_description: `Visita agendada para \nMunicípio: ${selectedMunicipio.nome} - ${selectedMunicipio.uf}`,
+        municipio: selectedMunicipio.nome,
+        uf: selectedMunicipio.uf,
+        informar_agencia_pa: false,
+        agencia_pa_number: "",
+        is_pa: false,
+        supervisorId: auth.user?.id // Adicionando ID do supervisor
+      };
 
-    // Atualizar cache local do React Query
-    queryClient.setQueryData(['municipios-prioritarios'], (oldData: Municipio[] | undefined) => {
-      if (!oldData) return oldData;
-      
-      return oldData.map(m => 
-        m.id === selectedMunicipio.id 
-          ? { ...m, visitasAgendadas: [...m.visitasAgendadas, novaVisita] }
-          : m
-      );
-    });
+      console.log('Dados do evento preparados:', eventData);
+      console.log('Chamando mutation para criar evento...');
 
-    toast({
-      title: "Sucesso",
-      description: `Visita agendada para ${selectedMunicipio.nome} em ${format(dataVisita, "dd/MM/yyyy", { locale: ptBR })}`
-    });
+      // Chamar a mutation para criar o evento
+      createEventMutation.mutate(eventData);
+    } catch (error) {
+      console.error('Erro ao preparar dados do evento:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao preparar dados do agendamento",
+        variant: "destructive"
+      });
+    }
 
-    setIsAgendarVisitaOpen(false);
-    setSelectedMunicipio(null);
-    setDataVisita(null);
+
   };
 
   // Funções para tratar visita
@@ -921,7 +1099,7 @@ const MeusMunicipiosPage = () => {
                 <Building2 className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
                 <div className="text-center lg:text-left">
                   <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.totalFarmaciaMercado}</p>
-                  <p className="text-xs lg:text-sm text-gray-500">Farmácias/Mercados</p>
+                  <p className="text-xs lg:text-sm text-gray-500 whitespace-nowrap">Farmácias/<br/>Mercados</p>
                 </div>
               </div>
 
@@ -930,8 +1108,8 @@ const MeusMunicipiosPage = () => {
                 <CheckCircle className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
                 <div className="text-center lg:text-left">
                   <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.aceitesFarmaciaMercado}</p>
-                  <p className="text-xs lg:text-sm text-gray-500">Aceites</p>
-                  <p className="text-[10px] lg:text-xs text-gray-400">*do ramo farmácia/mercado</p>
+                  <p className="text-xs lg:text-sm text-gray-500 whitespace-nowrap">Aceites</p>
+                  <p className="text-[10px] lg:text-xs text-gray-400 whitespace-nowrap">*do ramo farmácia/<br/>mercado</p>
                 </div>
               </div>
 
@@ -940,8 +1118,8 @@ const MeusMunicipiosPage = () => {
                 <FileText className="h-5 w-5 lg:h-7 lg:w-7 text-green-600 flex-shrink-0" />
                 <div className="text-center lg:text-left">
                   <p className="text-lg lg:text-2xl font-bold text-gray-900">{estatisticas.contratosFarmaciaMercado}</p>
-                  <p className="text-xs lg:text-sm text-gray-500">Contratos</p>
-                  <p className="text-[10px] lg:text-xs text-gray-400">*do ramo farmácia/mercado</p>
+                  <p className="text-xs lg:text-sm text-gray-500 whitespace-nowrap">Contratos</p>
+                  <p className="text-[10px] lg:text-xs text-gray-400 whitespace-nowrap">*do ramo farmácia/<br/>mercado</p>
                 </div>
               </div>
 
@@ -1008,56 +1186,58 @@ const MeusMunicipiosPage = () => {
 
       </div>
 
-      {/* Badges de Status de Visitas - Clicáveis */}
-      <div className="flex flex-wrap gap-3 items-center justify-center md:justify-start">
-        <button
-          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'realizadas' ? '' : 'realizadas')}
-          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
-            selectedStatusFilter === 'realizadas'
-              ? 'bg-green-600 border-green-600 text-white shadow-lg transform scale-105'
-              : 'bg-green-50 border border-green-200 text-green-800 hover:bg-green-100'
-          }`}
-        >
-          <div className={`w-2 h-2 rounded-full ${
-            selectedStatusFilter === 'realizadas' ? 'bg-white' : 'bg-green-500'
-          }`}></div>
-          <span className="text-sm font-medium">
-            Municípios Visitados ({municipios.filter(m => m.visitasRealizadas.length > 0).length})
-          </span>
-        </button>
-        
-        <button
-          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'agendadas' ? '' : 'agendadas')}
-          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
-            selectedStatusFilter === 'agendadas'
-              ? 'bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105'
-              : 'bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100'
-          }`}
-        >
-          <div className={`w-2 h-2 rounded-full ${
-            selectedStatusFilter === 'agendadas' ? 'bg-white' : 'bg-blue-500'
-          }`}></div>
-          <span className="text-sm font-medium">
-            Visitas Agendadas ({municipios.filter(m => m.visitasAgendadas.length > 0 && m.visitasRealizadas.length === 0).length})
-          </span>
-        </button>
-        
-        <button
-          onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'sem-visitas' ? '' : 'sem-visitas')}
-          className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
-            selectedStatusFilter === 'sem-visitas'
-              ? 'bg-gray-600 border-gray-600 text-white shadow-lg transform scale-105'
-              : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          <div className={`w-2 h-2 rounded-full ${
-            selectedStatusFilter === 'sem-visitas' ? 'bg-white' : 'bg-gray-400'
-          }`}></div>
-          <span className="text-sm font-medium">
-            Sem Visitas ({municipios.filter(m => m.visitasRealizadas.length === 0 && m.visitasAgendadas.length === 0).length})
-          </span>
-        </button>
-      </div>
+      {/* Badges de Status de Visitas - Clicáveis - Só aparecem na view de Municípios */}
+      {viewMode === 'cards' && (
+        <div className="flex flex-wrap gap-3 items-center justify-center md:justify-start">
+          <button
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'realizadas' ? '' : 'realizadas')}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+              selectedStatusFilter === 'realizadas'
+                ? 'bg-green-600 border-green-600 text-white shadow-lg transform scale-105'
+                : 'bg-green-50 border border-green-200 text-green-800 hover:bg-green-100'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${
+              selectedStatusFilter === 'realizadas' ? 'bg-white' : 'bg-green-500'
+            }`}></div>
+            <span className="text-sm font-medium">
+              Municípios Visitados ({municipios.filter(m => m.visitasRealizadas.length > 0).length})
+            </span>
+          </button>
+          
+          <button
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'agendadas' ? '' : 'agendadas')}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+              selectedStatusFilter === 'agendadas'
+                ? 'bg-blue-600 border-blue-600 text-white shadow-lg transform scale-105'
+                : 'bg-blue-50 border border-blue-200 text-blue-800 hover:bg-blue-100'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${
+              selectedStatusFilter === 'agendadas' ? 'bg-white' : 'bg-blue-500'
+            }`}></div>
+            <span className="text-sm font-medium">
+              Visitas Agendadas ({municipios.filter(m => m.visitasAgendadas.length > 0 && m.visitasRealizadas.length === 0).length})
+            </span>
+          </button>
+          
+          <button
+            onClick={() => setSelectedStatusFilter(selectedStatusFilter === 'sem-visitas' ? '' : 'sem-visitas')}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 hover:shadow-md ${
+              selectedStatusFilter === 'sem-visitas'
+                ? 'bg-gray-600 border-gray-600 text-white shadow-lg transform scale-105'
+                : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${
+              selectedStatusFilter === 'sem-visitas' ? 'bg-white' : 'bg-gray-400'
+            }`}></div>
+            <span className="text-sm font-medium">
+              Sem Visitas ({municipios.filter(m => m.visitasRealizadas.length === 0 && m.visitasAgendadas.length === 0).length})
+            </span>
+          </button>
+        </div>
+      )}
 
              {/* Indicadores de filtros ativos */}
        {(selectedSupervisor || (selectedUF && selectedUF.trim() !== "" && selectedUF !== "default") || searchTerm || selectedStatusFilter) && (
@@ -1571,11 +1751,21 @@ const MeusMunicipiosPage = () => {
                           <TableBody>
                             {contratos.map((contrato) => (
                               <TableRow key={contrato.id}>
-                                <TableCell className="font-medium">{contrato.municipio}</TableCell>
-                                <TableCell className="text-center">{contrato.uf}</TableCell>
-                                <TableCell className="text-center font-mono text-sm">{contrato.cnpj === 'Empresa Informal' ? '-' : contrato.cnpj}</TableCell>
-                                <TableCell>{contrato.nomeLoja === 'Nome não informado' ? '-' : contrato.nomeLoja}</TableCell>
-                                <TableCell className="text-center">{contrato.dataVisita}</TableCell>
+                                <TableCell>
+                                  <div className="text-sm font-medium">{contrato.municipio}</div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div className="text-sm">{contrato.uf}</div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div className="text-sm">{contrato.cnpj === 'Empresa Informal' ? '-' : contrato.cnpj}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">{contrato.nomeLoja === 'Nome não informado' ? '-' : contrato.nomeLoja}</div>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <div className="text-sm">{contrato.dataVisita}</div>
+                                </TableCell>
                                         <TableCell className="text-center">
           {editingItems.has(contrato.id) ? (
             <Select
@@ -1629,12 +1819,18 @@ const MeusMunicipiosPage = () => {
                                   )}
                                 </TableCell>
                                 {(isManager || isCoordinator || isAdmin) && (
-                                  <TableCell>{contrato.supervisor}</TableCell>
+                                  <TableCell>
+                                    <div className="text-sm">{contrato.supervisor}</div>
+                                  </TableCell>
                                 )}
                                 {isAdmin && (
                                   <>
-                                    <TableCell>{contrato.coordenador}</TableCell>
-                                    <TableCell>{contrato.gerente}</TableCell>
+                                    <TableCell>
+                                      <div className="text-sm">{contrato.coordenador}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="text-sm">{contrato.gerente}</div>
+                                    </TableCell>
                                   </>
                                 )}
                                 <TableCell className="text-center">

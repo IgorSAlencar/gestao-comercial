@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { 
@@ -42,6 +42,24 @@ import { ptBR } from "date-fns/locale";
 import { estrategiaComercialApi } from "@/services/estrategiaComercialService";
 import { formatDate } from "@/utils/formatDate";
 import { useAuth } from "@/context/AuthContext";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  ReferenceLine,
+  Cell,
+  LabelList,
+  Line,
+} from "recharts";
 
 // Tipos específicos para Pontos Ativos
 interface DadosPontoAtivo {
@@ -209,6 +227,7 @@ const PontosAtivos: React.FC = () => {
   const [showAnaliseFiltros, setShowAnaliseFiltros] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showHierarchyColumns, setShowHierarchyColumns] = useState(false);
+  const [selectedWaterfallStep, setSelectedWaterfallStep] = useState<string | null>(null);
 
   const form = useForm<FiltrosPontosAtivos>({
     defaultValues: {
@@ -548,6 +567,105 @@ Verifique:
 
   const monthNames = getMonthNames();
 
+  // Formatação pt-BR para rótulos internos das barras
+  const formatPt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
+
+  // -------------------- Gráfico Cascata (Waterfall) - Mock --------------------
+  type WaterfallItem = {
+    key: string;
+    label: string;
+    type: "total" | "negative" | "positive" | "neutral";
+    base: number; // deslocamento invisível
+    delta: number; // altura visível
+    cumulative?: number; // acumulado pós-passo (para tooltip)
+  };
+
+  // Mock: totais e variações
+  const bradescoBlue = "#0B3B8C"; // azul institucional aproximado
+  const mesM1Total = 120; // valor inicial (M-1)
+  const variacoesNegativas = [
+    { key: "Encerrado", value: -15 },
+    { key: "Equip. Retirado", value: -8 },
+    { key: "Bloqueado", value: -12 },
+    { key: "Inoperante", value: -5 },
+  ];
+  const variacoesPositivas = [
+    { key: "Contratação", value: 18 },
+    { key: "Reativação", value: 10 },
+  ];
+
+  const waterfallData: WaterfallItem[] = useMemo(() => {
+    let data: WaterfallItem[] = [];
+    let cumulative = mesM1Total;
+
+    // Barra total inicial (M-1)
+    data.push({
+      key: "M-1",
+      label: `${monthNames.M1} (M-1)`,
+      type: "total",
+      base: 0,
+      delta: mesM1Total,
+      cumulative,
+    });
+
+    // Quedas
+    variacoesNegativas.forEach((s) => {
+      const before = cumulative;
+      const after = before + s.value; // negativo
+      const base = Math.min(before, after);
+      const delta = Math.abs(s.value);
+      cumulative = after;
+      data.push({ key: s.key, label: s.key, type: "negative", base, delta, cumulative });
+    });
+
+    // Manteve (neutra): mostra o que permaneceu após quedas (não altera acumulado)
+    const manteveValor = cumulative;
+    data.push({ key: "Manteve", label: "Manteve", type: "neutral", base: 0, delta: Math.max(0, manteveValor), cumulative });
+
+    // Ganhos
+    variacoesPositivas.forEach((s) => {
+      const before = cumulative;
+      const after = before + s.value;
+      const base = Math.min(before, after);
+      const delta = Math.abs(s.value);
+      cumulative = after;
+      data.push({ key: s.key, label: s.key, type: "positive", base, delta, cumulative });
+    });
+
+    // Total final (M0)
+    data.push({ key: "M0", label: `${monthNames.M0} (M0)`, type: "total", base: 0, delta: cumulative, cumulative });
+
+    // acrescenta campo "top" para ligar os cantos superiores
+    return data.map((d) => ({ ...d, top: d.base + d.delta } as any));
+  }, [monthNames.M1, monthNames.M0]);
+
+  const getStepColor = (item: WaterfallItem) => {
+    switch (item.type) {
+      case "negative":
+        return "#C30C3E"; // vermelho solicitado
+      case "positive":
+        return "#007770"; // verde solicitado
+      case "neutral":
+        return bradescoBlue; // azul bradesco
+      case "total":
+      default:
+        return bradescoBlue; // azul bradesco
+    }
+  };
+
+  // Drill-down (mock)
+  const dadosBloqueios = [
+    { motivo: "Inadimplência", quantidade: 7 },
+    { motivo: "Suspeita de fraude", quantidade: 3 },
+    { motivo: "Solicitação do cliente", quantidade: 5 },
+    { motivo: "Auditoria TI", quantidade: 2 },
+  ];
+
+  const dadosDiasInoperantes = Array.from({ length: 12 }).map((_, i) => ({
+    dia: `D-${11 - i}`,
+    dias: Math.max(0, Math.round(Math.sin(i / 2) * 3 + 3)),
+  }));
+
   const ComboboxFilter = ({ 
     name, 
     title, 
@@ -683,6 +801,7 @@ Verifique:
         {/* Grid Principal */}
                <div className="space-y-4">
           {/* Gráfico de Tendência - Convertendo DadosPontoAtivo para DadosLoja */}
+
                      <GraficoTendencia 
              showTendenciaCard={false}
              tipoMetrica="ativos"
@@ -750,7 +869,7 @@ Verifique:
                 <CardTitle>Quadro de Pontos Ativos</CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {/* Padrões de Comportamento */}
                <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
                  <div className="flex items-center gap-2 mb-3">
@@ -795,91 +914,6 @@ Verifique:
                              <span className="text-base font-semibold text-purple-800">{recuperacao}</span>
                            </div>
                            <div className="text-xs text-purple-500 mt-1">Padrão 0→0→1→1 (M3→M2→M1→M0)</div>
-                         </div>
-                       </>
-                     );
-                   })()}
-                 </div>
-               </div>
-
-               {/* Ações de Manutenção */}
-               <div className="bg-gradient-to-r from-orange-50 to-red-50 p-4 rounded-lg border border-orange-200">
-                 <div className="flex items-center gap-2 mb-3">
-                   <Wrench className="h-5 w-5 text-orange-600" />
-                   <span className="font-medium text-orange-800">Ações de Manutenção</span>
-                 </div>
-                 <div className="space-y-3">
-                   {(() => {
-                     // Calcular ações de manutenção baseadas nos dados reais
-                     const reativacaoUrgente = dados.filter(d => 
-                       d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 === 0 && d.mesM0 === 0
-                     ).length;
-                     
-                     const monitoramento = dados.filter(d => 
-                       d.tendencia === 'atencao' || 
-                       (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0) ||
-                       (d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
-                     ).length;
-                     
-                     const preventivo = dados.filter(d => 
-                       d.tendencia === 'queda' || 
-                       (d.mesM1 > d.mesM0 && d.mesM0 > 0) ||
-                       (d.mesM2 > d.mesM1 && d.mesM1 > d.mesM0)
-                     ).length;
-                     
-                     return (
-                       <>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 === 0 && d.mesM0 === 0
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-orange-600">Reativação Urgente</span>
-                             <span className="text-base font-semibold text-orange-800">{reativacaoUrgente}</span>
-                           </div>
-                           <div className="text-xs text-orange-500 mt-1">0→0→0→0 (4 meses inativo)</div>
-                         </div>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               d.tendencia === 'atencao' || 
-                               (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0) ||
-                               (d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-orange-600">Monitoramento</span>
-                             <span className="text-base font-semibold text-orange-800">{monitoramento}</span>
-                           </div>
-                           <div className="text-xs text-orange-500 mt-1">Padrão oscilante detectado</div>
-                         </div>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               d.tendencia === 'queda' || 
-                               (d.mesM1 > d.mesM0 && d.mesM0 > 0) ||
-                               (d.mesM2 > d.mesM1 && d.mesM1 > d.mesM0)
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-orange-600">Preventivo</span>
-                             <span className="text-base font-semibold text-orange-800">{preventivo}</span>
-                           </div>
-                           <div className="text-xs text-orange-500 mt-1">Tendência de queda</div>
                          </div>
                        </>
                      );
@@ -967,6 +1001,118 @@ Verifique:
            </CardContent>
          </Card>
 
+          {/* Gráfico em Cascata (Waterfall) */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Ativos - Cascata de Variações</CardTitle>
+                <div className="text-sm text-gray-500">Clique em "Bloqueado" para detalhar</div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{ total: { label: "Total", color: "hsl(var(--primary))" } }}
+                className="w-full h-[380px]"
+              >
+                <BarChart
+                  data={waterfallData}
+                  margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  barCategoryGap="30%"
+                >
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 12, fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  {/* Base invisível para posicionar as barras */}
+                  <Bar dataKey="base" stackId="a" fill="transparent" isAnimationActive={false} />
+                  {/* Altura visível */}
+                  <Bar
+                    dataKey="delta"
+                    stackId="a"
+                    radius={[8, 8, 8, 8]}
+                    onClick={(data: any) => {
+                      if (data?.payload?.key === "Bloqueado") setSelectedWaterfallStep("Bloqueado");
+                    }}
+                  >
+                    {waterfallData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={getStepColor(entry)} cursor={entry.key === "Bloqueado" ? "pointer" : "default"} />
+                    ))}
+                    <LabelList
+                      dataKey="delta"
+                      content={(props: any) => {
+                        const { x, y, width, height, value } = props;
+                        if (!width || !height || width <= 0 || height <= 0) return null;
+                        const cx = x + width / 2;
+                        const cy = y + height / 2;
+                        const v = typeof value === 'number' ? value : 0;
+                        return (
+                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#ffffff" style={{ fontSize: 12, fontWeight: 700 }}>
+                            {formatPt(v)}
+                          </text>
+                        );
+                      }}
+                    />
+                  </Bar>
+                  {/* Linha pontilhada ligando os topos das barras */}
+                  <Line
+                    type="linear"
+                    dataKey="top"
+                    stroke="#94a3b8"
+                    strokeDasharray="4 3"
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </BarChart>
+              </ChartContainer>
+
+              {selectedWaterfallStep === "Bloqueado" && (
+                <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <Card className="border-blue-200">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Relação de Bloqueios</CardTitle>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedWaterfallStep(null)}>Fechar</Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="w-full h-[260px]">
+                        <ResponsiveContainer>
+                          <BarChart data={dadosBloqueios} layout="vertical" margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
+                            <YAxis dataKey="motivo" type="category" width={140} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
+                            <RechartsTooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                            <Bar dataKey="quantidade" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-amber-200">
+                    <CardHeader>
+                      <CardTitle>Dias Inoperantes (Últimos 12 dias)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="w-full h-[260px]">
+                        <ResponsiveContainer>
+                          <BarChart data={dadosDiasInoperantes} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
+                            <YAxis hide />
+                            <RechartsTooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                            <Bar dataKey="dias" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
             <Card>
               <CardHeader>

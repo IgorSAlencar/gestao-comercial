@@ -895,6 +895,55 @@ export const eventCategoryApi = {
 };
 
 // API para municípios prioritários
+// User logs interface
+export interface UserLog {
+  id: string;
+  userId: string;
+  timestamp: string;
+  actionType: string;
+  ipAddress: string;
+  userAgent: string;
+  details: string;
+  status: string;
+  userName: string;
+  userFuncional: string;
+  userRole: string;
+  coordinatorName?: string;
+  coordinatorFuncional?: string;
+  managerName?: string;
+  managerFuncional?: string;
+}
+
+export interface UserLogsResponse {
+  logs: UserLog[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// User logs API
+export const userLogsApi = {
+  getLogs: async (filters: any = {}, page: number = 1, limit: number = 10): Promise<UserLogsResponse> => {
+    const token = getAuthToken();
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters,
+    });
+
+    const options = {
+      headers: {
+        "Authorization": `Bearer ${token}`,
+      },
+    };
+    
+    return await fetchWithErrorHandling(`${API_URL}/user-logs?${queryParams}`, options);
+  },
+};
+
 export const municipiosPrioritariosApi = {
   getMunicipios: async (supervisorId?: string): Promise<MunicipioPrioritario[]> => {
     const token = getAuthToken();

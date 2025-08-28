@@ -23,12 +23,26 @@ router.post('/login', async (req, res) => {
 
     // 1) Tenta autenticar via LDAP (prioritário)
     let ldapOk = false;
+    let ldapInvalidCreds = false;
     try {
       await ldapBind(ldapUser, password);
       ldapOk = true;
     } catch (ldapErr) {
       // Falha LDAP -> seguirá para fallback SQL
       ldapOk = false;
+      try {
+        const msg = String((ldapErr && (ldapErr.message || ldapErr.lde_message)) || '').toLowerCase();
+        const name = String((ldapErr && ldapErr.name) || '').toLowerCase();
+        const code = ldapErr && (ldapErr.code || ldapErr.errno);
+        if (
+          name.includes('invalid') ||
+          msg.includes('invalid credentials') ||
+          msg.includes('data 52e') || // AD: 52e = credenciais inválidas
+          code === 49 // LDAP_INVALID_CREDENTIALS
+        ) {
+          ldapInvalidCreds = true;
+        }
+      } catch (_) {}
     }
 
     if (ldapOk) {
@@ -94,12 +108,16 @@ router.post('/login', async (req, res) => {
             'LOGIN_FAILED',
             req.ip,
             req.headers['user-agent'],
-            { reason: 'Senha incorreta', method: 'SQL_FALLBACK' },
+            { reason: ldapInvalidCreds ? 'LDAP_INVALID_CREDENTIALS' : 'CREDENTIALS_INVALID', method: 'SQL_FALLBACK' },
             'FAILURE'
           );
         }
       } catch (_) {}
 
+      // Mensagem mais específica quando o LDAP indicar senha incorreta
+      if (ldapInvalidCreds) {
+        return res.status(401).json({ message: 'Senha incorreta. Não foi possível autenticar via AD.' });
+      }
       return res.status(401).json({ message: 'Funcional ou senha incorretos' });
     }
 

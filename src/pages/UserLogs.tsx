@@ -95,7 +95,8 @@ const UserLogs: React.FC = () => {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = window.sessionStorage.getItem("token");
+      console.log("🔍 [UserLogs] Token obtido:", token ? "Presente" : "Ausente");
       if (!token) throw new Error("Usuário não autenticado");
 
       const queryParams = new URLSearchParams({
@@ -104,20 +105,25 @@ const UserLogs: React.FC = () => {
         ...filters,
       });
 
-      const response = await fetch(
-        `${API_CONFIG.apiUrl}/user-logs?${queryParams}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const url = `${API_CONFIG.apiUrl}/user-logs?${queryParams}`;
+      console.log("🌐 [UserLogs] Fazendo requisição para:", url);
+      console.log("🔐 [UserLogs] Headers:", { Authorization: `Bearer ${token}` });
+      
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!response.ok) {
-        throw new Error("Falha ao carregar logs");
+        console.error("❌ [UserLogs] Erro na resposta:", response.status, response.statusText);
+        const errorText = await response.text();
+        console.error("❌ [UserLogs] Resposta do erro:", errorText);
+        throw new Error(`Falha ao carregar logs: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log("📊 [UserLogs] Dados recebidos:", data);
       
       // Garantir que todos os logs tenham as propriedades necessárias
       const logsProcessados = (data.logs || []).map((log: UserLog) => ({
@@ -147,7 +153,7 @@ const UserLogs: React.FC = () => {
 
   const fetchCoordinatorsAndManagers = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = window.sessionStorage.getItem("token");
       if (!token) return;
 
       // Buscar todos os usuários
@@ -213,7 +219,7 @@ const UserLogs: React.FC = () => {
 
   const fetchUsersWithHierarchy = async () => {
     try {
-      const token = localStorage.getItem("token");
+      const token = window.sessionStorage.getItem("token");
       if (!token) return;
 
       // Buscar uma amostra grande de logs para mapear usuários e hierarquia
@@ -395,7 +401,7 @@ const UserLogs: React.FC = () => {
   const exportToExcel = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
+      const token = window.sessionStorage.getItem("token");
       if (!token) throw new Error("Usuário não autenticado");
 
       // Buscar todos os dados filtrados (sem paginação)

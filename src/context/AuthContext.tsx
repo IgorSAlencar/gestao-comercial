@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+﻿import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, authApi, userApi } from "@/services/api";
 import { normalizeFuncional } from "@/utils/normalizeFuncional";
@@ -70,27 +70,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const lastRefreshSubordinates = React.useRef<number>(0);
   const lastRefreshAllUsers = React.useRef<number>(0);
 
-  // Inicialização do estado de autenticação
+  // InicializaÃ§Ã£o do estado de autenticaÃ§Ã£o
   useEffect(() => {
-    // Apenas finaliza a inicialização sem recuperar dados do sessionStorage
+    // Apenas finaliza a inicializaÃ§Ã£o sem recuperar dados do sessionStorage
     setIsInitializing(false);
   }, []);
 
-  // Carregar subordinados quando o usuário for autenticado
+  // Carregar subordinados quando o usuÃ¡rio for autenticado
   useEffect(() => {
     if (user && (user.role === "coordenador" || user.role === "gerente")) {
       fetchSubordinates();
     }
   }, [user]);
 
-  // Carregar superior quando o usuário for autenticado
+  // Carregar superior quando o usuÃ¡rio for autenticado
   useEffect(() => {
     if (user && user.role === "supervisor") {
       fetchSuperior();
     }
   }, [user]);
 
-  // Carregar todos os usuários se for admin
+  // Carregar todos os usuÃ¡rios se for admin
   useEffect(() => {
     if (user && user.role === "admin") {
       fetchAllUsers();
@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Erro ao carregar subordinados:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar os subordinados",
+        description: "NÃ£o foi possÃ­vel carregar os subordinados",
         variant: "destructive",
       });
       setSubordinates([]);
@@ -143,13 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Nova função para buscar todos os usuários
+  // Nova funÃ§Ã£o para buscar todos os usuÃ¡rios
   const fetchAllUsers = async () => {
     if (!user) return;
     
-    // Verificar se o usuário é admin (apenas para diagnóstico)
+    // Verificar se o usuÃ¡rio Ã© admin (apenas para diagnÃ³stico)
     if (user.role !== "admin") {
-      console.debug(`[AuthContext] Usuário não é admin (role=${user.role}), mas tentou buscar todos usuários`);
+      console.debug(`[AuthContext] UsuÃ¡rio nÃ£o Ã© admin (role=${user.role}), mas tentou buscar todos usuÃ¡rios`);
     }
     
     // Evitar chamadas duplicadas com menos de 2 segundos de intervalo
@@ -163,16 +163,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoadingAllUsers(true);
     
     try {
-      console.debug("[AuthContext] Iniciando busca de todos os usuários");
+      console.debug("[AuthContext] Iniciando busca de todos os usuÃ¡rios");
       const data = await userApi.getAllUsers();
-      console.debug(`[AuthContext] ${data.length} usuários recebidos`);
+      console.debug(`[AuthContext] ${data.length} usuÃ¡rios recebidos`);
       setAllUsers(data);
       lastRefreshAllUsers.current = Date.now();
     } catch (error) {
-      console.error("Erro ao carregar todos os usuários:", error);
+      console.error("Erro ao carregar todos os usuÃ¡rios:", error);
       toast({
         title: "Erro",
-        description: "Não foi possível carregar a lista de usuários",
+        description: "NÃ£o foi possÃ­vel carregar a lista de usuÃ¡rios",
         variant: "destructive",
       });
       setAllUsers([]);
@@ -182,12 +182,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const login = async (funcional: string, password: string) => {
+    const login = async (funcional: string, password: string) => {
     try {
       const normalized = normalizeFuncional(funcional, { maxLength: 7 });
       const { user: userData, token: authToken } = await authApi.login(normalized, password);
-      
-      //console.log(`🔐 Login bem-sucedido - User: ${userData.name}, ID: ${userData.id}, Chave: ${userData.chave}, Token: ${authToken ? 'Presente' : 'Ausente'}`);
       
       setUser(userData);
       setToken(authToken);
@@ -201,14 +199,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: `Bem-vindo(a), ${userData.name}!`,
       });
       
-      navigate("/"); // Modificado para redirecionar para a página inicial
+      navigate("/"); // Redireciona para a página inicial
     } catch (error) {
       console.error("Login error:", error);
-      // Toast já exibido pelo manipulador de erros da API
+      const message = error instanceof Error ? error.message : "Erro ao autenticar";
+      toast({
+        title: "Erro de login",
+        description: message,
+        variant: "destructive",
+      });
     }
-  };
-
-  const logout = () => {
+  };const logout = () => {
     setUser(null);
     setToken(null);
     setSubordinates([]);
@@ -222,29 +223,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate("/login");
   };
 
-  // Calcula os papéis com base no role do usuário
+  // Calcula os papÃ©is com base no role do usuÃ¡rio
   const isManager = user?.role === "gerente" || user?.role === "coordenador";
   const isCoordinator = user?.role === "coordenador";
   const isSupervisor = user?.role === "supervisor";
   const isAdmin = user?.role === "admin";
   const canSeeSubordinates = user?.role === "gerente" || user?.role === "coordenador" || user?.role === "admin";
 
-  // Nova função para buscar subordinados de qualquer usuário
+  // Nova funÃ§Ã£o para buscar subordinados de qualquer usuÃ¡rio
   const getUserSubordinates = async (userId: string): Promise<User[]> => {
     try {
       return await userApi.getUserSubordinates(userId);
     } catch (error) {
-      console.error(`Erro ao buscar subordinados do usuário ${userId}:`, error);
+      console.error(`Erro ao buscar subordinados do usuÃ¡rio ${userId}:`, error);
       return [];
     }
   };
   
-  // Nova função para buscar usuários por papel
+  // Nova funÃ§Ã£o para buscar usuÃ¡rios por papel
   const getUsersByRole = async (role: "gerente" | "coordenador" | "supervisor" | "admin"): Promise<User[]> => {
     try {
       return await userApi.getUsersByRole(role);
     } catch (error) {
-      console.error(`Erro ao buscar usuários com papel ${role}:`, error);
+      console.error(`Erro ao buscar usuÃ¡rios com papel ${role}:`, error);
       return [];
     }
   };
@@ -278,3 +279,5 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
+
+
