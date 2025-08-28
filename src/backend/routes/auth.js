@@ -4,76 +4,140 @@ const jwt = require('jsonwebtoken');
 const { sql, pool, poolConnect } = require('../config/db');
 const { JWT_SECRET, authenticateToken } = require('../middleware/auth');
 const { createUserLog } = require('./user-logs');
+const { normalizeFuncional, toLdapUserFromNumeric } = require('../utils/normalizeFuncional');
+const { ldapBind } = require('../utils/ldap');
 
 // Auth routes
 router.post('/login', async (req, res) => {
-  const { funcional, password } = req.body;
-  
+  const { funcional, password } = req.body || {};
+
+  if (!funcional || !password) {
+    return res.status(400).json({ message: 'Funcional e senha são obrigatórios' });
+  }
+
+  const normalizedFuncionalValue = normalizeFuncional(funcional, { maxLength: 7 });
+  const ldapUser = toLdapUserFromNumeric(normalizedFuncionalValue);
+
   try {
-    await poolConnect; // Ensure pool is connected
-    
-    // Get user by funcional
-    const result = await pool.request()
-      .input('funcional', sql.NVarChar, funcional)
-      .input('password', sql.NVarChar, password)
-      .query('SELECT id, name, funcional, role, email, chave FROM teste..users WHERE funcional = @funcional AND password = @password');
-    
-    if (result.recordset.length === 0) {
-      // Log tentativa falha de login
-      const failedLoginUser = await pool.request()
-        .input('funcional', sql.NVarChar, funcional)
-        .query('SELECT id FROM teste..users WHERE funcional = @funcional');
-      
-      if (failedLoginUser.recordset.length > 0) {
+    await poolConnect; // garante pool conectado
+
+    // 1) Tenta autenticar via LDAP (prioritário)
+    let ldapOk = false;
+    try {
+      await ldapBind(ldapUser, password);
+      ldapOk = true;
+    } catch (ldapErr) {
+      // Falha LDAP -> seguirá para fallback SQL
+      ldapOk = false;
+    }
+
+    if (ldapOk) {
+      // LDAP OK -> valida se usuário existe no banco
+      const byFuncional = await pool.request()
+        .input('funcional', sql.NVarChar, normalizedFuncionalValue)
+        .query('SELECT id, name, funcional, role, email, chave FROM teste..users WHERE funcional = @funcional');
+
+      if (byFuncional.recordset.length === 0) {
+        // Usuário autenticado no AD, mas não cadastrado
+        return res.status(403).json({ message: 'Usuário autenticado no AD, mas não cadastrado no sistema' });
+      }
+
+      const user = byFuncional.recordset[0];
+      const userId = user.id.toString().toUpperCase();
+
+      const token = jwt.sign(
+        { id: userId, funcional: user.funcional, role: user.role },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Log login via LDAP
+      try {
         await createUserLog(
-          failedLoginUser.recordset[0].id,
-          'LOGIN_FAILED',
+          userId,
+          'LOGIN',
           req.ip,
           req.headers['user-agent'],
-          { reason: 'Senha incorreta' },
-          'FAILURE'
+          { method: 'LDAP' },
+          'SUCCESS'
         );
-      }
-      
+      } catch (_) {}
+
+      return res.json({
+        user: {
+          id: userId,
+          name: user.name,
+          role: user.role,
+          funcional: user.funcional,
+          email: user.email,
+          chave: user.chave,
+        },
+        token,
+      });
+    }
+
+    // 2) Fallback: autenticação pelo banco (legado)
+    const byFuncAndPass = await pool.request()
+      .input('funcional', sql.NVarChar, normalizedFuncionalValue)
+      .input('password', sql.NVarChar, password)
+      .query('SELECT id, name, funcional, role, email, chave FROM teste..users WHERE funcional = @funcional AND password = @password');
+
+    if (byFuncAndPass.recordset.length === 0) {
+      // Log tentativa falha
+      try {
+        const failedUser = await pool.request()
+          .input('funcional', sql.NVarChar, normalizedFuncionalValue)
+          .query('SELECT id FROM teste..users WHERE funcional = @funcional');
+        if (failedUser.recordset.length > 0) {
+          await createUserLog(
+            failedUser.recordset[0].id,
+            'LOGIN_FAILED',
+            req.ip,
+            req.headers['user-agent'],
+            { reason: 'Senha incorreta', method: 'SQL_FALLBACK' },
+            'FAILURE'
+          );
+        }
+      } catch (_) {}
+
       return res.status(401).json({ message: 'Funcional ou senha incorretos' });
     }
-    
-    const user = result.recordset[0];
-    
-    // Ensure the ID is in the correct format
+
+    const user = byFuncAndPass.recordset[0];
     const userId = user.id.toString().toUpperCase();
-    
-    // Generate JWT token
+
     const token = jwt.sign(
       { id: userId, funcional: user.funcional, role: user.role },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
-    
-    // Log login bem-sucedido
-    await createUserLog(
-      userId,
-      'LOGIN',
-      req.ip,
-      req.headers['user-agent'],
-      { browser: req.headers['user-agent'] },
-      'SUCCESS'
-    );
-    
-    res.json({
+
+    // Log login via SQL fallback
+    try {
+      await createUserLog(
+        userId,
+        'LOGIN',
+        req.ip,
+        req.headers['user-agent'],
+        { method: 'SQL_FALLBACK' },
+        'SUCCESS'
+      );
+    } catch (_) {}
+
+    return res.json({
       user: {
         id: userId,
         name: user.name,
         role: user.role,
         funcional: user.funcional,
         email: user.email,
-        chave: user.chave
+        chave: user.chave,
       },
-      token
+      token,
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Erro ao processar o login' });
+    return res.status(500).json({ message: 'Erro ao processar o login' });
   }
 });
 

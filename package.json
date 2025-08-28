@@ -61,6 +61,7 @@
     "file-saver": "^2.0.5",
     "input-otp": "^1.2.4",
     "jsonwebtoken": "^9.0.2",
+    "ldapjs": "^3.0.7",
     "lucide-react": "^0.462.0",
     "mssql": "^11.0.1",
     "next-auth": "^4.24.11",

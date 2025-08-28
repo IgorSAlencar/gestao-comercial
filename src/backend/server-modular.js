@@ -191,7 +191,7 @@ app.use('/api/tratativas-municipios', tratativasMunicipiosRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {
-  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.15.7' : config.server.host}:${PORT}`;
+  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.15.8' : config.server.host}:${PORT}`;
   console.log(`Server running on port ${PORT}`);
   console.log(`Server accessible at ${serverUrl}`);
 }); 
