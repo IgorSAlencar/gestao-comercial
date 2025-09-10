@@ -35,6 +35,7 @@ import { useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import { format } from "date-fns";
@@ -903,101 +904,107 @@ type WaterfallItem = {
                  return (
                    <>
                      {/* Card Oscilantes */}
-                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 group">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between mb-3">
+                     <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-6">
+                         <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <BarChart3 className="h-4 w-4 text-blue-600" />
-                             <span className="text-sm font-medium text-gray-900">Oscilantes</span>
+                             <BarChart3 className="h-5 w-5 text-purple-600" />
+                             <span className="font-medium text-purple-800">Oscilantes</span>
                            </div>
+                           <TooltipProvider>
+                             <Tooltip>
+                               <TooltipTrigger asChild>
+                                 <Info className="h-4 w-4 text-purple-500 cursor-help" />
+                               </TooltipTrigger>
+                               <TooltipContent>
+                                 <div className="max-w-xs">
+                                   <p className="font-semibold mb-2">Padrão Oscilante</p>
+                                   <p className="text-sm mb-2">Pontos que alternam entre atividade e inatividade:</p>
+                                   <ul className="text-xs space-y-1">
+                                     <li>• M3→M2→M1→M0: 1→0→1→0</li>
+                                     <li>• M3→M2→M1→M0: 0→1→0→1</li>
+                                   </ul>
+                                   <p className="text-xs mt-2 text-gray-600">
+                                     Indica instabilidade na operação do ponto.
+                                   </p>
+                                 </div>
+                               </TooltipContent>
+                             </Tooltip>
+                           </TooltipProvider>
                          </div>
-                         <div className="mb-3">
-                           <div className="text-2xl font-bold text-bradesco-blue">{oscilantes}</div>
-                           <div className="text-xs text-gray-500">pontos</div>
-                         </div>
-                         {/* Legenda que aparece no hover */}
-                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
-                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão Oscilante</p>
-                           <p className="text-xs text-gray-600 mb-2">Pontos que alternam entre atividade e inatividade:</p>
-                           <ul className="text-xs text-gray-600 space-y-1">
-                             <li>• M3→M2→M1→M0: 1→0→1→0</li>
-                             <li>• M3→M2→M1→M0: 0→1→0→1</li>
-                           </ul>
-                           <p className="text-xs text-gray-500 mt-2 mb-2">
-                             Indica instabilidade na operação.
-                           </p>
-                           <div className="border-t border-gray-100 pt-2">
-                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
-                             <p className="text-xs text-gray-600">
-                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
-                             </p>
-                           </div>
+                         <div className="mt-4">
+                           <div className="text-3xl font-bold text-purple-800">{oscilantes}</div>
+                           <div className="text-sm text-purple-600 mt-1">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
 
                      {/* Card Em Queda */}
-                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 group">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between mb-3">
+                     <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-6">
+                         <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <TrendingDown className="h-4 w-4 text-blue-600" />
-                             <span className="text-sm font-medium text-gray-900">Em Queda</span>
+                             <TrendingDown className="h-5 w-5 text-red-600" />
+                             <span className="font-medium text-red-800">Em Queda</span>
                            </div>
+                           <TooltipProvider>
+                             <Tooltip>
+                               <TooltipTrigger asChild>
+                                 <Info className="h-4 w-4 text-red-500 cursor-help" />
+                               </TooltipTrigger>
+                               <TooltipContent>
+                                 <div className="max-w-xs">
+                                   <p className="font-semibold mb-2">Padrão de Queda</p>
+                                   <p className="text-sm mb-2">Pontos que perderam atividade gradualmente:</p>
+                                   <ul className="text-xs space-y-1">
+                                     <li>• M3→M2→M1→M0: 1→1→0→0</li>
+                                   </ul>
+                                   <p className="text-xs mt-2 text-gray-600">
+                                     Indica declínio progressivo na operação.
+                                   </p>
+                                 </div>
+                               </TooltipContent>
+                             </Tooltip>
+                           </TooltipProvider>
                          </div>
-                         <div className="mb-3">
-                           <div className="text-2xl font-bold text-gray-900">{emQueda}</div>
-                           <div className="text-xs text-gray-500">pontos</div>
-                         </div>
-                         {/* Legenda que aparece no hover */}
-                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
-                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão de Queda</p>
-                           <p className="text-xs text-gray-600 mb-2">Pontos que perderam atividade gradualmente:</p>
-                           <ul className="text-xs text-gray-600 space-y-1">
-                             <li>• M3→M2→M1→M0: 1→1→0→0</li>
-                           </ul>
-                           <p className="text-xs text-gray-500 mt-2 mb-2">
-                             Indica declínio progressivo na operação.
-                           </p>
-                           <div className="border-t border-gray-100 pt-2">
-                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
-                             <p className="text-xs text-gray-600">
-                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
-                             </p>
-                           </div>
+                         <div className="mt-4">
+                           <div className="text-3xl font-bold text-red-800">{emQueda}</div>
+                           <div className="text-sm text-red-600 mt-1">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
 
                      {/* Card Recuperação */}
-                     <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300 group">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between mb-3">
+                     <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-6">
+                         <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <TrendingUp className="h-4 w-4 text-green-600" />
-                             <span className="text-sm font-medium text-gray-900">Recuperação</span>
+                             <TrendingUp className="h-5 w-5 text-green-600" />
+                             <span className="font-medium text-green-800">Recuperação</span>
                            </div>
+                           <TooltipProvider>
+                             <Tooltip>
+                               <TooltipTrigger asChild>
+                                 <Info className="h-4 w-4 text-green-500 cursor-help" />
+                               </TooltipTrigger>
+                               <TooltipContent>
+                                 <div className="max-w-xs">
+                                   <p className="font-semibold mb-2">Padrão de Recuperação</p>
+                                   <p className="text-sm mb-2">Pontos que recuperaram atividade:</p>
+                                   <ul className="text-xs space-y-1">
+                                     <li>• M3→M2→M1→M0: 0→0→1→1</li>
+                                   </ul>
+                                   <p className="text-xs mt-2 text-gray-600">
+                                     Indica retomada positiva da operação.
+                                   </p>
+                                 </div>
+                               </TooltipContent>
+                             </Tooltip>
+                           </TooltipProvider>
                          </div>
-                         <div className="mb-3">
-                           <div className="text-2xl font-bold text-gray-900">{recuperacao}</div>
-                           <div className="text-xs text-gray-500">pontos</div>
-                         </div>
-                         {/* Legenda que aparece no hover */}
-                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
-                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão de Recuperação</p>
-                           <p className="text-xs text-gray-600 mb-2">Pontos que recuperaram atividade:</p>
-                           <ul className="text-xs text-gray-600 space-y-1">
-                             <li>• M3→M2→M1→M0: 0→0→1→1</li>
-                           </ul>
-                           <p className="text-xs text-gray-500 mt-2 mb-2">
-                             Indica retomada positiva da operação.
-                           </p>
-                           <div className="border-t border-gray-100 pt-2">
-                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
-                             <p className="text-xs text-gray-600">
-                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
-                             </p>
-                           </div>
+                         <div className="mt-4">
+                           <div className="text-3xl font-bold text-green-800">{recuperacao}</div>
+                           <div className="text-sm text-green-600 mt-1">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
