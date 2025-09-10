@@ -5,6 +5,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const os = require('os');
 
 // Importar módulos
 const config = require('./config/config');
@@ -191,7 +192,19 @@ app.use('/api/tratativas-municipios', tratativasMunicipiosRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {
-  const serverUrl = `http://${config.server.host === '0.0.0.0' ? '192.168.15.8' : config.server.host}:${PORT}`;
+  const isWildcard = config.server.host === '0.0.0.0' || config.server.host === '::';
+  let displayHost = config.server.host;
+  if (isWildcard) {
+    displayHost = process.env.HOST;
+    if (!displayHost) {
+      // Try to auto-detect a non-internal IPv4 address for convenience in logs
+      const iface = Object.values(os.networkInterfaces())
+        .flat()
+        .find((i) => i && i.family === 'IPv4' && !i.internal)?.address;
+      displayHost = iface || 'localhost';
+    }
+  }
+  const serverUrl = `http://${displayHost}:${PORT}`;
   console.log(`Server running on port ${PORT}`);
   console.log(`Server accessible at ${serverUrl}`);
-}); 
+});

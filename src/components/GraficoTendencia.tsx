@@ -313,9 +313,10 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
               </div>
             </div>
 
-            {/* Performance Atual */}
-            <div className="h-full">
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200 h-full flex flex-col">
+            {/* Performance Atual - Não exibir para pontos ativos */}
+            {tipoMetrica !== 'ativos' && (
+              <div className="h-full">
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Target className="h-5 w-5 text-green-600" />
@@ -365,6 +366,7 @@ const GraficoTendencia: React.FC<GraficoTendenciaProps> = ({
                 </div>
               </div>
             </div>
+            )}
           </div>
         </CardContent>
       </Card>

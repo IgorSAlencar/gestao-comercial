@@ -776,4 +776,216 @@ router.get('/:produto/metricas-gerenciais', authenticateToken, async (req, res) 
   }
 });
 
+// Endpoint específico para dados da cascata de pontos ativos
+router.get('/pontos-ativos/cascata', authenticateToken, async (req, res) => {
+  try {
+    await poolConnect;
+    
+    // Buscar dados do usuário autenticado
+    const userResult = await pool.request()
+      .input('userId', sql.UniqueIdentifier, req.userId)
+      .query('SELECT chave, role FROM TESTE..users WHERE id = @userId');
+    
+    if (userResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Usuário não encontrado' });
+    }
+    
+    const { chave: userChave, role: userRole } = userResult.recordset[0];
+    
+    if (!userChave && userRole !== 'admin') {
+      return res.status(403).json({ 
+        message: `Usuário ${userRole} não possui chave de hierarquia definida.`,
+        details: {
+          userId: req.userId,
+          userRole: userRole,
+          userChave: userChave
+        }
+      });
+    }
+    
+    const hierarchyFilter = getHierarchyFilter(userRole, userChave);
+    
+    // Query para perdas (MES_M1 = 1 AND MES_M0 = 0)
+    const perdasQuery = `
+      SELECT 
+        a.CATEGORIA,
+        COUNT(*) as QUANTIDADE
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      WHERE a.MES_M1 = 1 AND a.MES_M0 = 0
+      ${hierarchyFilter.replace('WHERE', 'AND')}
+      GROUP BY a.CATEGORIA
+      ORDER BY a.CATEGORIA
+    `;
+
+    // Query para ganhos (CONTRATAÇÃO e REATIVAÇÃO)
+    const ganhosQuery = `
+      SELECT 
+        a.CATEGORIA,
+        COUNT(*) as QUANTIDADE
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      WHERE a.CATEGORIA IN ('CONTRATAÇÃO', 'REATIVAÇÃO')
+      ${hierarchyFilter.replace('WHERE', 'AND')}
+      GROUP BY a.CATEGORIA
+      ORDER BY a.CATEGORIA
+    `;
+
+    // Query para mantidos (MANTEVE)
+    const mantidosQuery = `
+      SELECT 
+        a.CATEGORIA,
+        COUNT(*) as QUANTIDADE
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      WHERE a.CATEGORIA = 'MANTEVE'
+      ${hierarchyFilter.replace('WHERE', 'AND')}
+      GROUP BY a.CATEGORIA
+      ORDER BY a.CATEGORIA
+    `;
+    
+    // Query para totais M1 e M0
+    // Soma todos os pontos para calcular totais corretos
+    const totaisQuery = `
+      SELECT 
+        SUM(ISNULL(a.MES_M1, 0)) as TOTAL_M1,
+        SUM(ISNULL(a.MES_M0, 0)) as TOTAL_M0,
+        COUNT(*) as TOTAL_LOJAS
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      ${hierarchyFilter}
+    `;
+    
+    // Query para detalhes de bloqueios (drill-down)
+    const bloqueiosQuery = `
+      SELECT 
+        l.MOTIVO_BLOQUEIO as MOTIVO,
+        COUNT(*) as QUANTIDADE
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      WHERE a.CATEGORIA = 'BLOQUEADO'
+        AND a.MES_M1 = 1 AND a.MES_M0 = 0
+      ${hierarchyFilter.replace('WHERE', 'AND')}
+      GROUP BY l.MOTIVO_BLOQUEIO
+      ORDER BY COUNT(*) DESC
+    `;
+    
+    // Query para dias inoperantes usando a coluna DIAS_INOPERANTES
+    // Critérios: CATEGORIA = 'INOPERANTE' AND MES_M1 = 1 AND MES_M0 = 0
+    const diasInoperantesQuery = `
+      SELECT 
+        a.DIAS_INOPERANTES as DIAS,
+        COUNT(*) as QUANTIDADE
+      FROM DATAWAREHOUSE..TB_ESTR_ATIVO a
+      LEFT JOIN DATAWAREHOUSE..TB_ESTR_LOJAS l ON l.CHAVE_LOJA = a.CHAVE_LOJA
+      WHERE a.CATEGORIA = 'INOPERANTE'
+        AND a.MES_M1 = 1
+        AND a.MES_M0 = 0
+        AND a.DIAS_INOPERANTES IS NOT NULL
+        AND a.DIAS_INOPERANTES > 0
+      ${hierarchyFilter.replace('WHERE', 'AND')}
+      GROUP BY a.DIAS_INOPERANTES
+      ORDER BY a.DIAS_INOPERANTES ASC
+    `;
+    
+    // Executar todas as queries
+    const [perdasResult, ganhosResult, mantidosResult, totaisResult, bloqueiosResult, diasResult] = await Promise.all([
+      pool.request().query(perdasQuery),
+      pool.request().query(ganhosQuery),
+      pool.request().query(mantidosQuery),
+      pool.request().query(totaisQuery),
+      pool.request().query(bloqueiosQuery),
+      pool.request().query(diasInoperantesQuery)
+    ]);
+    
+    const totais = totaisResult.recordset[0];
+    const perdas = perdasResult.recordset;
+    const ganhos = ganhosResult.recordset;
+    const mantidos = mantidosResult.recordset;
+    const bloqueios = bloqueiosResult.recordset;
+    const diasInoperantes = diasResult.recordset;
+    
+    // Processar dados da cascata
+    const totalM1 = totais.TOTAL_M1 || 0;
+    const totalM0 = totais.TOTAL_M0 || 0;
+    
+    // Processar perdas (MES_M1 = 1 AND MES_M0 = 0)
+    const variacoesNegativas = [];
+    perdas.forEach(cat => {
+      const quantidade = cat.QUANTIDADE || 0;
+      
+      switch(cat.CATEGORIA) {
+        case 'ENCERRADO':
+          variacoesNegativas.push({ key: 'Encerrado', value: -quantidade });
+          break;
+        case 'EQUIP_RETIRADA':
+          variacoesNegativas.push({ key: 'Equip. Retirado', value: -quantidade });
+          break;
+        case 'BLOQUEADO':
+          variacoesNegativas.push({ key: 'Bloqueado', value: -quantidade });
+          break;
+        case 'INOPERANTE':
+          variacoesNegativas.push({ key: 'Inoperante', value: -quantidade });
+          break;
+      }
+    });
+    
+    // Processar ganhos (CONTRATAÇÃO e REATIVAÇÃO)
+    const variacoesPositivas = [];
+    ganhos.forEach(cat => {
+      const quantidade = cat.QUANTIDADE || 0;
+      
+      switch(cat.CATEGORIA) {
+        case 'CONTRATAÇÃO':
+          variacoesPositivas.push({ key: 'Contratação', value: quantidade });
+          break;
+        case 'REATIVAÇÃO':
+          variacoesPositivas.push({ key: 'Reativação', value: quantidade });
+          break;
+      }
+    });
+    
+    // Processar mantidos (MANTEVE)
+    let manteve = 0;
+    mantidos.forEach(cat => {
+      if (cat.CATEGORIA === 'MANTEVE') {
+        manteve = cat.QUANTIDADE || 0;
+      }
+    });
+    
+    // O valor "Manteve" já vem correto da categoria MANTEVE
+    // Não precisa calcular diferença matemática
+    
+    // Formatar dados de bloqueios
+    const dadosBloqueios = bloqueios.map(b => ({
+      motivo: b.MOTIVO || 'Não informado',
+      quantidade: b.QUANTIDADE || 0
+    }));
+    
+    // Formatar dados de dias inoperantes
+    const dadosDiasInoperantes = diasInoperantes.map(d => ({
+      dias: d.DIAS || 0,
+      quantidade: d.QUANTIDADE || 0
+    }));
+    
+    // Se não há dados, criar array vazio (não mostrar dados fictícios)
+    // O gráfico mostrará "Nenhum dado encontrado" se estiver vazio
+    
+    res.json({
+      totalM1,
+      totalM0,
+      variacoesNegativas,
+      variacoesPositivas,
+      manteve: manteve,
+      dadosBloqueios,
+      dadosDiasInoperantes,
+      totalLojas: totais.TOTAL_LOJAS || 0
+    });
+    
+  } catch (error) {
+    console.error('Erro ao buscar dados da cascata:', error);
+    res.status(500).json({ message: 'Erro ao buscar dados da cascata' });
+  }
+});
+
 module.exports = router; 

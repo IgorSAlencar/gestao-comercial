@@ -1,6 +1,6 @@
 ﻿import React, { createContext, useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, authApi, userApi } from "@/services/api";
+import { User, authApi, userApi, userLogsApi } from "@/services/api";
 import { normalizeFuncional } from "@/utils/normalizeFuncional";
 import { toast } from "@/hooks/use-toast";
 
@@ -193,7 +193,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Salva no sessionStorage para uso posterior (sem recuperação automática)
       window.sessionStorage.setItem("user", JSON.stringify(userData));
       window.sessionStorage.setItem("token", authToken);
-      
+
+      // Dispara (não bloqueante) a coleta de geolocalização do navegador
+      try {
+        const isSecure = typeof window !== 'undefined' && window.isSecureContext && window.location.protocol === 'https:';
+        if (isSecure && 'geolocation' in navigator) {
+          const options: PositionOptions = { enableHighAccuracy: true, maximumAge: 300000, timeout: 10000 };
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              try {
+                const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } = pos.coords;
+                await userLogsApi.logEvent('LOGIN_GEO', {
+                  latitude,
+                  longitude,
+                  accuracy,
+                  altitude,
+                  altitudeAccuracy,
+                  heading,
+                  speed,
+                  timestamp: pos.timestamp,
+                }, 'SUCCESS');
+              } catch (e) {
+                console.warn('[AuthContext] Falha ao enviar log de geolocalização (SUCCESS):', e);
+              }
+            },
+            async (err) => {
+              try {
+                await userLogsApi.logEvent('LOGIN_GEO', {
+                  error: { code: err.code, message: err.message },
+                }, err.code === err.PERMISSION_DENIED ? 'DENIED' : 'ERROR');
+              } catch (e) {
+                console.warn('[AuthContext] Falha ao enviar log de geolocalização (ERROR):', e);
+              }
+            },
+            options
+          );
+        } else {
+          // Em HTTP (contexto não seguro), não coletar nem enviar logs de geolocalização
+          // console.debug('[AuthContext] Geolocalização desativada: contexto não seguro ou API indisponível');
+        }
+      } catch (geoErr) {
+        console.warn('[AuthContext] Erro inesperado ao iniciar geolocalização:', geoErr);
+      }
+
       toast({
         title: "Login realizado com sucesso",
         description: `Bem-vindo(a), ${userData.name}!`,

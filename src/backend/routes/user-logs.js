@@ -26,6 +26,30 @@ const createUserLog = async (userId, actionType, ipAddress, userAgent, details, 
   }
 };
 
+// Rota para criar log do lado do cliente (requer autenticação)
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { actionType, details, status } = req.body || {};
+    if (!actionType || typeof actionType !== 'string') {
+      return res.status(400).json({ message: 'actionType é obrigatório' });
+    }
+
+    await createUserLog(
+      req.user.id,
+      actionType,
+      req.ip,
+      req.headers['user-agent'],
+      details || {},
+      status || 'INFO'
+    );
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('Erro ao criar log do cliente:', error);
+    return res.status(500).json({ message: 'Erro ao criar log' });
+  }
+});
+
 // Rota para buscar logs (requer autenticação e permissão de admin)
 router.get('/', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin' && req.user.role !== 'gerente' && req.user.role !== 'coordenador') {

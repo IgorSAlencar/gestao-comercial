@@ -942,6 +942,21 @@ export const userLogsApi = {
     
     return await fetchWithErrorHandling(`${API_URL}/user-logs?${queryParams}`, options);
   },
+  logEvent: async (actionType: string, details: any = {}, status: string = 'INFO'): Promise<{ ok: boolean }> => {
+    const token = getAuthToken();
+    if (!token) throw new Error("Usuário não autenticado");
+
+    const options = {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ actionType, details, status }),
+    };
+
+    return await fetchWithErrorHandling(`${API_URL}/user-logs`, options);
+  },
 };
 
 export const municipiosPrioritariosApi = {
@@ -1131,4 +1146,3 @@ export const tratativasMunicipiosApi = {
     }
   }
 };
-

@@ -113,6 +113,17 @@ export interface MetricasGerenciaisResponse {
   }[];
 }
 
+export interface CascataResponse {
+  totalM1: number;
+  totalM0: number;
+  variacoesNegativas: Array<{ key: string; value: number }>;
+  variacoesPositivas: Array<{ key: string; value: number }>;
+  manteve: number;
+  dadosBloqueios: Array<{ motivo: string; quantidade: number }>;
+  dadosDiasInoperantes: Array<{ dia: string; dias: number }>;
+  totalLojas: number;
+}
+
 // Função auxiliar para tratar erros da API
 const handleApiError = (error: any): string => {
   if (error.response) {
@@ -274,6 +285,35 @@ export const estrategiaComercialApi = {
     } catch (error) {
       const errorMessage = handleApiError(error);
       console.error(`Erro ao buscar dados de ${produto}:`, error);
+      throw new Error(errorMessage);
+    }
+  },
+
+  /**
+   * Busca dados da cascata de pontos ativos
+   */
+  getCascataPontosAtivos: async (): Promise<CascataResponse> => {
+    const token = getAuthToken();
+    if (!token) throw new Error("Usuário não autenticado");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/estrategia/pontos-ativos/cascata`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Erro ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      const errorMessage = handleApiError(error);
+      console.error('Erro ao buscar dados da cascata:', error);
       throw new Error(errorMessage);
     }
   },

@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { estrategiaComercialApi } from "@/services/estrategiaComercialService";
+import { estrategiaComercialApi, CascataResponse } from "@/services/estrategiaComercialService";
 import { formatDate } from "@/utils/formatDate";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -370,6 +370,7 @@ Verifique:
   // UseEffect para carregar dados
   useEffect(() => {
     loadPontosAtivos();
+    carregarDadosCascata();
   }, [user]);
 
   const handleVoltar = () => {
@@ -571,73 +572,96 @@ Verifique:
   const formatPt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
 
   // -------------------- Gráfico Cascata (Waterfall) - Mock --------------------
-  type WaterfallItem = {
-    key: string;
-    label: string;
-    type: "total" | "negative" | "positive" | "neutral";
-    base: number; // deslocamento invisível
-    delta: number; // altura visível
-    cumulative?: number; // acumulado pós-passo (para tooltip)
+type WaterfallItem = {
+  key: string;
+  label: string;
+  type: "total" | "negative" | "positive" | "neutral";
+  valor: number; // deslocamento invisível
+  acumulado: number; // altura visível
+  cumulative?: number; // acumulado pós-passo (para tooltip)
+};
+
+  // Estados para dados da cascata
+  const [cascataData, setCascataData] = useState<CascataResponse | null>(null);
+  const [loadingCascata, setLoadingCascata] = useState(false);
+  const [errorCascata, setErrorCascata] = useState<string | null>(null);
+
+  // Função para carregar dados da cascata
+  const carregarDadosCascata = async () => {
+    setLoadingCascata(true);
+    setErrorCascata(null);
+    
+    try {
+      const dados = await estrategiaComercialApi.getCascataPontosAtivos();
+      setCascataData(dados);
+    } catch (error) {
+      console.error('Erro ao carregar dados da cascata:', error);
+      setErrorCascata(error instanceof Error ? error.message : 'Erro ao carregar dados da cascata');
+    } finally {
+      setLoadingCascata(false);
+    }
   };
 
-  // Mock: totais e variações
+  // Cores da cascata
   const bradescoBlue = "#0B3B8C"; // azul institucional aproximado
-  const mesM1Total = 120; // valor inicial (M-1)
-  const variacoesNegativas = [
-    { key: "Encerrado", value: -15 },
-    { key: "Equip. Retirado", value: -8 },
-    { key: "Bloqueado", value: -12 },
-    { key: "Inoperante", value: -5 },
-  ];
-  const variacoesPositivas = [
-    { key: "Contratação", value: 18 },
-    { key: "Reativação", value: 10 },
-  ];
 
   const waterfallData: WaterfallItem[] = useMemo(() => {
+    if (!cascataData) {
+      // Dados padrão enquanto carrega
+      return [{
+        key: "M-1",
+        label: `${monthNames.M1} (M-1)`,
+        type: "total",
+        base: 0,
+        delta: 0,
+        cumulative: 0,
+        top: 0
+      }];
+    }
+
     let data: WaterfallItem[] = [];
-    let cumulative = mesM1Total;
+    let cumulative = cascataData.totalM1;
 
     // Barra total inicial (M-1)
     data.push({
       key: "M-1",
       label: `${monthNames.M1} (M-1)`,
       type: "total",
-      base: 0,
-      delta: mesM1Total,
+      valor: 0,
+      acumulado: cascataData.totalM1,
       cumulative,
     });
 
     // Quedas
-    variacoesNegativas.forEach((s) => {
+    cascataData.variacoesNegativas.forEach((s) => {
       const before = cumulative;
       const after = before + s.value; // negativo
-      const base = Math.min(before, after);
-      const delta = Math.abs(s.value);
+      const valor = Math.min(before, after);
+      const acumulado = Math.abs(s.value);
       cumulative = after;
-      data.push({ key: s.key, label: s.key, type: "negative", base, delta, cumulative });
+      data.push({ key: s.key, label: s.key, type: "negative", valor, acumulado, cumulative });
     });
 
     // Manteve (neutra): mostra o que permaneceu após quedas (não altera acumulado)
-    const manteveValor = cumulative;
-    data.push({ key: "Manteve", label: "Manteve", type: "neutral", base: 0, delta: Math.max(0, manteveValor), cumulative });
+    const manteveValor = cascataData.manteve;
+    data.push({ key: "Manteve", label: "Manteve", type: "neutral", valor: 0, acumulado: Math.max(0, manteveValor), cumulative });
 
     // Ganhos
-    variacoesPositivas.forEach((s) => {
+    cascataData.variacoesPositivas.forEach((s) => {
       const before = cumulative;
       const after = before + s.value;
-      const base = Math.min(before, after);
-      const delta = Math.abs(s.value);
+      const valor = Math.min(before, after);
+      const acumulado = Math.abs(s.value);
       cumulative = after;
-      data.push({ key: s.key, label: s.key, type: "positive", base, delta, cumulative });
+      data.push({ key: s.key, label: s.key, type: "positive", valor, acumulado, cumulative });
     });
 
     // Total final (M0)
-    data.push({ key: "M0", label: `${monthNames.M0} (M0)`, type: "total", base: 0, delta: cumulative, cumulative });
+    data.push({ key: "M0", label: `${monthNames.M0} (M0)`, type: "total", valor: 0, acumulado: cascataData.totalM0, cumulative: cascataData.totalM0 });
 
     // acrescenta campo "top" para ligar os cantos superiores
-    return data.map((d) => ({ ...d, top: d.base + d.delta } as any));
-  }, [monthNames.M1, monthNames.M0]);
+    return data.map((d) => ({ ...d, top: d.valor + d.acumulado } as any));
+  }, [cascataData, monthNames.M1, monthNames.M0]);
 
   const getStepColor = (item: WaterfallItem) => {
     switch (item.type) {
@@ -653,18 +677,9 @@ Verifique:
     }
   };
 
-  // Drill-down (mock)
-  const dadosBloqueios = [
-    { motivo: "Inadimplência", quantidade: 7 },
-    { motivo: "Suspeita de fraude", quantidade: 3 },
-    { motivo: "Solicitação do cliente", quantidade: 5 },
-    { motivo: "Auditoria TI", quantidade: 2 },
-  ];
-
-  const dadosDiasInoperantes = Array.from({ length: 12 }).map((_, i) => ({
-    dia: `D-${11 - i}`,
-    dias: Math.max(0, Math.round(Math.sin(i / 2) * 3 + 3)),
-  }));
+  // Drill-down com dados reais
+  const dadosBloqueios = cascataData?.dadosBloqueios || [];
+  const dadosDiasInoperantes = cascataData?.dadosDiasInoperantes || [];
 
   const ComboboxFilter = ({ 
     name, 
@@ -869,205 +884,334 @@ Verifique:
                 <CardTitle>Quadro de Pontos Ativos</CardTitle>
            </CardHeader>
            <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {/* Padrões de Comportamento */}
-               <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
-                 <div className="flex items-center gap-2 mb-3">
-                   <BarChart3 className="h-5 w-5 text-purple-600" />
-                   <span className="font-medium text-purple-800">Padrões de Comportamento</span>
-                 </div>
-                 <div className="space-y-3">
-                   {(() => {
-                     // Calcular padrões baseados nos dados reais
-                     const oscilantes = dados.filter(d => 
-                       (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 === 0) ||
-                       (d.mesM3 === 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
-                     ).length;
-                     
-                     const emQueda = dados.filter(d => 
-                       d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 === 0
-                     ).length;
-                     
-                     const recuperacao = dados.filter(d => 
-                       d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 > 0
-                     ).length;
-                     
-                     return (
-                       <>
-                         <div className="bg-white p-3 rounded-lg border border-purple-100">
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-purple-600">Oscilantes</span>
-                             <span className="text-base font-semibold text-purple-800">{oscilantes}</span>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               {(() => {
+                 // Calcular padrões baseados nos dados reais
+                 const oscilantes = dados.filter(d => 
+                   (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 === 0) ||
+                   (d.mesM3 === 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
+                 ).length;
+                 
+                 const emQueda = dados.filter(d => 
+                   d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 === 0
+                 ).length;
+                 
+                 const recuperacao = dados.filter(d => 
+                   d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 > 0
+                 ).length;
+                 
+                 return (
+                   <>
+                     {/* Card Oscilantes */}
+                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 group">
+                       <CardContent className="p-4">
+                         <div className="flex items-center justify-between mb-3">
+                           <div className="flex items-center gap-2">
+                             <BarChart3 className="h-4 w-4 text-blue-600" />
+                             <span className="text-sm font-medium text-gray-900">Oscilantes</span>
                            </div>
-                           <div className="text-xs text-purple-500 mt-1">Padrão 1→0→1→0 ou 0→1→0→1</div>
                          </div>
-                         <div className="bg-white p-3 rounded-lg border border-purple-100">
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-purple-600">Em Queda</span>
-                             <span className="text-base font-semibold text-purple-800">{emQueda}</span>
+                         <div className="mb-3">
+                           <div className="text-2xl font-bold text-bradesco-blue">{oscilantes}</div>
+                           <div className="text-xs text-gray-500">pontos</div>
+                         </div>
+                         {/* Legenda que aparece no hover */}
+                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
+                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão Oscilante</p>
+                           <p className="text-xs text-gray-600 mb-2">Pontos que alternam entre atividade e inatividade:</p>
+                           <ul className="text-xs text-gray-600 space-y-1">
+                             <li>• M3→M2→M1→M0: 1→0→1→0</li>
+                             <li>• M3→M2→M1→M0: 0→1→0→1</li>
+                           </ul>
+                           <p className="text-xs text-gray-500 mt-2 mb-2">
+                             Indica instabilidade na operação.
+                           </p>
+                           <div className="border-t border-gray-100 pt-2">
+                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
+                             <p className="text-xs text-gray-600">
+                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
+                             </p>
                            </div>
-                           <div className="text-xs text-purple-500 mt-1">Padrão 1→1→0→0 (M3→M2→M1→M0)</div>
                          </div>
-                         <div className="bg-white p-3 rounded-lg border border-purple-100">
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-purple-600">Recuperação</span>
-                             <span className="text-base font-semibold text-purple-800">{recuperacao}</span>
-                           </div>
-                           <div className="text-xs text-purple-500 mt-1">Padrão 0→0→1→1 (M3→M2→M1→M0)</div>
-                         </div>
-                       </>
-                     );
-                   })()}
-                 </div>
-               </div>
+                       </CardContent>
+                     </Card>
 
-               {/* Indicadores de Saúde */}
-               <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">
-                 <div className="flex items-center gap-2 mb-3">
-                   <Heart className="h-5 w-5 text-green-600" />
-                   <span className="font-medium text-green-800">Saúde dos Pontos</span>
-                 </div>
-                 <div className="space-y-3">
-                   {(() => {
-                     // Calcular indicadores de saúde baseados nos dados reais
-                     const saudaveis = dados.filter(d => 
-                       d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 > 0 && d.mesM0 > 0
-                     ).length;
-                     
-                     const recuperados = dados.filter(d => 
-                       (d.mesM2 === 0 || d.mesM1 === 0) && d.mesM0 > 0 && d.situacao === 'ativa'
-                     ).length;
-                     
-                     const estaveis = dados.filter(d => 
-                       d.tendencia === 'estavel' && d.mesM0 > 0
-                     ).length;
-                     
-                     return (
-                       <>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 > 0 && d.mesM0 > 0
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-green-600">Saudáveis</span>
-                             <span className="text-base font-semibold text-green-800">{saudaveis}</span>
+                     {/* Card Em Queda */}
+                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300 group">
+                       <CardContent className="p-4">
+                         <div className="flex items-center justify-between mb-3">
+                           <div className="flex items-center gap-2">
+                             <TrendingDown className="h-4 w-4 text-blue-600" />
+                             <span className="text-sm font-medium text-gray-900">Em Queda</span>
                            </div>
-                           <div className="text-xs text-green-500 mt-1">Ativos 4 meses consecutivos</div>
                          </div>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               (d.mesM2 === 0 || d.mesM1 === 0) && d.mesM0 > 0 && d.situacao === 'ativa'
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-green-600">Recuperados</span>
-                             <span className="text-base font-semibold text-green-800">{recuperados}</span>
+                         <div className="mb-3">
+                           <div className="text-2xl font-bold text-gray-900">{emQueda}</div>
+                           <div className="text-xs text-gray-500">pontos</div>
+                         </div>
+                         {/* Legenda que aparece no hover */}
+                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
+                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão de Queda</p>
+                           <p className="text-xs text-gray-600 mb-2">Pontos que perderam atividade gradualmente:</p>
+                           <ul className="text-xs text-gray-600 space-y-1">
+                             <li>• M3→M2→M1→M0: 1→1→0→0</li>
+                           </ul>
+                           <p className="text-xs text-gray-500 mt-2 mb-2">
+                             Indica declínio progressivo na operação.
+                           </p>
+                           <div className="border-t border-gray-100 pt-2">
+                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
+                             <p className="text-xs text-gray-600">
+                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
+                             </p>
                            </div>
-                           <div className="text-xs text-green-500 mt-1">Retornaram à atividade</div>
                          </div>
-                         <div 
-                           className="bg-white p-3 rounded-lg border border-green-100 cursor-pointer hover:bg-green-50 transition-colors"
-                           onClick={() => {
-                             const filtrados = dados.filter(d => 
-                               d.tendencia === 'estavel' && d.mesM0 > 0
-                             );
-                             setDadosFiltrados(filtrados);
-                             setCurrentPage(1);
-                           }}
-                         >
-                           <div className="flex justify-between items-center">
-                             <span className="text-sm text-green-600">Estáveis</span>
-                             <span className="text-base font-semibold text-green-800">{estaveis}</span>
+                       </CardContent>
+                     </Card>
+
+                     {/* Card Recuperação */}
+                     <Card className="bg-gradient-to-br from-green-50 to-white border-green-200 shadow-sm hover:shadow-md transition-all duration-300 group">
+                       <CardContent className="p-4">
+                         <div className="flex items-center justify-between mb-3">
+                           <div className="flex items-center gap-2">
+                             <TrendingUp className="h-4 w-4 text-green-600" />
+                             <span className="text-sm font-medium text-gray-900">Recuperação</span>
                            </div>
-                           <div className="text-xs text-green-500 mt-1">Produção consistente</div>
                          </div>
-                       </>
-                     );
-                   })()}
-                 </div>
-               </div>
-             </div>
+                         <div className="mb-3">
+                           <div className="text-2xl font-bold text-gray-900">{recuperacao}</div>
+                           <div className="text-xs text-gray-500">pontos</div>
+                         </div>
+                         {/* Legenda que aparece no hover */}
+                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white border border-gray-200 rounded-lg p-3 shadow-lg absolute z-10 mt-2 w-72">
+                           <p className="text-xs font-semibold text-gray-800 mb-1">Padrão de Recuperação</p>
+                           <p className="text-xs text-gray-600 mb-2">Pontos que recuperaram atividade:</p>
+                           <ul className="text-xs text-gray-600 space-y-1">
+                             <li>• M3→M2→M1→M0: 0→0→1→1</li>
+                           </ul>
+                           <p className="text-xs text-gray-500 mt-2 mb-2">
+                             Indica retomada positiva da operação.
+                           </p>
+                           <div className="border-t border-gray-100 pt-2">
+                             <p className="text-xs font-medium text-gray-700 mb-1">Regra de Negócio:</p>
+                             <p className="text-xs text-gray-600">
+                               Análise da sequência de atividade nos últimos 4 meses, onde 1 = ponto ativo e 0 = ponto inativo.
+                             </p>
+                           </div>
+                         </div>
+                       </CardContent>
+                     </Card>
+                   </>
+                 );
+               })()}
+</div>
            </CardContent>
          </Card>
-
+<br />
           {/* Gráfico em Cascata (Waterfall) */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Ativos - Cascata de Variações</CardTitle>
-                <div className="text-sm text-gray-500">Clique em "Bloqueado" para detalhar</div>
+                <div>
+                  <CardTitle className="text-lg font-semibold text-gray-800">
+                    Cascata de Ativos
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Evolução dos pontos ativos entre {monthNames.M1} e {monthNames.M0}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-md">
+                    <span className="font-medium">💡 Dica:</span> Clique em "Bloqueado" para detalhar
+                  </div>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              <ChartContainer
-                config={{ total: { label: "Total", color: "hsl(var(--primary))" } }}
-                className="w-full h-[380px]"
-              >
-                <BarChart
-                  data={waterfallData}
-                  margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                  barCategoryGap="30%"
+              {loadingCascata ? (
+                <div className="w-full h-[380px] flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-600">Carregando dados da cascata...</p>
+                  </div>
+                </div>
+              ) : errorCascata ? (
+                <div className="w-full h-[380px] flex items-center justify-center">
+                  <div className="text-center">
+                    <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-sm text-red-600 mb-2">Erro ao carregar dados da cascata</p>
+                    <p className="text-xs text-gray-500 mb-3">{errorCascata}</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={carregarDadosCascata}
+                      className="text-xs"
+                    >
+                      Tentar novamente
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <ChartContainer
+                  config={{ total: { label: "Total", color: "hsl(var(--primary))" } }}
+                  className="w-full h-[380px]"
                 >
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 12, fill: "#475569" }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis hide />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  {/* Base invisível para posicionar as barras */}
-                  <Bar dataKey="base" stackId="a" fill="transparent" isAnimationActive={false} />
-                  {/* Altura visível */}
-                  <Bar
-                    dataKey="delta"
-                    stackId="a"
-                    radius={[8, 8, 8, 8]}
-                    onClick={(data: any) => {
-                      if (data?.payload?.key === "Bloqueado") setSelectedWaterfallStep("Bloqueado");
-                    }}
+                  <BarChart
+                    data={waterfallData}
+                    margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    barCategoryGap="30%"
                   >
-                    {waterfallData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={getStepColor(entry)} cursor={entry.key === "Bloqueado" ? "pointer" : "default"} />
-                    ))}
-                    <LabelList
-                      dataKey="delta"
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 12, fill: "#475569" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis hide />
+                    <ChartTooltip 
                       content={(props: any) => {
-                        const { x, y, width, height, value } = props;
-                        if (!width || !height || width <= 0 || height <= 0) return null;
-                        const cx = x + width / 2;
-                        const cy = y + height / 2;
-                        const v = typeof value === 'number' ? value : 0;
+                        const { active, payload, label } = props;
+                        if (!active || !payload || payload.length === 0) return null;
+                        
+                        const data = payload[0].payload;
+                        const alturaBarra = payload[0].value; // Altura da barra visível
+                        
+                        // Calcular o valor da variação e o acumulado correto
+                        let valorVariacao = 0;
+                        let acumuladoCorreto = 0;
+                        
+                        if (data.type === 'total') {
+                          // Para totais, valor e acumulado são iguais
+                          valorVariacao = alturaBarra;
+                          acumuladoCorreto = alturaBarra;
+                        } else if (data.type === 'negative') {
+                          // Para perdas: valor é o dataAcumulado (quantidade perdida), acumulado é o valor após a perda
+                          valorVariacao = data.acumulado || 0;
+                          acumuladoCorreto = data.cumulative || 0;
+                        } else if (data.type === 'positive') {
+                          // Para ganhos: valor é o dataAcumulado (quantidade ganha), acumulado é o valor após o ganho
+                          valorVariacao = data.acumulado || 0;
+                          acumuladoCorreto = data.cumulative || 0;
+                        } else if (data.type === 'neutral') {
+                          // Para mantidos: valor é o dataAcumulado (quantidade mantida), acumulado é o valor após manter
+                          valorVariacao = data.acumulado || 0;
+                          acumuladoCorreto = data.cumulative || 0;
+                        }
+                        
                         return (
-                          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fill="#ffffff" style={{ fontSize: 12, fontWeight: 700 }}>
-                            {formatPt(v)}
-                          </text>
+                          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+                            <div className="text-sm font-semibold text-gray-800 mb-2">
+                              {label}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-600">Valor:</span>
+                                <span className={`text-sm font-medium ${data.type === 'negative' ? 'text-red-600' : data.type === 'positive' ? 'text-green-600' : 'text-gray-800'}`}>
+                                  {formatPt(valorVariacao)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-600">Acumulado:</span>
+                                <span className="text-sm font-medium text-gray-800">
+                                  {formatPt(acumuladoCorreto)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-600">Tipo:</span>
+                                <span className="text-xs font-medium text-gray-700 capitalize">
+                                  {data.type === 'total' ? 'Total' : 
+                                   data.type === 'negative' ? 'Perda' : 
+                                   data.type === 'positive' ? 'Ganho' : 
+                                   data.type === 'neutral' ? 'Mantido' : data.type}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         );
                       }}
                     />
-                  </Bar>
-                  {/* Linha pontilhada ligando os topos das barras */}
-                  <Line
-                    type="linear"
-                    dataKey="top"
-                    stroke="#94a3b8"
-                    strokeDasharray="4 3"
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </BarChart>
-              </ChartContainer>
+                    {/* Valor invisível para posicionar as barras */}
+                    <Bar dataKey="valor" stackId="a" fill="transparent" isAnimationActive={false} />
+                    {/* Acumulado visível */}
+                    <Bar
+                      dataKey="acumulado"
+                      stackId="a"
+                      radius={[8, 8, 8, 8]}
+                      onClick={(data: any) => {
+                        if (data?.payload?.key === "Bloqueado") setSelectedWaterfallStep("Bloqueado");
+                      }}
+                    >
+                      {waterfallData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getStepColor(entry)} cursor={entry.key === "Bloqueado" ? "pointer" : "default"} />
+                      ))}
+                      <LabelList
+                        dataKey="acumulado"
+                        content={(props: any) => {
+                          const { x, y, width, height, value, payload } = props;
+                          if (!width || !height || width <= 0 || height <= 0) return null;
+                          
+                          const v = typeof value === 'number' ? value : 0;
+                          const cx = x + width / 2;
+                          const cy = y + height / 2;
+                          
+                          // Ajustar posição baseada no tipo de barra
+                          let labelY = cy;
+                          let fontSize = 13;
+                          let fontWeight = 600;
+                          
+                          // Para barras muito pequenas, posicionar acima
+                          if (height < 30) {
+                            labelY = y - 5;
+                          }
+                          
+                          // Para barras de perda (negativas), ajustar posição
+                          if (payload?.type === 'negative') {
+                            labelY = cy + 2;
+                          }
+                          
+                          // Para barras de ganho (positivas), ajustar posição
+                          if (payload?.type === 'positive') {
+                            labelY = cy - 2;
+                          }
+                          
+                          // Para barras totais, usar fonte ainda maior
+                          if (payload?.type === 'total') {
+                            fontSize = 15;
+                            fontWeight = 700;
+                          }
+                          
+                          return (
+                            <text 
+                              x={cx} 
+                              y={labelY} 
+                              textAnchor="middle" 
+                              dominantBaseline="middle" 
+                              fill="#ffffff" 
+                              style={{ 
+                                fontSize: fontSize, 
+                                fontWeight: fontWeight,
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                letterSpacing: '0.5px'
+                              }}
+                            >
+                              {formatPt(v)}
+                            </text>
+                          );
+                        }}
+                      />
+                    </Bar>
+                    {/* Linha pontilhada ligando os topos das barras */}
+                    <Line
+                      type="linear"
+                      dataKey="top"
+                      stroke="#94a3b8"
+                      strokeDasharray="4 3"
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              )}
 
               {selectedWaterfallStep === "Bloqueado" && (
                 <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1080,32 +1224,85 @@ Verifique:
                     </CardHeader>
                     <CardContent>
                       <div className="w-full h-[260px]">
-                        <ResponsiveContainer>
-                          <BarChart data={dadosBloqueios} layout="vertical" margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                            <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
-                            <YAxis dataKey="motivo" type="category" width={140} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
-                            <RechartsTooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} />
-                            <Bar dataKey="quantidade" fill="#6366f1" radius={[0, 6, 6, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        {loadingCascata ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                              <p className="text-xs text-gray-600">Carregando...</p>
+                            </div>
+                          </div>
+                        ) : dadosBloqueios.length === 0 ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <Info className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                              <p className="text-xs text-gray-500">Nenhum bloqueio encontrado</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <ResponsiveContainer>
+                            <BarChart data={dadosBloqueios} layout="vertical" margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
+                              <YAxis dataKey="motivo" type="category" width={140} axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
+                              <RechartsTooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} />
+                              <Bar dataKey="quantidade" fill="#6366f1" radius={[0, 6, 6, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
 
                   <Card className="border-amber-200">
                     <CardHeader>
-                      <CardTitle>Dias Inoperantes (Últimos 12 dias)</CardTitle>
+                      <CardTitle>Distribuição de Dias Inoperantes</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Pontos que eram ativos em M-1 e ficaram inoperantes em M0
+                      </p>
                     </CardHeader>
                     <CardContent>
                       <div className="w-full h-[260px]">
-                        <ResponsiveContainer>
-                          <BarChart data={dadosDiasInoperantes} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                            <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#475569" }} />
-                            <YAxis hide />
-                            <RechartsTooltip cursor={{ fill: "rgba(148,163,184,0.08)" }} />
-                            <Bar dataKey="dias" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        {loadingCascata ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-600 mx-auto mb-2"></div>
+                              <p className="text-xs text-gray-600">Carregando...</p>
+                            </div>
+                          </div>
+                        ) : dadosDiasInoperantes.length === 0 ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <Info className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                              <p className="text-xs text-gray-500">Nenhum ponto inoperante encontrado</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <ResponsiveContainer>
+                            <BarChart data={dadosDiasInoperantes} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                              <XAxis 
+                                dataKey="dias" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fontSize: 12, fill: "#475569" }}
+                                label={{ value: 'Dias Inoperantes', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fontSize: 12, fill: '#475569' }}}
+                              />
+                              <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fontSize: 12, fill: "#475569" }}
+                                label={{ value: 'Quantidade', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 12, fill: '#475569' }}}
+                              />
+                              <RechartsTooltip 
+                                cursor={{ fill: "rgba(148,163,184,0.08)" }}
+                                formatter={(value, name) => [
+                                  `${value} pontos`,
+                                  'Quantidade'
+                                ]}
+                                labelFormatter={(label) => `${label} dias`}
+                              />
+                              <Bar dataKey="quantidade" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -1113,7 +1310,7 @@ Verifique:
               )}
             </CardContent>
           </Card>
-
+<br />
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
