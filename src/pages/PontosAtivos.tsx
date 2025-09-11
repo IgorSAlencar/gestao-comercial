@@ -18,6 +18,7 @@ import {
   TrendingDown, 
   CheckCircle, 
   XCircle,
+  Loader2,
   Info,
   BarChart3,
   Eye,
@@ -39,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import GraficoTendencia from "@/components/GraficoTendencia";
 import { format } from "date-fns";
+import * as XLSX from 'xlsx';
 import { ptBR } from "date-fns/locale";
 import { estrategiaComercialApi, CascataResponse } from "@/services/estrategiaComercialService";
 import { formatDate } from "@/utils/formatDate";
@@ -67,18 +69,28 @@ interface DadosPontoAtivo {
   chaveLoja: string;
   cnpj: string;
   nomeLoja: string;
-  situacao: "ativa" | "inativa" | "bloqueada";
+  situacao: "REATIVAÇÃO" | "BLOQUEADO" | "CONTRATAÇÃO" | "MANTEVE" | "ENCERRADO" | "EQUIP_RETIRADA" | "INOPERANTE";
   dataUltimaTransacao: Date | string;
   mesM3: number;
   mesM2: number;
   mesM1: number;
   mesM0: number;
+  segmento: string;
+  tipo_posto: string;
   endereco: string;
   municipio: string;
   uf: string;
   agencia: string;
+  nome_agencia: string;
+  nome_paa: string;
+  chave_paa: string;
   gerenciaRegional: string;
+  dt_bloqueio: Date | string;
+  motivo_bloqueio: string;
   diretoriaRegional: string;
+  gerenteArea: string;
+  coordenador: string;
+  supervisor: string;
   telefoneLoja: string;
   nomeContato: string;
   dataInauguracao: Date | string;
@@ -93,6 +105,7 @@ interface DadosPontoAtivo {
     consignado: boolean;
     microsseguro: boolean;
     lime: boolean;
+    conta: boolean;
   };
 }
 
@@ -120,24 +133,34 @@ const dadosSimulados: DadosPontoAtivo[] = [
     chaveLoja: "5001",
     cnpj: "12.345.678/0001-99",
     nomeLoja: "Loja Centro",
-    situacao: "ativa",
+    situacao: "REATIVAÇÃO",
     dataUltimaTransacao: new Date("2024-01-15"),
     mesM3: 1,
     mesM2: 0,
-    mesM1: 0,
+    mesM1: 0,   
     mesM0: 1,
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
     endereco: "Av. Paulista, 1000 - Centro, São Paulo/SP",
     municipio: "São Paulo",
     uf: "SP",
     agencia: "0001",
+    nome_agencia: "Agência Centro",
+    nome_paa: "Ponto Centro",
+    chave_paa: "PAA001",
     gerenciaRegional: "São Paulo Centro",
     diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
     telefoneLoja: "(11) 3456-7890",
     nomeContato: "João Silva",
     dataInauguracao: new Date("2020-05-15"),
     dataCertificacao: new Date("2022-10-05"),
     situacaoTablet: "Instalado",
-    multiplicadorResponsavel: "Carlos Oliveira",
+    multiplicadorResponsavel: "Carlos Oliveira",    
     supervisorResponsavel: "João Supervisor",
     chaveSupervisao: "SUP001",
     tendencia: "crescimento",
@@ -145,25 +168,36 @@ const dadosSimulados: DadosPontoAtivo[] = [
     produtosHabilitados: {
       consignado: true,
       microsseguro: true,
-      lime: false
+      lime: false,
+      conta: true
     }
   },
   {
     chaveLoja: "5002",
     cnpj: "23.456.789/0001-88",
     nomeLoja: "Loja Shopping Vila Olímpia",
-    situacao: "ativa",
+    situacao: "BLOQUEADO",
     dataUltimaTransacao: new Date("2024-01-10"),
     mesM3: 1,
     mesM2: 1,
     mesM1: 1,
     mesM0: 0,
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
     endereco: "Shopping Vila Olímpia, Loja 42 - São Paulo/SP",
     municipio: "São Paulo",
     uf: "SP",
     agencia: "0002",
+    nome_agencia: "Agência Vila Olímpia",
+    nome_paa: "Ponto Vila Olímpia",
+    chave_paa: "PAA002",
     gerenciaRegional: "São Paulo Zona Sul",
     diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
     telefoneLoja: "(11) 3456-7891",
     nomeContato: "Maria Santos",
     dataInauguracao: new Date("2021-11-20"),
@@ -177,25 +211,36 @@ const dadosSimulados: DadosPontoAtivo[] = [
     produtosHabilitados: {
       consignado: true,
       microsseguro: false,
-      lime: true
+      lime: true,
+      conta: true
     }
   },
   {
     chaveLoja: "5003",
     cnpj: "34.567.890/0001-77",
     nomeLoja: "Loja Campinas Shopping",
-    situacao: "ativa",
+    situacao: "CONTRATAÇÃO",
     dataUltimaTransacao: new Date("2024-01-12"),
     mesM3: 0,
     mesM2: 0,
-    mesM1: 1,
-    mesM0: 0,
+    mesM1: 0, // Corrigido: M1 = 0 (inativo)
+    mesM0: 1, // Corrigido: M0 = 1 (ativo)
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
     endereco: "Campinas Shopping, Loja 15 - Campinas/SP",
     municipio: "Campinas",
     uf: "SP",
     agencia: "0003",
+    nome_agencia: "Agência Campinas Shopping",
+    nome_paa: "Ponto Campinas Shopping",
+    chave_paa: "PAA003",
     gerenciaRegional: "Campinas",
     diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
     telefoneLoja: "(19) 3456-7892",
     nomeContato: "Roberto Costa",
     dataInauguracao: new Date("2021-03-10"),
@@ -209,11 +254,187 @@ const dadosSimulados: DadosPontoAtivo[] = [
     produtosHabilitados: {
       consignado: true,
       microsseguro: true,
-      lime: false
+      lime: false,
+      conta: true
+    }
+  },
+  {
+    chaveLoja: "5004",
+    cnpj: "45.678.901/0001-66",
+    nomeLoja: "Loja Ribeirão Preto",
+    situacao: "MANTEVE",
+    dataUltimaTransacao: new Date("2024-01-08"),
+    mesM3: 1,
+    mesM2: 1,
+    mesM1: 1,
+    mesM0: 1,
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
+    endereco: "Ribeirão Shopping, Loja 25 - Ribeirão Preto/SP",
+    municipio: "Ribeirão Preto",
+    uf: "SP",
+    agencia: "0004",
+    nome_agencia: "Agência Ribeirão Preto",
+    nome_paa: "Ponto Ribeirão Preto",
+    chave_paa: "PAA004",
+    gerenciaRegional: "Ribeirão Preto",
+    diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
+    telefoneLoja: "(16) 3456-7893",
+    nomeContato: "Ana Pereira",
+    dataInauguracao: new Date("2021-08-15"),
+    dataCertificacao: new Date("2023-01-10"),
+    situacaoTablet: "Instalado",
+    multiplicadorResponsavel: "Ana Pereira",
+    supervisorResponsavel: "Maria Supervisora",
+    chaveSupervisao: "SUP004",
+    tendencia: "estavel",
+    nivelAtividade: "media",
+    produtosHabilitados: {
+      consignado: true,
+      microsseguro: true,
+      lime: true,
+      conta: true
+    }
+  },
+  {
+    chaveLoja: "5005",
+    cnpj: "56.789.012/0001-55",
+    nomeLoja: "Loja Santos",
+    situacao: "ENCERRADO",
+    dataUltimaTransacao: new Date("2023-12-20"),
+    mesM3: 0,
+    mesM2: 0,
+    mesM1: 0,
+    mesM0: 0,
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
+    endereco: "Praia Shopping, Loja 10 - Santos/SP",
+    municipio: "Santos",
+    uf: "SP",
+    agencia: "0005",
+    nome_agencia: "Agência Santos",
+    nome_paa: "Ponto Santos",
+    chave_paa: "PAA005",
+    gerenciaRegional: "Baixada Santista",
+    diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
+    telefoneLoja: "(13) 3456-7894",
+    nomeContato: "Carlos Santos",
+    dataInauguracao: new Date("2020-12-01"),
+    dataCertificacao: new Date("2022-05-15"),
+    situacaoTablet: "Pendente",
+    multiplicadorResponsavel: "Carlos Santos",
+    supervisorResponsavel: "Pedro Supervisor",
+    chaveSupervisao: "SUP005",
+    tendencia: "queda",
+    nivelAtividade: "baixa",
+    produtosHabilitados: {
+      consignado: false,
+      microsseguro: false,
+      lime: false,
+      conta: true
+    }
+  },
+  {
+    chaveLoja: "5006",
+    cnpj: "67.890.123/0001-44",
+    nomeLoja: "Loja Sorocaba",
+    situacao: "EQUIP_RETIRADA",
+    dataUltimaTransacao: new Date("2024-01-05"),
+    mesM3: 1,
+    mesM2: 0,
+    mesM1: 1, // Corrigido: M1 = 1 (ativo)
+    mesM0: 0, // Corrigido: M0 = 0 (inativo)
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
+    endereco: "Gran Plaza Shopping, Loja 8 - Sorocaba/SP",
+    municipio: "Sorocaba",
+    uf: "SP",
+    agencia: "0006",
+    nome_agencia: "Agência Sorocaba",
+    nome_paa: "Ponto Sorocaba",
+    chave_paa: "PAA006",
+    gerenciaRegional: "Sorocaba",
+    diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+    motivo_bloqueio: "Motivo Bloqueio",
+    telefoneLoja: "(15) 3456-7895",
+    nomeContato: "Fernanda Lima",
+    dataInauguracao: new Date("2021-06-20"),
+    dataCertificacao: new Date("2022-11-30"),
+    situacaoTablet: "Não Instalado",
+    multiplicadorResponsavel: "Fernanda Lima",
+    supervisorResponsavel: "João Supervisor",
+    chaveSupervisao: "SUP006",
+    tendencia: "queda",
+    nivelAtividade: "baixa",
+    produtosHabilitados: {
+      consignado: true,
+      microsseguro: false,
+      lime: true,
+      conta: true
+    }
+  },
+  {
+    chaveLoja: "5007",
+    cnpj: "78.901.234/0001-33",
+    nomeLoja: "Loja Jundiaí",
+    situacao: "INOPERANTE",
+    dataUltimaTransacao: new Date("2023-11-15"),
+    mesM3: 0,
+    mesM2: 0,
+    mesM1: 1, // Corrigido: M1 = 1 (ativo)
+    mesM0: 0, // Corrigido: M0 = 0 (inativo)
+    segmento: "Supermercado",
+    tipo_posto: "Posto",
+    endereco: "Maxi Shopping, Loja 12 - Jundiaí/SP",
+    municipio: "Jundiaí",
+    uf: "SP",
+    agencia: "0007",
+    nome_agencia: "Agência Jundiaí",
+    nome_paa: "Ponto Jundiaí",
+    chave_paa: "PAA007",
+    gerenciaRegional: "Jundiaí",
+    diretoriaRegional: "Sudeste",
+    gerenteArea: "Gerente Area",
+    coordenador: "Coordenador",
+    supervisor: "Supervisor",
+    dt_bloqueio: new Date("2024-01-15"),
+
+    motivo_bloqueio: "Motivo Bloqueio",
+    telefoneLoja: "(11) 3456-7896",
+    nomeContato: "Roberto Silva",
+    dataInauguracao: new Date("2020-09-10"),
+    dataCertificacao: new Date("2022-03-25"),
+    situacaoTablet: "Pendente",
+    multiplicadorResponsavel: "Roberto Silva",
+    supervisorResponsavel: "Maria Supervisora",
+    chaveSupervisao: "SUP007",
+    tendencia: "queda",
+    nivelAtividade: "baixa",
+    produtosHabilitados: {
+      consignado: false,
+      microsseguro: false,
+      lime: false,
+      conta: true
     }
   }
 ];
 
+//console.log('📊 Total de dados simulados:', dadosSimulados.length);
+  
 const PontosAtivos: React.FC = () => {
   const navigate = useNavigate();
   const { user, isManager, isAdmin } = useAuth();
@@ -221,8 +442,7 @@ const PontosAtivos: React.FC = () => {
   const [dadosFiltrados, setDadosFiltrados] = useState<DadosPontoAtivo[]>([]);
   const [metricas, setMetricas] = useState<any>(null);
   const [ordenacao, setOrdenacao] = useState({ coluna: 'chaveLoja' as keyof DadosPontoAtivo, direcao: 'asc' as 'asc' | 'desc' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(20);
+  // Removido currentPage - não precisamos mais de paginação
   const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string>('');
   const [showAnaliseFiltros, setShowAnaliseFiltros] = useState(false);
@@ -260,14 +480,14 @@ const PontosAtivos: React.FC = () => {
 
 
   // Opções para filtros
-  const situacoes = ["ativa", "inativa", "bloqueada"];
+  const situacoes = ["REATIVAÇÃO", "BLOQUEADO", "CONTRATAÇÃO", "MANTEVE", "ENCERRADO", "EQUIP_RETIRADA", "INOPERANTE"];
   const tendencias = ["crescimento", "estavel", "queda", "atencao"];
   const niveisAtividade = ["alta", "media", "baixa"];
   const gerenciasRegionais = [...new Set(dados.map(d => d.gerenciaRegional))];
   const diretoriasRegionais = [...new Set(dados.map(d => d.diretoriaRegional))];
   const municipios = [...new Set(dados.map(d => d.municipio))];
   const ufs = [...new Set(dados.map(d => d.uf))];
-  const agencias = [...new Set(dados.map(d => d.agencia))];
+  const agencias = [...new Set(dados.map(d => `${d.agencia} - ${d.nome_agencia}`))];
   const multiplicadoresResponsaveis = [...new Set(dados.map(d => d.multiplicadorResponsavel))];
   const supervisoresResponsaveis = [...new Set(dados.map(d => d.supervisorResponsavel))];
 
@@ -281,6 +501,13 @@ const PontosAtivos: React.FC = () => {
       setConnectionStatus('loading');
       
       // Verificar se o usuário tem chave definida
+      console.log('👤 Dados do usuário:', {
+        name: user.name,
+        role: user.role,
+        chave: user.chave,
+        funcional: user.funcional
+      });
+      
       if (!user.chave && user.role !== 'admin') {
         const errorMsg = `Usuário ${user.name} (${user.role}) não possui chave de hierarquia definida. 
         
@@ -291,6 +518,7 @@ Para corrigir:
 
 Entre em contato com o administrador se o problema persistir.`;
         
+        //console.log('⚠️ Usuário sem chave de hierarquia, usando dados simulados');
         setError(errorMsg);
         setConnectionStatus('error');
         // Fallback para dados simulados
@@ -302,12 +530,18 @@ Entre em contato com o administrador se o problema persistir.`;
       // Buscar dados da estratégia pontos-ativos
       const response = await estrategiaComercialApi.getEstrategia('pontos-ativos');
       
+      //console.log('📊 Resposta da API pontos-ativos:', response);
+      //console.log('📊 Total de dadosAnaliticos retornados:', response.dadosAnaliticos?.length || 0);
+      
       // Mapear dados para o formato esperado
-      const dadosFormatados: DadosPontoAtivo[] = response.dadosAnaliticos.map(loja => ({
+      const dadosFormatados: DadosPontoAtivo[] = response.dadosAnaliticos.map(loja => {
+        // Normalizar situação para maiúsculo
+        const situacaoNormalizada = (loja.situacao || '').toUpperCase();
+        return {
         chaveLoja: loja.chaveLoja,
         cnpj: loja.cnpj,
         nomeLoja: loja.nomeLoja,
-        situacao: loja.situacao as "ativa" | "inativa" | "bloqueada",
+        situacao: (loja.situacao || '').toUpperCase() as "REATIVAÇÃO" | "BLOQUEADO" | "CONTRATAÇÃO" | "MANTEVE" | "ENCERRADO" | "EQUIP_RETIRADA" | "INOPERANTE",
         // Manter data como string para evitar problemas de fuso horário
         dataUltimaTransacao: loja.dataUltTrxNegocio as any,
         mesM3: loja.mesM3,
@@ -317,11 +551,21 @@ Entre em contato com o administrador se o problema persistir.`;
         endereco: loja.endereco,
         municipio: loja.municipio || '',
         uf: loja.uf || '',
-        agencia: loja.agencia,
+        agencia: loja.agencia,  
+        nome_agencia: loja.nome_agencia,
+        nome_paa: loja.nome_paa,
+        chave_paa: loja.chave_paa,
         gerenciaRegional: loja.gerenciaRegional,
         diretoriaRegional: loja.diretoriaRegional,
+        gerenteArea: loja.gerenteArea,
+        coordenador: loja.coordenador,
+        supervisor: loja.supervisor,
+        dt_bloqueio: loja.dt_bloqueio,
+        motivo_bloqueio: loja.motivo_bloqueio,
         telefoneLoja: loja.telefoneLoja,
         nomeContato: loja.nomeContato,
+        segmento: loja.segmento,
+        tipo_posto: loja.tipo_posto,
         // Manter datas como string para evitar problemas de fuso horário
         dataInauguracao: loja.dataInauguracao as any,
         dataCertificacao: (loja.dataCertificacao || loja.dataInauguracao) as any,
@@ -334,16 +578,23 @@ Entre em contato com o administrador se o problema persistir.`;
         produtosHabilitados: loja.produtosHabilitados || {
           consignado: false,
           microsseguro: false,
-          lime: false
+          lime: false,
+          conta: false
         }
-      }));
+        };
+      });
       
       setDados(dadosFormatados);
-      setDadosFiltrados(dadosFormatados);
       setConnectionStatus('success');
+
+      // Aplicar filtros após carregar dados
+      const valoresIniciais = form.getValues();
+      //console.log('🔄 Aplicando filtros após carregar dados da API:', valoresIniciais);
+      //console.log('📊 Dados formatados antes de aplicar filtros:', dadosFormatados.length);
+      aplicarFiltros(valoresIniciais);
       
     } catch (err: any) {
-      console.error('Erro ao carregar pontos ativos:', err);
+      //console.error('Erro ao carregar pontos ativos:', err);
       
       let errorMessage = err.message || 'Erro ao carregar dados dos pontos ativos';
       
@@ -361,39 +612,83 @@ Verifique:
       
       // Fallback para dados simulados
       setDados(dadosSimulados);
-      setDadosFiltrados(dadosSimulados);
+
+      // Aplicar filtros após carregar dados simulados
+      const valoresIniciais = form.getValues();
+      //console.log('🔄 Aplicando filtros após carregar dados simulados:', valoresIniciais);
+      //console.log('📊 Dados simulados antes de aplicar filtros:', dadosSimulados.length);
+      aplicarFiltros(valoresIniciais);
       
     } finally {
       setIsLoading(false);
     }
   };
 
+  // UseEffect para inicializar dados simulados
+  useEffect(() => {
+    //console.log('🚀 Inicializando dados simulados...');
+    //console.log('📊 Dados atuais:', dados.length);
+    //console.log('📊 Dados filtrados atuais:', dadosFiltrados.length);
+    
+    if (dados.length === 0 && dadosFiltrados.length === 0) {
+      //console.log('✅ Carregando dados simulados...');
+      setDados(dadosSimulados);
+      setDadosFiltrados(dadosSimulados);
+      
+      // Aplicar filtros iniciais (que devem estar vazios)
+      const valoresIniciais = form.getValues();
+      //console.log('🔄 Valores iniciais do form:', valoresIniciais);
+    }
+  }, []);
+
   // UseEffect para carregar dados
   useEffect(() => {
+    console.log('🔄 Carregando dados da API...');
     loadPontosAtivos();
     carregarDadosCascata();
   }, [user]);
+
+  // UseEffect para garantir que dadosFiltrados seja atualizado quando dados mudar
+  useEffect(() => {
+    if (dados.length > 0 && dadosFiltrados.length === 0) {
+      //console.log('🔄 Atualizando dadosFiltrados com dados disponíveis...');
+      setDadosFiltrados(dados);
+    }
+  }, [dados]);
 
   const handleVoltar = () => {
     navigate('/estrategia-comercial');
   };
 
   const aplicarFiltros = (values: FiltrosPontosAtivos) => {
+    // Se não há dados, não aplicar filtros
+    if (dados.length === 0) {
+      //console.log('⚠️ Não há dados para filtrar');
+      return;
+    }
+
+    //console.log('🔍 Aplicando filtros com valores:', values);
+    //console.log('📊 Total de dados disponíveis:', dados.length);
+
     let filtrados = [...dados];
 
     // Filtro por texto (chave loja, nome loja)
     if (values.chaveLoja || values.nomeLoja) {
+      //console.log('🔍 Aplicando filtro de texto:', { chaveLoja: values.chaveLoja, nomeLoja: values.nomeLoja });
       const termo = (values.chaveLoja || values.nomeLoja).toLowerCase();
       filtrados = filtrados.filter(loja => 
         loja.chaveLoja.toLowerCase().includes(termo) ||
         loja.nomeLoja.toLowerCase().includes(termo) ||
         loja.cnpj.includes(termo)
       );
+      //console.log('📊 Após filtro de texto:', filtrados.length);
     }
 
     // Filtros por arrays
     if (values.situacao.length > 0) {
+      //console.log('🔍 Aplicando filtro de situação:', values.situacao);
       filtrados = filtrados.filter(loja => values.situacao.includes(loja.situacao));
+      //console.log('📊 Após filtro de situação:', filtrados.length);
     }
 
     if (values.gerenciaRegional.length > 0) {
@@ -425,70 +720,84 @@ Verifique:
     }
 
     if (values.agencia.length > 0) {
-      filtrados = filtrados.filter(loja => values.agencia.includes(loja.agencia));
+      filtrados = filtrados.filter(loja => {
+        const agenciaCompleta = `${loja.agencia} - ${loja.nome_agencia}`;
+        return values.agencia.includes(agenciaCompleta) || 
+               values.agencia.includes(loja.agencia) || 
+               values.agencia.some(ag => ag.includes(loja.agencia)) ||
+               values.agencia.some(ag => ag.includes(loja.nome_agencia));
+      });
     }
 
     // Filtros para os meses
     if (values.mesM3.length > 0) {
+      //console.log('🔍 Aplicando filtro M3:', values.mesM3);
       filtrados = filtrados.filter(loja => {
         const valor = loja.mesM3 === 1 ? 'ativo' : 'inativo';
         return values.mesM3.includes(valor);
       });
+      //console.log('📊 Após filtro M3:', filtrados.length);
     }
 
     if (values.mesM2.length > 0) {
+      //console.log('🔍 Aplicando filtro M2:', values.mesM2);
       filtrados = filtrados.filter(loja => {
         const valor = loja.mesM2 === 1 ? 'ativo' : 'inativo';
         return values.mesM2.includes(valor);
       });
+      //console.log('📊 Após filtro M2:', filtrados.length);
     }
 
     if (values.mesM1.length > 0) {
+      //console.log('🔍 Aplicando filtro M1:', values.mesM1);
       filtrados = filtrados.filter(loja => {
         const valor = loja.mesM1 === 1 ? 'ativo' : 'inativo';
         return values.mesM1.includes(valor);
       });
+      //console.log('📊 Após filtro M1:', filtrados.length);
     }
 
     if (values.mesM0.length > 0) {
+      //console.log('🔍 Aplicando filtro M0:', values.mesM0);
       filtrados = filtrados.filter(loja => {
         const valor = loja.mesM0 === 1 ? 'ativo' : 'inativo';
         return values.mesM0.includes(valor);
       });
+      //console.log('📊 Após filtro M0:', filtrados.length);
     }
 
     // Aplicar ordenação
     filtrados.sort((a, b) => {
       const aValue = a[ordenacao.coluna];
       const bValue = b[ordenacao.coluna];
-      
+
       if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return ordenacao.direcao === 'asc' 
+        return ordenacao.direcao === 'asc'
           ? aValue.localeCompare(bValue)
           : bValue.localeCompare(aValue);
       }
-      
+
       if (typeof aValue === 'number' && typeof bValue === 'number') {
         return ordenacao.direcao === 'asc' ? aValue - bValue : bValue - aValue;
       }
-      
+
       if (aValue instanceof Date && bValue instanceof Date) {
-        return ordenacao.direcao === 'asc' 
+        return ordenacao.direcao === 'asc'
           ? aValue.getTime() - bValue.getTime()
           : bValue.getTime() - aValue.getTime();
       }
-      
+
       return 0;
     });
 
+    // Garantir que dadosFiltrados seja atualizado mesmo quando não há filtros
+    //console.log('✅ Dados filtrados resultantes:', filtrados.length);
     setDadosFiltrados(filtrados);
-    setCurrentPage(1);
   };
 
   const limparFiltros = () => {
     form.reset();
     setDadosFiltrados(dados);
-    setCurrentPage(1);
   };
 
   const handleOrdenacao = (coluna: keyof DadosPontoAtivo) => {
@@ -497,51 +806,115 @@ Verifique:
       direcao: prev.coluna === coluna && prev.direcao === 'asc' ? 'desc' : 'asc'
     }));
     // Aplicar filtros após mudança de ordenação
-    setTimeout(() => aplicarFiltros(form.getValues()), 0);
+    aplicarFiltros(form.getValues());
   };
 
   const exportarParaExcel = () => {
-    // Implementar exportação para Excel
-    //console.log('Exportando dados para Excel...');
+    try {
+      //console.log('📊 Iniciando exportação para Excel...');
+      //console.log('📊 Total de dados para exportar:', dadosFiltrados.length);
+      //console.log('🔐 Token antes da exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      //console.log('👤 Usuário antes da exportação:', user?.name);
+      
+      // Preparar os dados para exportação
+      const dadosParaExportar = dadosFiltrados.map(ponto => ({
+        'Diretoria Regional': ponto.diretoriaRegional,
+        'Gerência Regional': ponto.gerenciaRegional,
+        'Gerente Area': ponto.gerenteArea,
+        'Coordenador': ponto.coordenador,
+        'Supervisor': ponto.supervisor,
+        'COD AG': ponto.agencia,
+        'Nome Agência': ponto.nome_agencia,
+        'COD PAA': ponto.chave_paa,
+        'Nome PAA': ponto.nome_paa,
+        'Chave Loja': ponto.chaveLoja,
+        'CNPJ': ponto.cnpj,
+        'Nome Loja': ponto.nomeLoja,
+        'Situação': ponto.situacao,
+        'M-3': ponto.mesM3,
+        'M-2': ponto.mesM2,
+        'M-1': ponto.mesM1,
+        'M0': ponto.mesM0,
+        'Últ. Transação': formatDate(ponto.dataUltimaTransacao),
+        'Data Inauguração': formatDate(ponto.dataInauguracao),
+        'Data Certificação': formatDate(ponto.dataCertificacao),
+        'Data Bloqueio': formatDate(ponto.dt_bloqueio),
+        'Motivo Bloqueio': ponto.motivo_bloqueio,     
+        'Situação Tablet': ponto.situacaoTablet,
+        'Multiplicador Responsável': ponto.multiplicadorResponsavel,
+        'Telefone Loja': ponto.telefoneLoja,
+        'Nome Contato': ponto.nomeContato,
+        'Segmento': ponto.segmento,
+        'Endereço': ponto.endereco,
+        'Município': ponto.municipio,
+        'UF': ponto.uf,
+        'Conta': ponto.produtosHabilitados?.conta ? 'Sim' : 'Não',
+        'Consignado': ponto.produtosHabilitados?.consignado ? 'Sim' : 'Não',
+        'Microsseguro': ponto.produtosHabilitados?.microsseguro ? 'Sim' : 'Não',
+        'Lime': ponto.produtosHabilitados?.lime ? 'Sim' : 'Não'
+      }));
+
+      // Criar uma nova planilha
+      const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Pontos Ativos");
+
+      // Ajustar largura das colunas
+      const colunas = Object.keys(dadosParaExportar[0]);
+      const largurasColunas: { [key: string]: number } = {};
+      colunas.forEach(col => {
+        const maxLength = Math.max(
+          col.length,   
+          ...dadosParaExportar.map(row => String(row[col as keyof typeof row]).length)
+        );
+        largurasColunas[col] = Math.min(maxLength + 2, 50); // Limitar a 50 caracteres
+      });
+      ws['!cols'] = colunas.map(col => ({ wch: largurasColunas[col] }));
+
+      // Gerar o arquivo Excel
+      const dataAtual = format(new Date(), 'dd-MM-yyyy', { locale: ptBR });
+      XLSX.writeFile(wb, `Pontos_Ativos_${dataAtual}.xlsx`);
+
+      //console.log('✅ Arquivo Excel exportado com sucesso!');
+      //console.log('📊 Exportação concluída, usuário ainda autenticado:', !!user);
+      //console.log('🔐 Token após exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      //console.log('👤 Usuário após exportação:', user?.name);
+    } catch (error) {
+      console.error('❌ Erro ao exportar Excel:', error);
+      console.error('❌ Erro completo:', error);
+      //console.log('🔐 Token após erro:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      //console.log('👤 Usuário após erro:', user?.name);
+      alert('Erro ao exportar arquivo Excel. Tente novamente.');
+    }
   };
 
-  const getCurrentPageData = () => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return dadosFiltrados.slice(startIndex, endIndex);
-  };
+  // Removido getCurrentPageData - agora mostra todos os dados com scroll
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage);
-  };
+  // Removido handlePageChange - não precisamos mais de paginação
 
 
 
   const renderSituacaoBadge = (situacao: string) => {
     switch (situacao) {
-      case 'ativa':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200"><CheckCircle className="h-3 w-3 mr-1" />Ativa</Badge>;
-      case 'inativa':
-        return <Badge variant="secondary">Inativa</Badge>;
-      case 'bloqueada':
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-200"><XCircle className="h-3 w-3 mr-1" />Bloqueada</Badge>;
+      case 'REATIVAÇÃO':
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200"><CheckCircle className="h-3 w-3 mr-1" />Reativação</Badge>;
+      case 'BLOQUEADO':
+        return <Badge className="bg-red-100 text-red-800 hover:bg-red-200"><XCircle className="h-3 w-3 mr-1" />Bloqueado</Badge>;
+      case 'CONTRATAÇÃO':
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200">Contratação</Badge>;
+      case 'MANTEVE':
+        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">Manteve</Badge>;
+      case 'ENCERRADO':
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-200">Encerrado</Badge>;
+      case 'EQUIP_RETIRADA':
+        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-200">Equip. Retirada</Badge>;
+      case 'INOPERANTE':
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200">Inoperante</Badge>;
       default:
         return <Badge variant="outline">{situacao}</Badge>;
     }
   };
 
-  const renderNivelAtividadeBadge = (nivel: string) => {
-    switch (nivel) {
-      case 'alta':
-        return <Badge className="bg-green-100 text-green-800">Alta</Badge>;
-      case 'media':
-        return <Badge className="bg-yellow-100 text-yellow-800">Média</Badge>;
-      case 'baixa':
-        return <Badge className="bg-red-100 text-red-800">Baixa</Badge>;
-      default:
-        return <Badge variant="outline">{nivel}</Badge>;
-    }
-  };
 
   // Usando a função formatDate do utils que corrige problemas de fuso horário
   // const formatDate é importada do @/utils/formatDate
@@ -596,7 +969,7 @@ type WaterfallItem = {
       const dados = await estrategiaComercialApi.getCascataPontosAtivos();
       setCascataData(dados);
     } catch (error) {
-      console.error('Erro ao carregar dados da cascata:', error);
+      //console.error('Erro ao carregar dados da cascata:', error);
       setErrorCascata(error instanceof Error ? error.message : 'Erro ao carregar dados da cascata');
     } finally {
       setLoadingCascata(false);
@@ -606,12 +979,16 @@ type WaterfallItem = {
   // Cores da cascata
   const bradescoBlue = "#0B3B8C"; // azul institucional aproximado
 
+  // Altura mínima para barras do gráfico de cascata (em pixels)
+  // Aumentado para garantir que o texto não fique espremido
+  const MIN_BAR_HEIGHT = 25;
+
   const waterfallData: WaterfallItem[] = useMemo(() => {
     if (!cascataData) {
       // Dados padrão enquanto carrega
       return [{
         key: "M-1",
-        label: `${monthNames.M1} (M-1)`,
+        label: `${monthNames.M1}`,
         type: "total",
         base: 0,
         delta: 0,
@@ -626,7 +1003,7 @@ type WaterfallItem = {
     // Barra total inicial (M-1)
     data.push({
       key: "M-1",
-      label: `${monthNames.M1} (M-1)`,
+      label: `${monthNames.M1}`,
       type: "total",
       valor: 0,
       acumulado: cascataData.totalM1,
@@ -658,7 +1035,7 @@ type WaterfallItem = {
     });
 
     // Total final (M0)
-    data.push({ key: "M0", label: `${monthNames.M0} (M0)`, type: "total", valor: 0, acumulado: cascataData.totalM0, cumulative: cascataData.totalM0 });
+    data.push({ key: "M0", label: `${monthNames.M0}`, type: "total", valor: 0, acumulado: cascataData.totalM0, cumulative: cascataData.totalM0 });
 
     // acrescenta campo "top" para ligar os cantos superiores
     return data.map((d) => ({ ...d, top: d.valor + d.acumulado } as any));
@@ -678,24 +1055,108 @@ type WaterfallItem = {
     }
   };
 
+  // Função para aplicar filtros baseado no clique na cascata
+  const aplicarFiltroCascata = (itemKey: string) => {
+    //console.log('🎯 Aplicando filtro cascata para:', itemKey);
+
+    // Resetar filtros atuais
+    form.reset();
+
+    // Aplicar filtros baseado no tipo de item clicado
+    switch (itemKey) {
+      case "Bloqueado":
+      case "BLOQUEADO":
+        //console.log('📊 Aplicando filtros para BLOQUEADO');
+        form.setValue("situacao", ["BLOQUEADO"]);
+        form.setValue("mesM1", ["ativo"]); // M1 = 1 (ativo)
+        form.setValue("mesM0", ["inativo"]); // M0 = 0 (inativo)
+        break;
+
+      case "Encerrado":
+      case "ENCERRADO":
+        //console.log('📊 Aplicando filtros para ENCERRADO');
+        form.setValue("situacao", ["ENCERRADO"]);
+        form.setValue("mesM1", ["ativo"]); // M1 = 1 (ativo)
+        form.setValue("mesM0", ["inativo"]); // M0 = 0 (inativo)
+        break;
+
+      case "Equip. Retirada":
+      case "Equip. Retirado":
+      case "EQUIP_RETIRADA":
+        //console.log('📊 Aplicando filtros para EQUIP_RETIRADA');
+        form.setValue("situacao", ["EQUIP_RETIRADA"]);
+        form.setValue("mesM1", ["ativo"]); // M1 = 1 (ativo)
+        form.setValue("mesM0", ["inativo"]); // M0 = 0 (inativo)
+        break;
+
+      case "Inoperante":
+      case "INOPERANTE":
+        //console.log('📊 Aplicando filtros para INOPERANTE');
+        form.setValue("situacao", ["INOPERANTE"]);
+        form.setValue("mesM1", ["ativo"]); // M1 = 1 (ativo)
+        form.setValue("mesM0", ["inativo"]); // M0 = 0 (inativo)
+        break;
+
+      case "Contratação":
+      case "CONTRATAÇÃO":
+        //console.log('📊 Aplicando filtros para CONTRATAÇÃO');
+        form.setValue("situacao", ["CONTRATAÇÃO"]);
+        form.setValue("mesM1", ["inativo"]); // M1 = 0 (inativo)
+        form.setValue("mesM0", ["ativo"]); // M0 = 1 (ativo)
+        break;
+
+      case "Reativação":
+      case "REATIVAÇÃO":
+        //console.log('📊 Aplicando filtros para REATIVAÇÃO');
+        form.setValue("situacao", ["REATIVAÇÃO"]);
+        form.setValue("mesM1", ["inativo"]); // M1 = 0 (inativo)
+        form.setValue("mesM0", ["ativo"]); // M0 = 1 (ativo)
+        break;
+
+      case "Manteve":
+        //console.log('📊 Aplicando filtros para MANTEVE');
+        form.setValue("mesM1", ["ativo"]); // M1 = Ativo
+        form.setValue("mesM0", ["ativo"]); // M0 = Ativo (manteve ativo)
+        break;
+
+      // Para outros casos, podemos adicionar mais lógica específica
+      default:
+        //console.log('📊 Aplicando filtros DEFAULT para:', itemKey);
+        // Para casos genéricos, vamos filtrar apenas pelo status M1 ativo
+        if (itemKey !== "M-1" && itemKey !== "M0") {
+          form.setValue("mesM1", ["ativo"]);
+        }
+        break;
+    }
+
+    // Mostrar filtros aplicados antes de executar
+    const filtrosAplicados = form.getValues();
+    //console.log('🎯 Filtros aplicados:', filtrosAplicados);
+
+    // Aplicar os filtros na tabela
+    aplicarFiltros(filtrosAplicados);
+  };
+
   // Drill-down com dados reais
   const dadosBloqueios = cascataData?.dadosBloqueios || [];
   const dadosDiasInoperantes = cascataData?.dadosDiasInoperantes || [];
 
-  const ComboboxFilter = ({ 
-    name, 
-    title, 
+  const ComboboxFilter = ({
+    name,
+    title,
     options,
     valueKey = 'value',
     labelKey = 'label'
-  }: { 
-    name: keyof FiltrosPontosAtivos; 
-    title: string; 
+  }: {
+    name: keyof FiltrosPontosAtivos;
+    title: string;
     options: any[];
     valueKey?: string;
     labelKey?: string;
   }) => {
-    const values = form.watch(name) as string[];
+    // Usar estado local para forçar re-renderização quando filtros mudam
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const values = form.getValues(name) as string[];
 
     return (
       <Popover>
@@ -731,6 +1192,9 @@ type WaterfallItem = {
                         ? currentValues.filter(v => v !== value)
                         : [...currentValues, value];
                       form.setValue(name, newValues);
+                      // Forçar re-renderização do componente
+                      forceUpdate();
+                      // Aplicar filtros após atualizar o form
                       aplicarFiltros(form.getValues());
                     }}
                     className="cursor-pointer hover:bg-gray-50"
@@ -755,26 +1219,18 @@ type WaterfallItem = {
   // Loading state
   if (isLoading) {
     return (
-      <div className="container mx-auto">
-        <div className="flex flex-col space-y-6">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleVoltar}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-3xl font-bold">Pontos Ativos</h1>
-              <p className="text-gray-500">Carregando dados dos pontos ativos...</p>
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+        <div className="container mx-auto pb-12 space-y-6">
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="relative mb-6">
+              <div className="h-16 w-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                <Loader2 className="h-8 w-8 text-white animate-spin" />
+              </div>
             </div>
-          </div>
-          
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-            <p className="ml-4 text-gray-500">Carregando dados...</p>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando Pontos Ativos</h2>
+            <p className="text-gray-600 text-center mb-4">
+              Aguarde enquanto carregamos os dados dos pontos ativos
+            </p>
           </div>
         </div>
       </div>
@@ -796,7 +1252,7 @@ type WaterfallItem = {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">Pontos Ativos</h1>
-            <p className="text-gray-500">Monitoramento e estratégias para pontos ativos - {user?.name}</p>
+            <p className="text-gray-500">Monitoramento e estratégias para pontos ativos (1 Transação) - {user?.name}</p>
           </div>
         </div>
 
@@ -824,7 +1280,6 @@ type WaterfallItem = {
              onTendenciaClick={(tendencia) => {
                const lojasFiltradas = dados.filter(loja => loja.tendencia === tendencia);
                setDadosFiltrados(lojasFiltradas);
-               setCurrentPage(1);
              }}
              dadosAnaliticos={dados.map(ponto => ({
               chaveLoja: ponto.chaveLoja,
@@ -839,10 +1294,17 @@ type WaterfallItem = {
               dataUltTrxNegocio: new Date(ponto.dataUltimaTransacao),
               dataInauguracao: new Date(ponto.dataInauguracao),
               agencia: ponto.agencia,
+              nome_agencia: ponto.nome_agencia,
               codAgRelacionamento: ponto.agencia,
               agRelacionamento: ponto.agencia,
+              dt_bloqueio: ponto.dt_bloqueio,
+              motivo_bloqueio: ponto.motivo_bloqueio,
+              gerenteArea: ponto.gerenteArea,
+              coordenador: ponto.coordenador,
+              supervisor: ponto.supervisor,
               telefoneLoja: ponto.telefoneLoja,
               nomeContato: ponto.nomeContato,
+              segmento: ponto.segmento,
               gerenciaRegional: ponto.gerenciaRegional,
               diretoriaRegional: ponto.diretoriaRegional,
               tendencia: ponto.tendencia,
@@ -861,7 +1323,6 @@ type WaterfallItem = {
                 (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0
               );
               setDadosFiltrados(lojasFiltradas);
-              setCurrentPage(1);
             }}
             onQuedaProducaoClick={() => {
               // Filtrar lojas com queda na atividade (M0 menor que M1)
@@ -869,20 +1330,14 @@ type WaterfallItem = {
                 (loja.mesM0 || 0) < (loja.mesM1 || 0) && (loja.mesM1 || 0) > 0
               );
               setDadosFiltrados(lojasFiltradas);
-              setCurrentPage(1);
             }}
           />
 
          <Tabs defaultValue="pontos">
-           <TabsList className="mb-4">
-             <TabsTrigger value="pontos">Pontos Ativos</TabsTrigger>
-
-           </TabsList>
-
+           
           <TabsContent value="pontos">
            <Card>
               <CardHeader>
-                <CardTitle>Quadro de Pontos Ativos</CardTitle>
            </CardHeader>
            <CardContent>
              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -904,17 +1359,19 @@ type WaterfallItem = {
                  return (
                    <>
                      {/* Card Oscilantes */}
-                     <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-6">
+                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-4">
                          <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <BarChart3 className="h-5 w-5 text-purple-600" />
-                             <span className="font-medium text-purple-800">Oscilantes</span>
+                             <div className="p-1.5 bg-blue-500 rounded-md">
+                               <BarChart3 className="h-4 w-4 text-white" />
+                             </div>
+                             <span className="font-medium text-blue-900 text-sm">Oscilantes</span>
                            </div>
                            <TooltipProvider>
                              <Tooltip>
-                               <TooltipTrigger asChild>
-                                 <Info className="h-4 w-4 text-purple-500 cursor-help" />
+                               <TooltipTrigger asChild>   
+                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
                                </TooltipTrigger>
                                <TooltipContent>
                                  <div className="max-w-xs">
@@ -932,25 +1389,27 @@ type WaterfallItem = {
                              </Tooltip>
                            </TooltipProvider>
                          </div>
-                         <div className="mt-4">
-                           <div className="text-3xl font-bold text-purple-800">{oscilantes}</div>
-                           <div className="text-sm text-purple-600 mt-1">pontos</div>
+                         <div className="mt-3">
+                           <div className="text-2xl font-bold text-blue-900">{oscilantes}</div>
+                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
 
                      {/* Card Em Queda */}
-                     <Card className="bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-6">
+                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-4">
                          <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <TrendingDown className="h-5 w-5 text-red-600" />
-                             <span className="font-medium text-red-800">Em Queda</span>
+                             <div className="p-1.5 bg-blue-600 rounded-md">
+                               <TrendingDown className="h-4 w-4 text-white" />
+                             </div>
+                             <span className="font-medium text-blue-900 text-sm">Em Queda</span>
                            </div>
                            <TooltipProvider>
                              <Tooltip>
                                <TooltipTrigger asChild>
-                                 <Info className="h-4 w-4 text-red-500 cursor-help" />
+                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
                                </TooltipTrigger>
                                <TooltipContent>
                                  <div className="max-w-xs">
@@ -967,25 +1426,27 @@ type WaterfallItem = {
                              </Tooltip>
                            </TooltipProvider>
                          </div>
-                         <div className="mt-4">
-                           <div className="text-3xl font-bold text-red-800">{emQueda}</div>
-                           <div className="text-sm text-red-600 mt-1">pontos</div>
+                         <div className="mt-3">
+                           <div className="text-2xl font-bold text-blue-900">{emQueda}</div>
+                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
 
                      {/* Card Recuperação */}
-                     <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-6">
+                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
+                       <CardContent className="p-4">
                          <div className="flex items-center justify-between">
                            <div className="flex items-center gap-2">
-                             <TrendingUp className="h-5 w-5 text-green-600" />
-                             <span className="font-medium text-green-800">Recuperação</span>
+                             <div className="p-1.5 bg-blue-700 rounded-md">
+                               <TrendingUp className="h-4 w-4 text-white" />
+                             </div>
+                             <span className="font-medium text-blue-900 text-sm">Recuperação</span>
                            </div>
                            <TooltipProvider>
                              <Tooltip>
                                <TooltipTrigger asChild>
-                                 <Info className="h-4 w-4 text-green-500 cursor-help" />
+                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
                                </TooltipTrigger>
                                <TooltipContent>
                                  <div className="max-w-xs">
@@ -1002,9 +1463,9 @@ type WaterfallItem = {
                              </Tooltip>
                            </TooltipProvider>
                          </div>
-                         <div className="mt-4">
-                           <div className="text-3xl font-bold text-green-800">{recuperacao}</div>
-                           <div className="text-sm text-green-600 mt-1">pontos</div>
+                         <div className="mt-3">
+                           <div className="text-2xl font-bold text-blue-900">{recuperacao}</div>
+                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
                          </div>
                        </CardContent>
                      </Card>
@@ -1028,8 +1489,8 @@ type WaterfallItem = {
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-md">
-                    <span className="font-medium">💡 Dica:</span> Clique em "Bloqueado" para detalhar
+                  <div className="text-xs text-gray-500 bg-blue-50 px-2 py-1 rounded-md border border-blue-200">
+                    <span className="font-medium">💡 Dica:</span> Clique no item para filtrar a tabela
                   </div>
                 </div>
               </div>
@@ -1066,7 +1527,8 @@ type WaterfallItem = {
                   <BarChart
                     data={waterfallData}
                     margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                    barCategoryGap="30%"
+                    barCategoryGap="10%"
+                    maxBarSize={80}
                   >
                     <XAxis
                       dataKey="label"
@@ -1126,30 +1588,54 @@ type WaterfallItem = {
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-600">Tipo:</span>
                                 <span className="text-xs font-medium text-gray-700 capitalize">
-                                  {data.type === 'total' ? 'Total' : 
-                                   data.type === 'negative' ? 'Perda' : 
-                                   data.type === 'positive' ? 'Ganho' : 
+                                  {data.type === 'total' ? 'Total' :
+                                   data.type === 'negative' ? 'Perda' :
+                                   data.type === 'positive' ? 'Ganho' :
                                    data.type === 'neutral' ? 'Mantido' : data.type}
                                 </span>
                               </div>
+                              {/* Mensagem de dica para itens clicáveis */}
+                              {data.key !== "M-1" && data.key !== "M0" && (
+                                <div className="mt-2 pt-2 border-t border-gray-200">
+                                  <span className="text-xs text-blue-600 font-medium">
+                                    💡 Clique para filtrar a tabela
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
                       }}
                     />
                     {/* Valor invisível para posicionar as barras */}
-                    <Bar dataKey="valor" stackId="a" fill="transparent" isAnimationActive={false} />
+                    <Bar dataKey="valor" stackId="a" fill="transparent" isAnimationActive={false} minPointSize={MIN_BAR_HEIGHT} />
                     {/* Acumulado visível */}
                     <Bar
                       dataKey="acumulado"
                       stackId="a"
                       radius={[8, 8, 8, 8]}
+                      minPointSize={MIN_BAR_HEIGHT}
                       onClick={(data: any) => {
-                        if (data?.payload?.key === "Bloqueado") setSelectedWaterfallStep("Bloqueado");
+                        if (data?.payload?.key) {
+                          // Aplicar filtro baseado no item clicado
+                          aplicarFiltroCascata(data.payload.key);
+
+                          // Manter a funcionalidade de drill-down para Bloqueado
+                          if (data.payload.key === "Bloqueado") {
+                            setSelectedWaterfallStep("Bloqueado");
+                          } else {
+                            // Para outros itens, fechar qualquer drill-down aberto
+                            setSelectedWaterfallStep(null);
+                          }
+                        }
                       }}
                     >
                       {waterfallData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={getStepColor(entry)} cursor={entry.key === "Bloqueado" ? "pointer" : "default"} />
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={getStepColor(entry)}
+                          cursor={entry.key !== "M-1" && entry.key !== "M0" ? "pointer" : "default"}
+                        />
                       ))}
                       <LabelList
                         dataKey="acumulado"
@@ -1166,9 +1652,13 @@ type WaterfallItem = {
                           let fontSize = 13;
                           let fontWeight = 600;
                           
-                          // Para barras muito pequenas, posicionar acima
-                          if (height < 30) {
-                            labelY = y - 5;
+                          // Para barras com altura mínima, manter fonte adequada
+                          if (height <= MIN_BAR_HEIGHT && Math.abs(v) > 0) {
+                            // Com altura de 25px, a fonte padrão cabe bem
+                            // Só reduzir ligeiramente se necessário para valores muito longos
+                            if (String(formatPt(v)).length > 8) {
+                              fontSize = Math.max(11, fontSize - 1);
+                            }
                           }
                           
                           // Para barras de perda (negativas), ajustar posição
@@ -1222,10 +1712,10 @@ type WaterfallItem = {
 
               {selectedWaterfallStep === "Bloqueado" && (
                 <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <Card className="border-blue-200">
+                  <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
                     <CardHeader>
                       <div className="flex items-center justify-between">
-                        <CardTitle>Relação de Bloqueios</CardTitle>
+                        <CardTitle className="text-blue-900">Relação de Bloqueios</CardTitle>
                         <Button variant="ghost" size="sm" onClick={() => setSelectedWaterfallStep(null)}>Fechar</Button>
                       </div>
                     </CardHeader>
@@ -1259,9 +1749,9 @@ type WaterfallItem = {
                     </CardContent>
                   </Card>
 
-                  <Card className="border-amber-200">
+                  <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
                     <CardHeader>
-                      <CardTitle>Distribuição de Dias Inoperantes</CardTitle>
+                      <CardTitle className="text-blue-900">Distribuição de Dias Inoperantes</CardTitle>
                       <p className="text-sm text-gray-600 mt-1">
                         Pontos que eram ativos em M-1 e ficaram inoperantes em M0
                       </p>
@@ -1375,9 +1865,13 @@ type WaterfallItem = {
                            title="Situação"
                            options={situacoes.map(s => ({
                              value: s,
-                             label: s === "ativa" ? "Ativa" : 
-                                    s === "inativa" ? "Inativa" : 
-                                    s === "bloqueada" ? "Bloqueada" :
+                             label: s === "REATIVAÇÃO" ? "Reativação" :
+                                    s === "BLOQUEADO" ? "Bloqueado" :
+                                    s === "CONTRATAÇÃO" ? "Contratação" :
+                                    s === "MANTEVE" ? "Manteve" :
+                                    s === "ENCERRADO" ? "Encerrado" :
+                                    s === "EQUIP_RETIRADA" ? "Equip. Retirada" :
+                                    s === "INOPERANTE" ? "Inoperante" :
                                     s
                            }))}
                            valueKey="value"
@@ -1524,9 +2018,13 @@ type WaterfallItem = {
                                   return values.map((value: string) => {
                                     let label = value;
                                     if (key === 'situacao') {
-                                      label = value === "ativa" ? "Ativa" : 
-                                             value === "inativa" ? "Inativa" : 
-                                             value === "bloqueada" ? "Bloqueada" :
+                                      label = value === "REATIVAÇÃO" ? "Reativação" :
+                                             value === "BLOQUEADO" ? "Bloqueado" :
+                                             value === "CONTRATAÇÃO" ? "Contratação" :
+                                             value === "MANTEVE" ? "Manteve" :
+                                             value === "ENCERRADO" ? "Encerrado" :
+                                             value === "EQUIP_RETIRADA" ? "Equip. Retirada" :
+                                             value === "INOPERANTE" ? "Inoperante" :
                                              value;
                                     } else if (key === 'tendencia') {
                                       label = value === "crescimento" ? "Crescimento" :
@@ -1577,9 +2075,9 @@ type WaterfallItem = {
                 </div>
 
                 {/* Tabela */}
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                   <Table className="min-w-full table-fixed">
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-white z-10">
                       <TableRow>
                         <TableHead 
                           className="w-[140px] cursor-pointer hover:bg-gray-100" 
@@ -1719,7 +2217,7 @@ type WaterfallItem = {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getCurrentPageData().map((ponto) => (
+                      {dadosFiltrados.map((ponto) => (
                         <TableRow key={ponto.chaveLoja}>
                           <TableCell className="font-medium">
                             <div className="truncate">{ponto.chaveLoja}</div>
@@ -1728,7 +2226,7 @@ type WaterfallItem = {
                           <TableCell>
                             <div className="font-medium truncate" title={ponto.nomeLoja}>{ponto.nomeLoja}</div>
                             <div className="text-xs text-gray-500 truncate">
-                              {ponto.agencia} - {ponto.gerenciaRegional}
+                              {ponto.agencia} - {ponto.nome_agencia}
                             </div>
                           </TableCell>
                           <TableCell className="text-center p-2">
@@ -1785,12 +2283,22 @@ type WaterfallItem = {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex justify-center">
-                              {ponto.situacao === "ativa" ? (
-                                <Badge className="bg-green-100 text-green-800">Ativa</Badge>
-                              ) : ponto.situacao === "bloqueada" ? (
-                                <Badge className="bg-red-100 text-red-800">Bloqueada</Badge>
+                              {ponto.situacao === "REATIVAÇÃO" ? (
+                                <Badge className="bg-green-100 text-green-800">Reativação</Badge>
+                              ) : ponto.situacao === "BLOQUEADO" ? (
+                                <Badge className="bg-red-100 text-red-800">Bloqueado</Badge>
+                              ) : ponto.situacao === "CONTRATAÇÃO" ? (
+                                <Badge className="bg-blue-100 text-blue-800">Contratação</Badge>
+                              ) : ponto.situacao === "MANTEVE" ? (
+                                <Badge className="bg-yellow-100 text-yellow-800">Manteve</Badge>
+                              ) : ponto.situacao === "ENCERRADO" ? (
+                                <Badge className="bg-gray-100 text-gray-800">Encerrado</Badge>
+                              ) : ponto.situacao === "EQUIP_RETIRADA" ? (
+                                <Badge className="bg-orange-100 text-orange-800">Equip. Retirada</Badge>
+                              ) : ponto.situacao === "INOPERANTE" ? (
+                                <Badge className="bg-purple-100 text-purple-800">Inoperante</Badge>
                               ) : (
-                                <Badge className="bg-gray-100 text-gray-800">Inativa</Badge>
+                                <Badge variant="outline">{ponto.situacao}</Badge>
                               )}
                             </div>
                           </TableCell>
@@ -1850,32 +2358,12 @@ type WaterfallItem = {
                   </Table>
                 </div>
 
-                {/* Paginação */}
-                {dadosFiltrados.length > itemsPerPage && (
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-gray-500">
-                      Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, dadosFiltrados.length)} de {dadosFiltrados.length} pontos
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                      >
-                        Anterior
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handlePageChange(currentPage + 1)}
-                        disabled={currentPage >= Math.ceil(dadosFiltrados.length / itemsPerPage)}
-                      >
-                        Próxima
-                      </Button>
-                    </div>
+                {/* Contador de resultados */}
+                <div className="mt-4 text-center">
+                  <div className="text-sm text-gray-500">
+                    {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'ponto encontrado' : 'pontos encontrados'}
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
                      </TabsContent>
