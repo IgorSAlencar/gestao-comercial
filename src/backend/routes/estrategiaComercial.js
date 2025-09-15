@@ -236,6 +236,7 @@ router.get('/:produto', authenticateToken, async (req, res) => {
       case 'pontos-ativos':
         query = `
           SELECT 
+            l.NR_PACB,
             l.CHAVE_LOJA,
             l.NOME_LOJA,
             l.CNPJ,
@@ -262,6 +263,11 @@ router.get('/:produto', authenticateToken, async (req, res) => {
             l.UF,
             l.SALDO_CX,
             l.LIMITE,
+            l.NOME_PAA,
+            l.CHAVE_PAA,
+            l.DESC_SEGTO,
+            l.DT_BLOQUEIO,
+            l.MOTIVO_BLOQUEIO,
             ISNULL(a.DT_ULT_TRANSACAO, l.DT_ULT_TRANSACAO) as DT_ULT_TRANSACAO_ATIVO,
             ISNULL(a.MES_M3, 0) as MES_M3,
             ISNULL(a.MES_M2, 0) as MES_M2,

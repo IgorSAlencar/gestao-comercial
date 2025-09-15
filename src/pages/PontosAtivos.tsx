@@ -9,8 +9,6 @@ import {
 } from "@/components/ui/tabs";
 import { 
   ArrowLeft, 
-  Search, 
-  Download, 
   AlertTriangle, 
   Activity, 
   MapPin, 
@@ -29,16 +27,13 @@ import {
 } from "lucide-react";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Form, FormField, FormItem, FormControl} from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import GraficoTendencia from "@/components/GraficoTendencia";
+import PontosAtivosFilters from "@/components/pontos-ativos/PontosAtivosFilters";
+import ResumoProducaoPontosAtivos from "@/components/pontos-ativos/ResumoProducaoPontosAtivos";
+import { TratativaModal } from "@/components/pontos-ativos/TratativaModal-Ativos";
 import { format } from "date-fns";
 import * as XLSX from 'xlsx';
 import { ptBR } from "date-fns/locale";
@@ -66,6 +61,7 @@ import {
 
 // Tipos específicos para Pontos Ativos
 interface DadosPontoAtivo {
+  nrPacb: string;
   chaveLoja: string;
   cnpj: string;
   nomeLoja: string;
@@ -84,10 +80,10 @@ interface DadosPontoAtivo {
   nome_agencia: string;
   nome_paa: string;
   chave_paa: string;
-  gerenciaRegional: string;
   dt_bloqueio: Date | string;
   motivo_bloqueio: string;
   diretoriaRegional: string;
+  gerenciaRegional: string;
   gerenteArea: string;
   coordenador: string;
   supervisor: string;
@@ -115,6 +111,8 @@ interface FiltrosPontosAtivos {
   situacao: string[];
   gerenciaRegional: string[];
   diretoriaRegional: string[];
+  gerentesArea: string[];
+  coordenadores: string[];
   supervisorResponsavel: string[];
   tendencia: string[];
   nivelAtividade: string[];
@@ -130,6 +128,7 @@ interface FiltrosPontosAtivos {
 // Dados simulados para Pontos Ativos
 const dadosSimulados: DadosPontoAtivo[] = [
   {
+    nrPacb: "1",
     chaveLoja: "5001",
     cnpj: "12.345.678/0001-99",
     nomeLoja: "Loja Centro",
@@ -173,6 +172,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "2",
     chaveLoja: "5002",
     cnpj: "23.456.789/0001-88",
     nomeLoja: "Loja Shopping Vila Olímpia",
@@ -216,6 +216,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "3",
     chaveLoja: "5003",
     cnpj: "34.567.890/0001-77",
     nomeLoja: "Loja Campinas Shopping",
@@ -259,6 +260,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "4",
     chaveLoja: "5004",
     cnpj: "45.678.901/0001-66",
     nomeLoja: "Loja Ribeirão Preto",
@@ -302,6 +304,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "5",
     chaveLoja: "5005",
     cnpj: "56.789.012/0001-55",
     nomeLoja: "Loja Santos",
@@ -345,6 +348,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "6",
     chaveLoja: "5006",
     cnpj: "67.890.123/0001-44",
     nomeLoja: "Loja Sorocaba",
@@ -388,6 +392,7 @@ const dadosSimulados: DadosPontoAtivo[] = [
     }
   },
   {
+    nrPacb: "7",
     chaveLoja: "5007",
     cnpj: "78.901.234/0001-33",
     nomeLoja: "Loja Jundiaí",
@@ -447,8 +452,14 @@ const PontosAtivos: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [showAnaliseFiltros, setShowAnaliseFiltros] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [showHierarchyColumns, setShowHierarchyColumns] = useState(false);
   const [selectedWaterfallStep, setSelectedWaterfallStep] = useState<string | null>(null);
+  const [linhaExpandida, setLinhaExpandida] = useState<string | null>(null);
+  const [showHierarchyColumns, setShowHierarchyColumns] = useState(false);
+  const [modalTratativaAberto, setModalTratativaAberto] = useState(false);
+  const [pontoSelecionado, setPontoSelecionado] = useState<DadosPontoAtivo | null>(null);
+
+  // Função para determinar se o usuário pode ver as colunas de hierarquia
+  const canSeeHierarchyColumns = isAdmin || isManager || user?.role === 'coordenador';
 
   const form = useForm<FiltrosPontosAtivos>({
     defaultValues: {
@@ -457,6 +468,8 @@ const PontosAtivos: React.FC = () => {
       situacao: [],
       gerenciaRegional: [],
       diretoriaRegional: [],
+      gerentesArea: [],
+      coordenadores: [],
       supervisorResponsavel: [],
       tendencia: [],
       nivelAtividade: [],
@@ -485,11 +498,13 @@ const PontosAtivos: React.FC = () => {
   const niveisAtividade = ["alta", "media", "baixa"];
   const gerenciasRegionais = [...new Set(dados.map(d => d.gerenciaRegional))];
   const diretoriasRegionais = [...new Set(dados.map(d => d.diretoriaRegional))];
+  const gerentesArea = [...new Set(dados.map(d => d.gerenteArea))];
+  const coordenadores = [...new Set(dados.map(d => d.coordenador))];
   const municipios = [...new Set(dados.map(d => d.municipio))];
   const ufs = [...new Set(dados.map(d => d.uf))];
   const agencias = [...new Set(dados.map(d => `${d.agencia} - ${d.nome_agencia}`))];
   const multiplicadoresResponsaveis = [...new Set(dados.map(d => d.multiplicadorResponsavel))];
-  const supervisoresResponsaveis = [...new Set(dados.map(d => d.supervisorResponsavel))];
+  const supervisoresResponsaveis = [...new Set(dados.map(d => d.supervisor))];
 
   // Função para carregar dados da API
   const loadPontosAtivos = async () => {
@@ -540,7 +555,8 @@ Entre em contato com o administrador se o problema persistir.`;
         return {
         chaveLoja: loja.chaveLoja,
         cnpj: loja.cnpj,
-        nomeLoja: loja.nomeLoja,
+        nomeLoja: loja.nomeLoja,  
+        nrPacb: loja.NR_PACB,
         situacao: (loja.situacao || '').toUpperCase() as "REATIVAÇÃO" | "BLOQUEADO" | "CONTRATAÇÃO" | "MANTEVE" | "ENCERRADO" | "EQUIP_RETIRADA" | "INOPERANTE",
         // Manter data como string para evitar problemas de fuso horário
         dataUltimaTransacao: loja.dataUltTrxNegocio as any,
@@ -594,9 +610,9 @@ Entre em contato com o administrador se o problema persistir.`;
       aplicarFiltros(valoresIniciais);
       
     } catch (err: any) {
-      //console.error('Erro ao carregar pontos ativos:', err);
+      //console.error('Erro ao carregar lojas ativas:', err);
       
-      let errorMessage = err.message || 'Erro ao carregar dados dos pontos ativos';
+      let errorMessage = err.message || 'Erro ao carregar dados das lojas ativas';
       
       if (err.message?.includes('fetch') || err.message?.includes('network')) {
         errorMessage = `Erro de conexão com o servidor. 
@@ -622,6 +638,50 @@ Verifique:
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Função para filtrar por padrões de comportamento
+  const filtrarPorPadrao = (padrao: string) => {
+    // Resetar filtros atuais
+    form.reset();
+
+    switch (padrao) {
+      case 'oscilantes':
+        // Não há filtro direto para oscilantes, então vamos mostrar todos e deixar o usuário ver o padrão
+        // Podemos implementar uma lógica mais específica se necessário
+        break;
+      
+      case 'recuperacao':
+        // Recuperação: M3=0, M2=0, M1=1, M0=1
+        form.setValue("mesM3", ["inativo"]);
+        form.setValue("mesM2", ["inativo"]);
+        form.setValue("mesM1", ["ativo"]);
+        form.setValue("mesM0", ["ativo"]);
+        break;
+      
+      case 'emQueda':
+        // Em Queda: M3=1, M2=1, M1=0, M0=0
+        form.setValue("mesM3", ["ativo"]);
+        form.setValue("mesM2", ["ativo"]);
+        form.setValue("mesM1", ["inativo"]);
+        form.setValue("mesM0", ["inativo"]);
+        break;
+    }
+
+    // Aplicar os filtros
+    aplicarFiltros(form.getValues());
+    
+    // Scroll para a tabela
+    setTimeout(() => {
+      const tabelaElement = document.getElementById('tabela-pontos-ativos');
+      if (tabelaElement) {
+        tabelaElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        });
+      }
+    }, 300);
   };
 
   // UseEffect para inicializar dados simulados
@@ -660,12 +720,43 @@ Verifique:
     navigate('/estrategia-comercial');
   };
 
+  const handleToggleDetalhes = (chaveLoja: string) => {
+    setLinhaExpandida(linhaExpandida === chaveLoja ? null : chaveLoja);
+  };
+
+  const handleAbrirTratativa = (ponto: DadosPontoAtivo) => {
+    setPontoSelecionado(ponto);
+    setModalTratativaAberto(true);
+  };
+
+  const handleFecharTratativa = () => {
+    setModalTratativaAberto(false);
+    setPontoSelecionado(null);
+  };
+
+  const handleSucessoTratativa = () => {
+    // Recarregar dados ou atualizar estado se necessário
+    loadPontosAtivos();
+  };
+
   const aplicarFiltros = (values: FiltrosPontosAtivos) => {
     // Se não há dados, não aplicar filtros
     if (dados.length === 0) {
       //console.log('⚠️ Não há dados para filtrar');
       return;
     }
+
+    // Scroll automático para a tabela
+    setTimeout(() => {
+      const tabelaElement = document.getElementById('tabela-pontos-ativos');
+      if (tabelaElement) {
+        tabelaElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        });
+      }
+    }, 300);
 
     //console.log('🔍 Aplicando filtros com valores:', values);
     //console.log('📊 Total de dados disponíveis:', dados.length);
@@ -811,10 +902,17 @@ Verifique:
 
   const exportarParaExcel = () => {
     try {
-      //console.log('📊 Iniciando exportação para Excel...');
-      //console.log('📊 Total de dados para exportar:', dadosFiltrados.length);
-      //console.log('🔐 Token antes da exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
-      //console.log('👤 Usuário antes da exportação:', user?.name);
+      console.log('📊 Iniciando exportação para Excel...');
+      console.log('📊 Total de dados para exportar:', dadosFiltrados.length);
+      console.log('🔐 Token antes da exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      console.log('👤 Usuário antes da exportação:', user?.name);
+      
+      // Verificar se o usuário ainda está autenticado
+      if (!user) {
+        console.error('❌ Usuário não autenticado durante exportação');
+        alert('Sessão expirada. Faça login novamente.');
+        return;
+      }
       
       // Preparar os dados para exportação
       const dadosParaExportar = dadosFiltrados.map(ponto => ({
@@ -857,7 +955,7 @@ Verifique:
       // Criar uma nova planilha
       const ws = XLSX.utils.json_to_sheet(dadosParaExportar);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Pontos Ativos");
+      XLSX.utils.book_append_sheet(wb, ws, "Lojas Ativas");
 
       // Ajustar largura das colunas
       const colunas = Object.keys(dadosParaExportar[0]);
@@ -873,17 +971,25 @@ Verifique:
 
       // Gerar o arquivo Excel
       const dataAtual = format(new Date(), 'dd-MM-yyyy', { locale: ptBR });
-      XLSX.writeFile(wb, `Pontos_Ativos_${dataAtual}.xlsx`);
+      XLSX.writeFile(wb, `Bradesco Expresso - Lojas Ativas - ${dataAtual}.xlsx`);
 
-      //console.log('✅ Arquivo Excel exportado com sucesso!');
-      //console.log('📊 Exportação concluída, usuário ainda autenticado:', !!user);
-      //console.log('🔐 Token após exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
-      //console.log('👤 Usuário após exportação:', user?.name);
+      console.log('✅ Arquivo Excel exportado com sucesso!');
+      console.log('📊 Exportação concluída, usuário ainda autenticado:', !!user);
+      console.log('🔐 Token após exportação:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      console.log('👤 Usuário após exportação:', user?.name);
     } catch (error) {
       console.error('❌ Erro ao exportar Excel:', error);
       console.error('❌ Erro completo:', error);
-      //console.log('🔐 Token após erro:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
-      //console.log('👤 Usuário após erro:', user?.name);
+      console.log('🔐 Token após erro:', window.sessionStorage.getItem('token') ? 'Presente' : 'Ausente');
+      console.log('👤 Usuário após erro:', user?.name);
+      
+      // Verificar se o erro está relacionado à autenticação
+      if (!user || !window.sessionStorage.getItem('token')) {
+        console.error('❌ Problema de autenticação detectado durante exportação');
+        alert('Sessão expirada durante a exportação. Faça login novamente.');
+        return;
+      }
+      
       alert('Erro ao exportar arquivo Excel. Tente novamente.');
     }
   };
@@ -943,7 +1049,10 @@ Verifique:
   const monthNames = getMonthNames();
 
   // Formatação pt-BR para rótulos internos das barras
-  const formatPt = (n: number) => new Intl.NumberFormat('pt-BR').format(n);
+  const formatPt = (n: number) => {
+    const num = Math.round(n);
+    return num >= 1000 ? new Intl.NumberFormat('pt-BR').format(num) : num.toString();
+  };
 
   // -------------------- Gráfico Cascata (Waterfall) - Mock --------------------
 type WaterfallItem = {
@@ -1141,81 +1250,6 @@ type WaterfallItem = {
   const dadosBloqueios = cascataData?.dadosBloqueios || [];
   const dadosDiasInoperantes = cascataData?.dadosDiasInoperantes || [];
 
-  const ComboboxFilter = ({
-    name,
-    title,
-    options,
-    valueKey = 'value',
-    labelKey = 'label'
-  }: {
-    name: keyof FiltrosPontosAtivos;
-    title: string;
-    options: any[];
-    valueKey?: string;
-    labelKey?: string;
-  }) => {
-    // Usar estado local para forçar re-renderização quando filtros mudam
-    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-    const values = form.getValues(name) as string[];
-
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button 
-            variant="outline" 
-            className={cn(
-              "justify-start text-left font-normal min-w-[140px] max-w-[200px]",
-              values?.length > 0 && "border-primary/50 bg-primary/5"
-            )}
-          >
-            <span className="truncate">
-              {values?.length > 0 
-                ? `${title} (${values.length})`
-                : title}
-            </span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[280px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder={`Buscar ${title.toLowerCase()}...`} />
-            <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
-            <CommandGroup className="max-h-[300px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-              {options.map((option: any) => {
-                const value = option[valueKey] || option;
-                const label = option[labelKey] || option;
-                return (
-                  <CommandItem
-                    key={value}
-                    onSelect={() => {
-                      const currentValues = form.getValues(name) as string[];
-                      const newValues = currentValues.includes(value)
-                        ? currentValues.filter(v => v !== value)
-                        : [...currentValues, value];
-                      form.setValue(name, newValues);
-                      // Forçar re-renderização do componente
-                      forceUpdate();
-                      // Aplicar filtros após atualizar o form
-                      aplicarFiltros(form.getValues());
-                    }}
-                    className="cursor-pointer hover:bg-gray-50"
-                  >
-                    <div className={cn(
-                      "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                      values?.includes(value) ? "bg-primary text-primary-foreground" : "opacity-50"
-                    )}>
-                      {values?.includes(value) && "✓"}
-                    </div>
-                    <span className="truncate">{label}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
-  };
-
   // Loading state
   if (isLoading) {
     return (
@@ -1227,9 +1261,9 @@ type WaterfallItem = {
                 <Loader2 className="h-8 w-8 text-white animate-spin" />
               </div>
             </div>
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando Pontos Ativos</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-2">Carregando Lojas Ativas</h2>
             <p className="text-gray-600 text-center mb-4">
-              Aguarde enquanto carregamos os dados dos pontos ativos
+              Aguarde enquanto carregamos os dados das lojas ativas
             </p>
           </div>
         </div>
@@ -1252,7 +1286,7 @@ type WaterfallItem = {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">Pontos Ativos</h1>
-            <p className="text-gray-500">Monitoramento e estratégias para pontos ativos (1 Transação) - {user?.name}</p>
+            <p className="text-gray-500">Monitoramento e estratégias para lojas ativas (1 Transação) - {user?.name}</p>
           </div>
         </div>
 
@@ -1268,214 +1302,15 @@ type WaterfallItem = {
           </div>
         )}
 
-        {/* Cards de Métricas */}
+        {/* Resumo de Produção */}
+        <ResumoProducaoPontosAtivos dados={dados} onFiltrarPadrao={filtrarPorPadrao} />
         
         {/* Grid Principal */}
-               <div className="space-y-4">
-          {/* Gráfico de Tendência - Convertendo DadosPontoAtivo para DadosLoja */}
-
-                     <GraficoTendencia 
-             showTendenciaCard={false}
-             tipoMetrica="ativos"
-             onTendenciaClick={(tendencia) => {
-               const lojasFiltradas = dados.filter(loja => loja.tendencia === tendencia);
-               setDadosFiltrados(lojasFiltradas);
-             }}
-             dadosAnaliticos={dados.map(ponto => ({
-              chaveLoja: ponto.chaveLoja,
-              cnpj: ponto.cnpj,
-              nomeLoja: ponto.nomeLoja,
-              mesM3: ponto.mesM3,
-              mesM2: ponto.mesM2,
-              mesM1: ponto.mesM1,
-              mesM0: ponto.mesM0,
-              situacao: ponto.situacao,
-              dataUltTrxContabil: new Date(ponto.dataUltimaTransacao),
-              dataUltTrxNegocio: new Date(ponto.dataUltimaTransacao),
-              dataInauguracao: new Date(ponto.dataInauguracao),
-              agencia: ponto.agencia,
-              nome_agencia: ponto.nome_agencia,
-              codAgRelacionamento: ponto.agencia,
-              agRelacionamento: ponto.agencia,
-              dt_bloqueio: ponto.dt_bloqueio,
-              motivo_bloqueio: ponto.motivo_bloqueio,
-              gerenteArea: ponto.gerenteArea,
-              coordenador: ponto.coordenador,
-              supervisor: ponto.supervisor,
-              telefoneLoja: ponto.telefoneLoja,
-              nomeContato: ponto.nomeContato,
-              segmento: ponto.segmento,
-              gerenciaRegional: ponto.gerenciaRegional,
-              diretoriaRegional: ponto.diretoriaRegional,
-              tendencia: ponto.tendencia,
-              endereco: ponto.endereco,
-              nomePdv: ponto.nomeLoja,
-              multiplicadorResponsavel: ponto.multiplicadorResponsavel,
-              dataCertificacao: new Date(ponto.dataCertificacao),
-              situacaoTablet: ponto.situacaoTablet,
-              municipio: ponto.municipio,
-              uf: ponto.uf,
-              produtosHabilitados: ponto.produtosHabilitados
-            }))} 
-            onZeradosClick={() => {
-              // Filtrar lojas que tinham atividade em M1 mas zeraram em M0
-              const lojasFiltradas = dados.filter(loja => 
-                (loja.mesM1 || 0) > 0 && (loja.mesM0 || 0) === 0
-              );
-              setDadosFiltrados(lojasFiltradas);
-            }}
-            onQuedaProducaoClick={() => {
-              // Filtrar lojas com queda na atividade (M0 menor que M1)
-              const lojasFiltradas = dados.filter(loja => 
-                (loja.mesM0 || 0) < (loja.mesM1 || 0) && (loja.mesM1 || 0) > 0
-              );
-              setDadosFiltrados(lojasFiltradas);
-            }}
-          />
+        <div className="space-y-4">
 
          <Tabs defaultValue="pontos">
            
           <TabsContent value="pontos">
-           <Card>
-              <CardHeader>
-           </CardHeader>
-           <CardContent>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-               {(() => {
-                 // Calcular padrões baseados nos dados reais
-                 const oscilantes = dados.filter(d => 
-                   (d.mesM3 > 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 === 0) ||
-                   (d.mesM3 === 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 > 0)
-                 ).length;
-                 
-                 const emQueda = dados.filter(d => 
-                   d.mesM3 > 0 && d.mesM2 > 0 && d.mesM1 === 0 && d.mesM0 === 0
-                 ).length;
-                 
-                 const recuperacao = dados.filter(d => 
-                   d.mesM3 === 0 && d.mesM2 === 0 && d.mesM1 > 0 && d.mesM0 > 0
-                 ).length;
-                 
-                 return (
-                   <>
-                     {/* Card Oscilantes */}
-                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-2">
-                             <div className="p-1.5 bg-blue-500 rounded-md">
-                               <BarChart3 className="h-4 w-4 text-white" />
-                             </div>
-                             <span className="font-medium text-blue-900 text-sm">Oscilantes</span>
-                           </div>
-                           <TooltipProvider>
-                             <Tooltip>
-                               <TooltipTrigger asChild>   
-                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
-                               </TooltipTrigger>
-                               <TooltipContent>
-                                 <div className="max-w-xs">
-                                   <p className="font-semibold mb-2">Padrão Oscilante</p>
-                                   <p className="text-sm mb-2">Pontos que alternam entre atividade e inatividade:</p>
-                                   <ul className="text-xs space-y-1">
-                                     <li>• M3→M2→M1→M0: 1→0→1→0</li>
-                                     <li>• M3→M2→M1→M0: 0→1→0→1</li>
-                                   </ul>
-                                   <p className="text-xs mt-2 text-gray-600">
-                                     Indica instabilidade na operação do ponto.
-                                   </p>
-                                 </div>
-                               </TooltipContent>
-                             </Tooltip>
-                           </TooltipProvider>
-                         </div>
-                         <div className="mt-3">
-                           <div className="text-2xl font-bold text-blue-900">{oscilantes}</div>
-                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
-                         </div>
-                       </CardContent>
-                     </Card>
-
-                     {/* Card Em Queda */}
-                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-2">
-                             <div className="p-1.5 bg-blue-600 rounded-md">
-                               <TrendingDown className="h-4 w-4 text-white" />
-                             </div>
-                             <span className="font-medium text-blue-900 text-sm">Em Queda</span>
-                           </div>
-                           <TooltipProvider>
-                             <Tooltip>
-                               <TooltipTrigger asChild>
-                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
-                               </TooltipTrigger>
-                               <TooltipContent>
-                                 <div className="max-w-xs">
-                                   <p className="font-semibold mb-2">Padrão de Queda</p>
-                                   <p className="text-sm mb-2">Pontos que perderam atividade gradualmente:</p>
-                                   <ul className="text-xs space-y-1">
-                                     <li>• M3→M2→M1→M0: 1→1→0→0</li>
-                                   </ul>
-                                   <p className="text-xs mt-2 text-gray-600">
-                                     Indica declínio progressivo na operação.
-                                   </p>
-                                 </div>
-                               </TooltipContent>
-                             </Tooltip>
-                           </TooltipProvider>
-                         </div>
-                         <div className="mt-3">
-                           <div className="text-2xl font-bold text-blue-900">{emQueda}</div>
-                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
-                         </div>
-                       </CardContent>
-                     </Card>
-
-                     {/* Card Recuperação */}
-                     <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-200 shadow-sm hover:shadow-md transition-all duration-300">
-                       <CardContent className="p-4">
-                         <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-2">
-                             <div className="p-1.5 bg-blue-700 rounded-md">
-                               <TrendingUp className="h-4 w-4 text-white" />
-                             </div>
-                             <span className="font-medium text-blue-900 text-sm">Recuperação</span>
-                           </div>
-                           <TooltipProvider>
-                             <Tooltip>
-                               <TooltipTrigger asChild>
-                                 <Info className="h-3 w-3 text-blue-600 cursor-help hover:text-blue-800 transition-colors" />
-                               </TooltipTrigger>
-                               <TooltipContent>
-                                 <div className="max-w-xs">
-                                   <p className="font-semibold mb-2">Padrão de Recuperação</p>
-                                   <p className="text-sm mb-2">Pontos que recuperaram atividade:</p>
-                                   <ul className="text-xs space-y-1">
-                                     <li>• M3→M2→M1→M0: 0→0→1→1</li>
-                                   </ul>
-                                   <p className="text-xs mt-2 text-gray-600">
-                                     Indica retomada positiva da operação.
-                                   </p>
-                                 </div>
-                               </TooltipContent>
-                             </Tooltip>
-                           </TooltipProvider>
-                         </div>
-                         <div className="mt-3">
-                           <div className="text-2xl font-bold text-blue-900">{recuperacao}</div>
-                           <div className="text-xs text-blue-700 mt-0.5">pontos</div>
-                         </div>
-                       </CardContent>
-                     </Card>
-                   </>
-                 );
-               })()}
-</div>
-           </CardContent>
-         </Card>
-<br />
           {/* Gráfico em Cascata (Waterfall) */}
           <Card>
             <CardHeader>
@@ -1812,271 +1647,37 @@ type WaterfallItem = {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <CardTitle>Quadro de Pontos Ativos</CardTitle>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1">
-                    <span className="text-sm font-medium text-blue-800">
-                      {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'ponto' : 'pontos'}
-                    </span>
-                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1"> <span className="text-sm font-medium text-blue-800"> {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'loja' : 'lojas'} </span> </div>
+              
                 </div>
-              </CardHeader>
+                </CardHeader>
               <CardContent>
                 {/* Filtros */}
-                <div className="mb-6 bg-gray-50 rounded-lg p-4">
-                  <Form {...form}>
-                    <form className="space-y-4">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-sm font-medium mb-2 flex items-center gap-1.5">
-                          <Search size={16} />
-                          Filtrar pontos ativos
-                        </h3>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={exportarParaExcel}
-                          className="flex items-center gap-2"
-                        >
-                          <Download size={16} />
-                          Exportar Excel
-                        </Button>
-                      </div>
+                <PontosAtivosFilters
+                  form={form}
+                  aplicarFiltros={aplicarFiltros}
+                  limparFiltros={limparFiltros}
+                  exportarParaExcel={exportarParaExcel}
+                  dadosFiltrados={dadosFiltrados}
+                  showAnaliseFiltros={showAnaliseFiltros}
+                  setShowAnaliseFiltros={setShowAnaliseFiltros}
+                  canSeeHierarchyColumns={canSeeHierarchyColumns}
+                  monthNames={monthNames}
+                  situacoes={situacoes}
+                  municipios={municipios}
+                  ufs={ufs}
+                  agencias={agencias}
+                  supervisoresResponsaveis={supervisoresResponsaveis}
+                  diretoriasRegionais={diretoriasRegionais}
+                  gerenciasRegionais={gerenciasRegionais}
+                  gerentesArea={gerentesArea}
+                  coordenadores={coordenadores}
+                />
 
-                      <FormField
-                        control={form.control}
-                        name="nomeLoja"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormControl>
-                              <Input 
-                                placeholder="Buscar por Chave Loja, CNPJ ou Nome da Loja" 
-                                {...field}
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  aplicarFiltros(form.getValues());
-                                }}
-                              />
-                            </FormControl>
-                          </FormItem>
-                        )}
-                      />
-
-                                             <div className="flex flex-wrap gap-2">
-                         <ComboboxFilter
-                           name="situacao"
-                           title="Situação"
-                           options={situacoes.map(s => ({
-                             value: s,
-                             label: s === "REATIVAÇÃO" ? "Reativação" :
-                                    s === "BLOQUEADO" ? "Bloqueado" :
-                                    s === "CONTRATAÇÃO" ? "Contratação" :
-                                    s === "MANTEVE" ? "Manteve" :
-                                    s === "ENCERRADO" ? "Encerrado" :
-                                    s === "EQUIP_RETIRADA" ? "Equip. Retirada" :
-                                    s === "INOPERANTE" ? "Inoperante" :
-                                    s
-                           }))}
-                           valueKey="value"
-                           labelKey="label"
-                         />
-
-
-
-                         <ComboboxFilter
-                           name="municipio"
-                           title="Município"
-                           options={municipios}
-                         />
-                         <ComboboxFilter
-                           name="uf"
-                           title="UF"
-                           options={ufs}
-                         />
-                         <ComboboxFilter
-                           name="agencia"
-                           title="Agência"
-                           options={agencias}
-                         />
-
-                         {/* Filtros de hierarquia para admin quando colunas estão visíveis */}
-                         {isAdmin && showHierarchyColumns && (
-                           <>
-                             <ComboboxFilter
-                               name="gerenciaRegional"
-                               title="Gerente"
-                               options={gerenciasRegionais.map(g => ({ value: g, label: g }))}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                             <ComboboxFilter
-                               name="diretoriaRegional"
-                               title="Coordenador"
-                               options={diretoriasRegionais.map(d => ({ value: d, label: d }))}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                             <ComboboxFilter
-                               name="supervisorResponsavel"
-                               title="Supervisor"
-                               options={supervisoresResponsaveis.map(s => ({ value: s, label: s }))}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                           </>
-                         )}
-                         
-                         {/* Botão Análise */}
-                         <Button
-                           type="button"
-                           variant="outline"
-                           size="sm"
-                           onClick={() => setShowAnaliseFiltros(!showAnaliseFiltros)}
-                           className={cn(
-                             "flex items-center gap-2 transition-all duration-200",
-                             showAnaliseFiltros 
-                               ? "bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100" 
-                               : "hover:bg-gray-50"
-                           )}
-                         >
-                           <BarChart3 size={16} />
-                           Análise
-                           {showAnaliseFiltros && (
-                             <div className="ml-1 w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                           )}
-                         </Button>
-                       </div>
-
-                       {/* Filtros de Análise - Aparecem quando showAnaliseFiltros é true */}
-                       {showAnaliseFiltros && (
-                         <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200 animate-in slide-in-from-top-2 duration-300">
-                           <div className="flex items-center gap-2 mb-3">
-                             <div className="w-2 h-2 rounded-full bg-blue-500" />
-                             <span className="text-sm font-medium text-blue-800">Análise Temporal por Mês</span>
-                           </div>
-                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                             <ComboboxFilter
-                               name="mesM3"
-                               title={`${monthNames.M3} - Status`}
-                               options={[
-                                 { value: 'ativo', label: 'Ativo' },
-                                 { value: 'inativo', label: 'Inativo' }
-                               ]}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                             <ComboboxFilter
-                               name="mesM2"
-                               title={`${monthNames.M2} - Status`}
-                               options={[
-                                 { value: 'ativo', label: 'Ativo' },
-                                 { value: 'inativo', label: 'Inativo' }
-                               ]}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                             <ComboboxFilter
-                               name="mesM1"
-                               title={`${monthNames.M1} - Status`}
-                               options={[
-                                 { value: 'ativo', label: 'Ativo' },
-                                 { value: 'inativo', label: 'Inativo' }
-                               ]}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                             <ComboboxFilter
-                               name="mesM0"
-                               title={`${monthNames.M0} - Status`}
-                               options={[
-                                 { value: 'ativo', label: 'Ativo' },
-                                 { value: 'inativo', label: 'Inativo' }
-                               ]}
-                               valueKey="value"
-                               labelKey="label"
-                             />
-                           </div>
-                         </div>
-                       )}
-
-                      {/* Filtros Ativos */}
-                      {Object.entries(form.getValues()).some(([_, value]) => 
-                        Array.isArray(value) ? value.length > 0 : !!value
-                      ) && (
-                        <div className="mt-2 pt-2 border-t border-gray-200">
-                          <div className="flex items-start gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={limparFiltros}
-                              className="shrink-0"
-                            >
-                              Limpar filtros
-                            </Button>
-                            <div className="flex-1">
-                              <div className="flex flex-wrap gap-1 max-h-[120px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
-                                {Object.entries(form.getValues()).map(([key, values]) => {
-                                  if (!Array.isArray(values) || values.length === 0) return null;
-                                  return values.map((value: string) => {
-                                    let label = value;
-                                    if (key === 'situacao') {
-                                      label = value === "REATIVAÇÃO" ? "Reativação" :
-                                             value === "BLOQUEADO" ? "Bloqueado" :
-                                             value === "CONTRATAÇÃO" ? "Contratação" :
-                                             value === "MANTEVE" ? "Manteve" :
-                                             value === "ENCERRADO" ? "Encerrado" :
-                                             value === "EQUIP_RETIRADA" ? "Equip. Retirada" :
-                                             value === "INOPERANTE" ? "Inoperante" :
-                                             value;
-                                    } else if (key === 'tendencia') {
-                                      label = value === "crescimento" ? "Crescimento" :
-                                             value === "estavel" ? "Estável" :
-                                             value === "queda" ? "Queda" :
-                                             "Atenção";
-                                    } else if (key === 'nivelAtividade') {
-                                      label = value === "alta" ? "Alta" : 
-                                             value === "media" ? "Média" : 
-                                             "Baixa";
-                                    } else if (key === 'mesM3') {
-                                      label = `${monthNames.M3}: ${value === "ativo" ? "Ativo" : "Inativo"}`;
-                                    } else if (key === 'mesM2') {
-                                      label = `${monthNames.M2}: ${value === "ativo" ? "Ativo" : "Inativo"}`;
-                                    } else if (key === 'mesM1') {
-                                      label = `${monthNames.M1}: ${value === "ativo" ? "Ativo" : "Inativo"}`;
-                                    } else if (key === 'mesM0') {
-                                      label = `${monthNames.M0}: ${value === "ativo" ? "Ativo" : "Inativo"}`;
-                                    }
-
-                                    return (
-                                      <Badge 
-                                        key={`${key}-${value}`}
-                                        variant="secondary"
-                                        className="cursor-pointer hover:bg-red-100 hover:border-red-300 transition-colors shrink-0"
-                                        onClick={() => {
-                                          const currentValues = form.getValues(key as keyof FiltrosPontosAtivos) as string[];
-                                          form.setValue(
-                                            key as keyof FiltrosPontosAtivos, 
-                                            currentValues.filter(v => v !== value)
-                                          );
-                                          aplicarFiltros(form.getValues());
-                                        }}
-                                      >
-                                        <span className="truncate max-w-[150px]">{label}</span>
-                                        <span className="ml-1">×</span>
-                                      </Badge>
-                                    );
-                                  });
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </form>
-                  </Form>
-                </div>
 
                 {/* Tabela */}
                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                  <Table className="min-w-full table-fixed">
+                  <Table id="tabela-pontos-ativos" className="min-w-full table-fixed">
                     <TableHeader className="sticky top-0 bg-white z-10">
                       <TableRow>
                         <TableHead 
@@ -2153,8 +1754,8 @@ type WaterfallItem = {
                           </div>
                         </TableHead>
 
-                        {/* Controle de visibilidade das colunas de hierarquia para admin */}
-                        {isAdmin && (
+                        {/* Botão para mostrar/ocultar colunas de hierarquia */}
+                        {canSeeHierarchyColumns && (
                           <TableHead className="w-[50px] text-center">
                             <Button
                               variant="ghost"
@@ -2172,38 +1773,38 @@ type WaterfallItem = {
                           </TableHead>
                         )}
 
-                        {/* Colunas de hierarquia para usuários admin */}
-                        {isAdmin && showHierarchyColumns && (
+                        {/* Colunas de hierarquia para usuários autorizados */}
+                        {canSeeHierarchyColumns && showHierarchyColumns && (
                           <>
                             <TableHead 
                               className="w-[120px] cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('gerenciaRegional')}
+                              onClick={() => handleOrdenacao('gerenteArea')}
                             >
                               <div className="flex items-center gap-1">
                                 <span className="truncate">Gerente</span>
-                                {ordenacao.coluna === 'gerenciaRegional' && (
+                                {ordenacao.coluna === 'gerenteArea' && (
                                   <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
                                 )}
                               </div>
                             </TableHead>
                             <TableHead 
                               className="w-[120px] cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('diretoriaRegional')}
+                              onClick={() => handleOrdenacao('coordenador')}
                             >
                               <div className="flex items-center gap-1">
                                 <span className="truncate">Coordenador</span>
-                                {ordenacao.coluna === 'diretoriaRegional' && (
+                                {ordenacao.coluna === 'coordenador' && (
                                   <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
                                 )}
                               </div>
                             </TableHead>
                             <TableHead 
                               className="w-[120px] cursor-pointer hover:bg-gray-100"
-                              onClick={() => handleOrdenacao('supervisorResponsavel')}
+                              onClick={() => handleOrdenacao('supervisor')}
                             >
                               <div className="flex items-center gap-1">
                                 <span className="truncate">Supervisor</span>
-                                {ordenacao.coluna === 'supervisorResponsavel' && (
+                                {ordenacao.coluna === 'supervisor' && (
                                   <span>{ordenacao.direcao === 'asc' ? '↑' : '↓'}</span>
                                 )}
                               </div>
@@ -2218,7 +1819,8 @@ type WaterfallItem = {
                     </TableHeader>
                     <TableBody>
                       {dadosFiltrados.map((ponto) => (
-                        <TableRow key={ponto.chaveLoja}>
+                        <React.Fragment key={ponto.chaveLoja}>
+                          <TableRow>
                           <TableCell className="font-medium">
                             <div className="truncate">{ponto.chaveLoja}</div>
                             <div className="text-xs text-gray-500 truncate">{ponto.cnpj}</div>
@@ -2304,29 +1906,29 @@ type WaterfallItem = {
                           </TableCell>
                           <TableCell className="text-center">{formatDate(ponto.dataUltimaTransacao)}</TableCell>
                           
-                          {/* Célula vazia para o botão de olho */}
-                          {isAdmin && (
+                          {/* Célula vazia correspondente ao botão do olho no cabeçalho */}
+                          {canSeeHierarchyColumns && (
                             <TableCell className="text-center">
-                              {/* Célula vazia apenas para manter alinhamento com o cabeçalho */}
+                              {/* Célula vazia para alinhamento com o botão do olho */}
                             </TableCell>
                           )}
 
-                          {/* Colunas de hierarquia para usuários admin */}
-                          {isAdmin && showHierarchyColumns && (
+                          {/* Colunas de hierarquia para usuários autorizados */}
+                          {canSeeHierarchyColumns && showHierarchyColumns && (
                             <>
                               <TableCell className="text-left">
-                                <div className="text-sm text-gray-900 truncate" title={ponto.gerenciaRegional}>
-                                  {ponto.gerenciaRegional}
+                                <div className="text-sm text-gray-900 truncate" title={ponto.gerenteArea}>
+                                  {ponto.gerenteArea}
                                 </div>
                               </TableCell>
                               <TableCell className="text-left">
-                                <div className="text-sm text-gray-900 truncate" title={ponto.diretoriaRegional}>
-                                  {ponto.diretoriaRegional}
+                                <div className="text-sm text-gray-900 truncate" title={ponto.coordenador}>
+                                  {ponto.coordenador}
                                 </div>
                               </TableCell>
                               <TableCell className="text-left">
-                                <div className="text-sm text-gray-900 truncate" title={ponto.supervisorResponsavel}>
-                                  {ponto.supervisorResponsavel}
+                                <div className="text-sm text-gray-900 truncate" title={ponto.supervisor}>
+                                  {ponto.supervisor}
                                 </div>
                               </TableCell>
                             </>
@@ -2337,31 +1939,270 @@ type WaterfallItem = {
                               <Button 
                                 variant="outline" 
                                 size="sm" 
-                                title="Ver detalhes"
+                                title={linhaExpandida === ponto.chaveLoja ? "Ocultar detalhes" : "Ver detalhes"}
                                 className="bg-blue-50 border-blue-200 hover:bg-blue-100 h-8 w-8 p-0"
+                                onClick={() => handleToggleDetalhes(ponto.chaveLoja)}
                               >
-                                <Info size={14} className="text-blue-600" />
+                                {linhaExpandida === ponto.chaveLoja ? (
+                                  <EyeOff size={14} className="text-blue-600" />
+                                ) : (
+                                  <Info size={14} className="text-blue-600" />
+                                )}
                               </Button>
                               <Button 
                                 variant="outline" 
                                 size="sm" 
                                 title="Adicionar tratativa"
                                 className="bg-green-50 border-green-200 hover:bg-green-100 h-8 w-8 p-0"
+                                onClick={() => handleAbrirTratativa(ponto)}
                               >
                                 <Plus size={14} className="text-green-600" />
                               </Button>
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                        
+                        {/* Linha expandida com detalhes */}
+                        {linhaExpandida === ponto.chaveLoja && (
+                          <TableRow className="bg-gray-50">
+                            <TableCell colSpan={canSeeHierarchyColumns && showHierarchyColumns ? 15 : 8} className="p-4">
+                              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                  
+                                  {/* Coluna 1: Informações Básicas */}
+                                  <div className="space-y-4">
+                                    <h4 className="font-semibold text-blue-900 flex items-center gap-2 text-sm">
+                                      <MapPin className="h-4 w-4" />
+                                      Informações Básicas
+                                    </h4>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Município:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.municipio}, {ponto.uf}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Endereço:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.endereco}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Segmento:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.segmento}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Inauguração:</span>
+                                        <span className="col-span-2 text-gray-900">
+                                          {ponto.dataInauguracao 
+                                            ? format(new Date(ponto.dataInauguracao), "dd/MM/yyyy", { locale: ptBR })
+                                            : "Não informado"
+                                          }
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Hierarquia */}
+                                    <div className="pt-3 border-t border-gray-100">
+                                      <h4 className="font-semibold text-blue-900 flex items-center gap-2 text-sm mb-3">
+                                        <BarChart3 className="h-4 w-4" />
+                                        Hierarquia
+                                      </h4>
+                                      <div className="space-y-2 text-sm">
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <span className="font-medium text-gray-600">Diretoria:</span>
+                                          <span className="col-span-2 text-gray-900">{ponto.diretoriaRegional}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                          <span className="font-medium text-gray-600">G. Regional:</span>
+                                          <span className="col-span-2 text-gray-900">{ponto.gerenciaRegional}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Agência:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.agencia} - {ponto.nome_agencia}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">PAA:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.chave_paa} - {ponto.nome_paa}</span>
+                                      </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Coluna 2: Status e Produtos */}
+                                  <div className="space-y-4">
+                                    <h4 className="font-semibold text-blue-900 flex items-center gap-2 text-sm">
+                                      <Activity className="h-4 w-4" />
+                                      Status & Produtos
+                                    </h4>
+                                    <div className="space-y-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-600 text-sm">Situação:</span>
+                                        <Badge 
+                                          variant={
+                                            ponto.situacao === 'BLOQUEADO' ? 'destructive' :
+                                            ponto.situacao === 'REATIVAÇÃO' ? 'secondary' :
+                                            ponto.situacao === 'CONTRATAÇÃO' ? 'default' :
+                                            'outline'
+                                          }
+                                          className="text-xs"
+                                        >
+                                          {ponto.situacao}
+                                        </Badge>
+                                      </div>
+                                      
+                                      {ponto.situacao === 'BLOQUEADO' && (
+                                        <div className="bg-red-50 border border-red-200 rounded-md p-3 space-y-2">
+                                          <div className="grid grid-cols-3 gap-2 text-sm">
+                                            <span className="font-medium text-red-700">Data Bloqueio:</span>
+                                            <span className="col-span-2 text-red-900">
+                                              {ponto.dt_bloqueio 
+                                                ? format(new Date(ponto.dt_bloqueio), "dd/MM/yyyy", { locale: ptBR })
+                                                : "Não informado"
+                                              }
+                                            </span>
+                                          </div>
+                                          <div className="grid grid-cols-3 gap-2 text-sm">
+                                            <span className="font-medium text-red-700">Motivo:</span>
+                                            <span className="col-span-2 text-red-900">{ponto.motivo_bloqueio || "Não informado"}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      <div className="grid grid-cols-3 gap-2 text-sm">
+                                        <span className="font-medium text-gray-600">Última Transação:</span>
+                                        <span className="col-span-2 text-gray-900">
+                                          {ponto.dataUltimaTransacao 
+                                            ? format(new Date(ponto.dataUltimaTransacao), "dd/MM/yyyy", { locale: ptBR })
+                                            : "Não informado"
+                                          }
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Produtos Habilitados */}
+                                    <div className="pt-3 border-t border-gray-100">
+                                      <h5 className="font-medium text-gray-700 text-sm mb-3">Produtos Habilitados</h5>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div className="flex items-center gap-2">
+                                          {ponto.produtosHabilitados.consignado ? (
+                                            <CheckCircle className="h-3 w-3 text-green-600" />
+                                          ) : (
+                                            <XCircle className="h-3 w-3 text-red-600" />
+                                          )}
+                                          <span className={`text-xs ${ponto.produtosHabilitados.consignado ? "text-green-700" : "text-red-700"}`}>
+                                            Consignado
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {ponto.produtosHabilitados.microsseguro ? (
+                                            <CheckCircle className="h-3 w-3 text-green-600" />
+                                          ) : (
+                                            <XCircle className="h-3 w-3 text-red-600" />
+                                          )}
+                                          <span className={`text-xs ${ponto.produtosHabilitados.microsseguro ? "text-green-700" : "text-red-700"}`}>
+                                            Microsseguro
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {ponto.produtosHabilitados.lime ? (
+                                            <CheckCircle className="h-3 w-3 text-green-600" />
+                                          ) : (
+                                            <XCircle className="h-3 w-3 text-red-600" />
+                                          )}
+                                          <span className={`text-xs ${ponto.produtosHabilitados.lime ? "text-green-700" : "text-red-700"}`}>
+                                            Lime
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {ponto.produtosHabilitados.conta ? (
+                                            <CheckCircle className="h-3 w-3 text-green-600" />
+                                          ) : (
+                                            <XCircle className="h-3 w-3 text-red-600" />
+                                          )}
+                                          <span className={`text-xs ${ponto.produtosHabilitados.conta ? "text-green-700" : "text-red-700"}`}>
+                                            Conta
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Coluna 3: Contato e Dados Complementares */}
+                                  <div className="space-y-4">
+                                    <h4 className="font-semibold text-blue-900 flex items-center gap-2 text-sm">
+                                      <Heart className="h-4 w-4" />
+                                      Contato & Dados
+                                    </h4>
+                                    <div className="space-y-2 text-sm">
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Tel. p/ Contato:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.telefoneLoja || "Não informado"}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Contato:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.nomeContato || "Não informado"}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">Chave Loja:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.chaveLoja}</span>
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">PACB:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.nrPacb}</span>
+                                      </div>
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <span className="font-medium text-gray-600">CNPJ:</span>
+                                        <span className="col-span-2 text-gray-900">{ponto.cnpj}</span>
+                                      </div>
+
+                                    </div>
+
+                                    {/* Informações Adicionais */}
+                                    <div className="pt-3 border-t border-gray-100">
+                                      <h5 className="font-medium text-gray-700 text-sm mb-3">Resumo de Transações</h5>
+                                      <div className="grid grid-cols-4 gap-1 text-center">
+                                        <div className="bg-gray-100 rounded p-2">
+                                          <div className="text-xs font-medium text-gray-600">M-3</div>
+                                          <div className={`text-lg font-bold ${ponto.mesM3 === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {ponto.mesM3}
+                                          </div>
+                                        </div>
+                                        <div className="bg-gray-100 rounded p-2">
+                                          <div className="text-xs font-medium text-gray-600">M-2</div>
+                                          <div className={`text-lg font-bold ${ponto.mesM2 === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {ponto.mesM2}
+                                          </div>
+                                        </div>
+                                        <div className="bg-gray-100 rounded p-2">
+                                          <div className="text-xs font-medium text-gray-600">M-1</div>
+                                          <div className={`text-lg font-bold ${ponto.mesM1 === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {ponto.mesM1}
+                                          </div>
+                                        </div>
+                                        <div className="bg-gray-100 rounded p-2">
+                                          <div className="text-xs font-medium text-gray-600">M-0</div>
+                                          <div className={`text-lg font-bold ${ponto.mesM0 === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {ponto.mesM0}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </React.Fragment>
+                       ))}
+                     </TableBody>
+                   </Table>
                 </div>
 
                 {/* Contador de resultados */}
                 <div className="mt-4 text-center">
                   <div className="text-sm text-gray-500">
-                    {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'ponto encontrado' : 'pontos encontrados'}
+                    {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'loja encontrada' : 'lojas encontradas'}
                   </div>
                 </div>
               </CardContent>
@@ -2372,6 +2213,19 @@ type WaterfallItem = {
         </Tabs>
         </div>
       </div>
+
+      {/* Modal de Tratativa */}
+      {pontoSelecionado && (
+        <TratativaModal
+          isOpen={modalTratativaAberto}
+          onClose={handleFecharTratativa}
+          onSuccess={handleSucessoTratativa}
+          pontoAtivo={{
+            chaveLoja: pontoSelecionado.chaveLoja,
+            nomeLoja: pontoSelecionado.nomeLoja
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -72,8 +72,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // InicializaÃ§Ã£o do estado de autenticaÃ§Ã£o
   useEffect(() => {
-    // Apenas finaliza a inicializaÃ§Ã£o sem recuperar dados do sessionStorage
-    setIsInitializing(false);
+    // Recuperar dados do sessionStorage na inicialização
+    try {
+      const storedUser = window.sessionStorage.getItem("user");
+      const storedToken = window.sessionStorage.getItem("token");
+      
+      if (storedUser && storedToken) {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setToken(storedToken);
+        console.log('[AuthContext] Usuário recuperado do sessionStorage:', userData.name);
+      }
+    } catch (error) {
+      console.error('[AuthContext] Erro ao recuperar dados do sessionStorage:', error);
+      // Limpar dados inválidos
+      window.sessionStorage.removeItem("user");
+      window.sessionStorage.removeItem("token");
+    } finally {
+      setIsInitializing(false);
+    }
   }, []);
 
   // Carregar subordinados quando o usuÃ¡rio for autenticado

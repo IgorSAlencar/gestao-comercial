@@ -21,6 +21,7 @@ const trativasProspecaoRoutes = require('./routes/trativasProspecao');
 const estrategiaComercialRoutes = require('./routes/estrategiaComercial');
 const municipiosPrioritariosRoutes = require('./routes/municipiosPrioritarios');
 const tratativasMunicipiosRoutes = require('./routes/tratativasMunicipios');
+const tratativasPontosAtivosRoutes = require('./routes/tratativasPontosAtivos');
 const { router: userLogsRoutes } = require('./routes/user-logs');
 
 const app = express();
@@ -189,6 +190,7 @@ app.use('/api/tratativas-prospecao', trativasProspecaoRoutes);
 app.use('/api/estrategia', estrategiaComercialRoutes);
 app.use('/api/municipios-prioritarios', municipiosPrioritariosRoutes);
 app.use('/api/tratativas-municipios', tratativasMunicipiosRoutes);
+app.use('/api/tratativas-pontos-ativos', tratativasPontosAtivosRoutes);
 
 // Start server
 app.listen(PORT, config.server.host, () => {

@@ -79,6 +79,18 @@ export interface TratativaRequest {
   situacao: 'tratada' | 'pendente';
 }
 
+export interface TratativaPontosAtivosRequest {
+  chave_loja: string;
+  usuario_id: string;
+  nome_usuario: string;
+  data_contato: Date;
+  foi_tratado: 'sim' | 'nao';
+  descricao_tratativa: string;
+  quando_volta_operar: Date;
+  situacao: 'tratada' | 'pendente';
+  tipo: 'pontos-ativos';
+}
+
 export interface HotListSummary {
   totalLeads: number;
   leadsPendentes: number;
@@ -756,6 +768,10 @@ export const hotListApi = {
 
   registrarTratativa: async (data: TratativaRequest) => {
     return await post('/hotlist/tratativa', data);
+  },
+
+  registrarTratarivaPontosAtivos: async (data: TratativaPontosAtivosRequest) => {
+    return await post('/tratativas-pontos-ativos', data);
   },
 
   getTratativas: async (itemId: string): Promise<Tratativa[]> => {
