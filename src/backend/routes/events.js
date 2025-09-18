@@ -8,12 +8,15 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     await poolConnect;
     const { id: userId, role: userRole } = req.user;
+    const { date, supervisorId: filterSupervisorId } = req.query;
     const formattedUserId = userId.toUpperCase();
 
     // //console.log('Buscando eventos para:', {
     //   userId: formattedUserId,
     //   role: userRole,
-    //   rawUserId: userId
+    //   rawUserId: userId,
+    //   dateFilter: date,
+    //   supervisorFilter: filterSupervisorId
     // });
 
     let query = `
@@ -43,15 +46,18 @@ router.get('/', authenticateToken, async (req, res) => {
       LEFT JOIN TESTE..users u ON e.supervisor_id = u.id
     `;
 
+    // Array para armazenar condições WHERE adicionais
+    let whereConditions = [];
+    let hasRoleBasedWhere = false;
+
     // Admin vê todos os eventos
     if (userRole === 'admin') {
       // //console.log('Usuário é admin, buscando todos os eventos');
-      // Não adiciona WHERE clause para admin ver todos os eventos
+      // Admin não precisa de filtro de hierarquia, mas ainda pode usar outros filtros
     }
     // Gerente vê seus eventos e os eventos de todos os subordinados (diretos e indiretos)
     else if (userRole === 'gerente') {
-      query += `
-        WHERE (
+      whereConditions.push(`(
           e.supervisor_id = @userId
           OR e.supervisor_id IN (
             SELECT subordinate_id 
@@ -64,35 +70,110 @@ router.get('/', authenticateToken, async (req, res) => {
             JOIN TESTE..hierarchy h2 ON h1.subordinate_id = h2.superior_id
             WHERE h1.superior_id = @userId
           )
-        )
-      `;
+        )`);
+      hasRoleBasedWhere = true;
     }
     // Coordenador vê seus eventos e os eventos dos supervisores subordinados
     else if (userRole === 'coordenador') {
-      query += `
-        WHERE (
+      whereConditions.push(`(
           e.supervisor_id = @userId
           OR e.supervisor_id IN (
             SELECT subordinate_id 
             FROM TESTE..hierarchy 
             WHERE superior_id = @userId
           )
-        )
-      `;
+        )`);
+      hasRoleBasedWhere = true;
     }
     // Supervisor vê apenas seus próprios eventos
     else {
-      query += ` WHERE e.supervisor_id = @userId`;
+      whereConditions.push(`e.supervisor_id = @userId`);
+      hasRoleBasedWhere = true;
+    }
+
+    // Aplicar filtro de supervisor específico se fornecido
+    if (filterSupervisorId) {
+      whereConditions.push(`e.supervisor_id = @filterSupervisorId`);
+    }
+
+    // Aplicar filtro de data se fornecido
+    if (date) {
+      // O parâmetro date pode ser:
+      // 1. Uma data específica (YYYY-MM-DD) - buscar eventos que iniciam nesta data
+      // 2. Um range de datas separado por vírgula (YYYY-MM-DD,YYYY-MM-DD) - buscar eventos entre as datas
+      if (date.includes(',')) {
+        const [startDate, endDate] = date.split(',');
+        whereConditions.push(`(
+          CAST(e.start_date AS DATE) >= @startDate AND 
+          CAST(e.start_date AS DATE) <= @endDate
+        )`);
+      } else {
+        // Para AgendaStats que passa apenas uma data de início, buscar eventos do mês inteiro
+        // Se a data for o primeiro dia do mês, assumir que é um filtro de mês
+        const dateObj = new Date(date);
+        if (dateObj.getDate() === 1) {
+          // É o primeiro dia do mês, buscar todo o mês
+          const year = dateObj.getFullYear();
+          const month = dateObj.getMonth();
+          const firstDay = new Date(year, month, 1);
+          const lastDay = new Date(year, month + 1, 0); // Último dia do mês
+          
+          whereConditions.push(`(
+            CAST(e.start_date AS DATE) >= @monthStart AND 
+            CAST(e.start_date AS DATE) <= @monthEnd
+          )`);
+        } else {
+          // Buscar eventos que iniciam na data específica
+          whereConditions.push(`CAST(e.start_date AS DATE) = @specificDate`);
+        }
+      }
+    }
+
+    // Construir a cláusula WHERE final
+    if (whereConditions.length > 0) {
+      query += ` WHERE ` + whereConditions.join(' AND ');
     }
 
     query += ` ORDER BY e.start_date DESC`;
 
     // //console.log('Executando query com userId:', formattedUserId);
     // //console.log('Query:', query);
+    // //console.log('Filtros aplicados:', { date, filterSupervisorId, whereConditions });
 
-    const result = await pool.request()
-      .input('userId', sql.UniqueIdentifier, formattedUserId)
-      .query(query);
+    // Configurar os parâmetros da query
+    const request = pool.request()
+      .input('userId', sql.UniqueIdentifier, formattedUserId);
+
+    // Adicionar parâmetro de supervisor se fornecido
+    if (filterSupervisorId) {
+      request.input('filterSupervisorId', sql.UniqueIdentifier, filterSupervisorId.toUpperCase());
+    }
+
+    // Adicionar parâmetros de data se fornecido
+    if (date) {
+      if (date.includes(',')) {
+        const [startDate, endDate] = date.split(',');
+        request.input('startDate', sql.Date, startDate);
+        request.input('endDate', sql.Date, endDate);
+      } else {
+        const dateObj = new Date(date);
+        if (dateObj.getDate() === 1) {
+          // É filtro de mês
+          const year = dateObj.getFullYear();
+          const month = dateObj.getMonth();
+          const firstDay = new Date(year, month, 1);
+          const lastDay = new Date(year, month + 1, 0);
+          
+          request.input('monthStart', sql.Date, firstDay.toISOString().split('T')[0]);
+          request.input('monthEnd', sql.Date, lastDay.toISOString().split('T')[0]);
+        } else {
+          // É data específica
+          request.input('specificDate', sql.Date, date);
+        }
+      }
+    }
+
+    const result = await request.query(query);
 
     // //console.log('Eventos encontrados:', result.recordset.length);
 

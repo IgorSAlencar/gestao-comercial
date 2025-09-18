@@ -150,6 +150,7 @@ const AgendaPage = () => {
       try {
         return await eventApi.getEvents(
           undefined, 
+          undefined,
           selectedSupervisor || undefined
         );
       } catch (error) {

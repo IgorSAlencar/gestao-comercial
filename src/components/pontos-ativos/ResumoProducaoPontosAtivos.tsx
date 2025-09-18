@@ -45,7 +45,7 @@ const ResumoProducaoPontosAtivos: React.FC<ResumoProducaoPontosAtivosProps> = ({
   const perda = dados.filter(d => {
     const s = (d.situacao || '').toUpperCase();
     const isPerdaStatus = ["BLOQUEADO", "ENCERRADO", "EQUIP_RETIRADA", "INOPERANTE"].includes(s);
-    return isPerdaStatus || (d.mesM1 > 0 && d.mesM0 === 0);
+    return isPerdaStatus && (d.mesM1 > 0 && d.mesM0 === 0);
   }).length;
 
   const ganho = dados.filter(d => {

@@ -402,14 +402,22 @@ export const userApi = {
 
 // Events API
 export const eventApi = {
-  getEvents: async (date?: string, supervisorId?: string): Promise<Event[]> => {
+  getEvents: async (startDate?: string, endDate?: string, supervisorId?: string): Promise<Event[]> => {
     const token = getAuthToken();
     if (!token) throw new Error("Usuário não autenticado");
 
     let url = `${API_URL}/events`;
     const params = new URLSearchParams();
     
-    if (date) params.append("date", date);
+    // Se ambas as datas forem fornecidas, criar um range
+    if (startDate && endDate) {
+      params.append("date", `${startDate},${endDate}`);
+    } 
+    // Se apenas startDate for fornecida, usar como filtro único
+    else if (startDate) {
+      params.append("date", startDate);
+    }
+    
     if (supervisorId) params.append("supervisorId", supervisorId);
     
     if (params.toString()) {

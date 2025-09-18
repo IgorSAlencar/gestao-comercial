@@ -254,7 +254,7 @@ const Index = () => {
             eventosData = await eventApi.getEvents(); // Sem filtro de data
           } else if (user?.id) {
             // Outros usuários veem apenas seus próprios eventos
-            eventosData = await eventApi.getEvents(undefined, user.id); // Sem filtro de data
+            eventosData = await eventApi.getEvents(undefined, undefined, user.id); // Sem filtro de data
           } else {
             eventosData = [];
           }

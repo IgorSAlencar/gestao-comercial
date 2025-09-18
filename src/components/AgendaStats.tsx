@@ -236,7 +236,7 @@ const AgendaStats: React.FC = () => {
         
         ////console.log(`[AgendaStats] Buscando eventos apenas do mês atual: ${dataInicio} até ${dataFim}`);
         
-        // Usar a mesma API que o Equipe.tsx usa para consultar eventos
+        // Usar a API com range de datas para buscar eventos do mês
         return await eventApi.getEvents(dataInicio, dataFim);
       } catch (error) {
         //console.error("[AgendaStats] Erro ao buscar eventos para estatísticas:", error);

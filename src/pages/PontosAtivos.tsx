@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { 
@@ -125,321 +125,9 @@ interface FiltrosPontosAtivos {
   mesM0: string[];
 }
 
-// Dados simulados para Pontos Ativos
-const dadosSimulados: DadosPontoAtivo[] = [
-  {
-    nrPacb: "1",
-    chaveLoja: "5001",
-    cnpj: "12.345.678/0001-99",
-    nomeLoja: "Loja Centro",
-    situacao: "REATIVAÇÃO",
-    dataUltimaTransacao: new Date("2024-01-15"),
-    mesM3: 1,
-    mesM2: 0,
-    mesM1: 0,   
-    mesM0: 1,
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Av. Paulista, 1000 - Centro, São Paulo/SP",
-    municipio: "São Paulo",
-    uf: "SP",
-    agencia: "0001",
-    nome_agencia: "Agência Centro",
-    nome_paa: "Ponto Centro",
-    chave_paa: "PAA001",
-    gerenciaRegional: "São Paulo Centro",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(11) 3456-7890",
-    nomeContato: "João Silva",
-    dataInauguracao: new Date("2020-05-15"),
-    dataCertificacao: new Date("2022-10-05"),
-    situacaoTablet: "Instalado",
-    multiplicadorResponsavel: "Carlos Oliveira",    
-    supervisorResponsavel: "João Supervisor",
-    chaveSupervisao: "SUP001",
-    tendencia: "crescimento",
-    nivelAtividade: "alta",
-    produtosHabilitados: {
-      consignado: true,
-      microsseguro: true,
-      lime: false,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "2",
-    chaveLoja: "5002",
-    cnpj: "23.456.789/0001-88",
-    nomeLoja: "Loja Shopping Vila Olímpia",
-    situacao: "BLOQUEADO",
-    dataUltimaTransacao: new Date("2024-01-10"),
-    mesM3: 1,
-    mesM2: 1,
-    mesM1: 1,
-    mesM0: 0,
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Shopping Vila Olímpia, Loja 42 - São Paulo/SP",
-    municipio: "São Paulo",
-    uf: "SP",
-    agencia: "0002",
-    nome_agencia: "Agência Vila Olímpia",
-    nome_paa: "Ponto Vila Olímpia",
-    chave_paa: "PAA002",
-    gerenciaRegional: "São Paulo Zona Sul",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(11) 3456-7891",
-    nomeContato: "Maria Santos",
-    dataInauguracao: new Date("2021-11-20"),
-    dataCertificacao: new Date("2022-09-15"),
-    situacaoTablet: "Instalado",
-    multiplicadorResponsavel: "Ana Pereira",
-    supervisorResponsavel: "Maria Supervisora",
-    chaveSupervisao: "SUP002",
-    tendencia: "estavel",
-    nivelAtividade: "media",
-    produtosHabilitados: {
-      consignado: true,
-      microsseguro: false,
-      lime: true,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "3",
-    chaveLoja: "5003",
-    cnpj: "34.567.890/0001-77",
-    nomeLoja: "Loja Campinas Shopping",
-    situacao: "CONTRATAÇÃO",
-    dataUltimaTransacao: new Date("2024-01-12"),
-    mesM3: 0,
-    mesM2: 0,
-    mesM1: 0, // Corrigido: M1 = 0 (inativo)
-    mesM0: 1, // Corrigido: M0 = 1 (ativo)
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Campinas Shopping, Loja 15 - Campinas/SP",
-    municipio: "Campinas",
-    uf: "SP",
-    agencia: "0003",
-    nome_agencia: "Agência Campinas Shopping",
-    nome_paa: "Ponto Campinas Shopping",
-    chave_paa: "PAA003",
-    gerenciaRegional: "Campinas",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(19) 3456-7892",
-    nomeContato: "Roberto Costa",
-    dataInauguracao: new Date("2021-03-10"),
-    dataCertificacao: new Date("2022-08-20"),
-    situacaoTablet: "Instalado",
-    multiplicadorResponsavel: "Roberto Costa",
-    supervisorResponsavel: "Pedro Supervisor",
-    chaveSupervisao: "SUP003",
-    tendencia: "atencao",
-    nivelAtividade: "media",
-    produtosHabilitados: {
-      consignado: true,
-      microsseguro: true,
-      lime: false,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "4",
-    chaveLoja: "5004",
-    cnpj: "45.678.901/0001-66",
-    nomeLoja: "Loja Ribeirão Preto",
-    situacao: "MANTEVE",
-    dataUltimaTransacao: new Date("2024-01-08"),
-    mesM3: 1,
-    mesM2: 1,
-    mesM1: 1,
-    mesM0: 1,
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Ribeirão Shopping, Loja 25 - Ribeirão Preto/SP",
-    municipio: "Ribeirão Preto",
-    uf: "SP",
-    agencia: "0004",
-    nome_agencia: "Agência Ribeirão Preto",
-    nome_paa: "Ponto Ribeirão Preto",
-    chave_paa: "PAA004",
-    gerenciaRegional: "Ribeirão Preto",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(16) 3456-7893",
-    nomeContato: "Ana Pereira",
-    dataInauguracao: new Date("2021-08-15"),
-    dataCertificacao: new Date("2023-01-10"),
-    situacaoTablet: "Instalado",
-    multiplicadorResponsavel: "Ana Pereira",
-    supervisorResponsavel: "Maria Supervisora",
-    chaveSupervisao: "SUP004",
-    tendencia: "estavel",
-    nivelAtividade: "media",
-    produtosHabilitados: {
-      consignado: true,
-      microsseguro: true,
-      lime: true,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "5",
-    chaveLoja: "5005",
-    cnpj: "56.789.012/0001-55",
-    nomeLoja: "Loja Santos",
-    situacao: "ENCERRADO",
-    dataUltimaTransacao: new Date("2023-12-20"),
-    mesM3: 0,
-    mesM2: 0,
-    mesM1: 0,
-    mesM0: 0,
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Praia Shopping, Loja 10 - Santos/SP",
-    municipio: "Santos",
-    uf: "SP",
-    agencia: "0005",
-    nome_agencia: "Agência Santos",
-    nome_paa: "Ponto Santos",
-    chave_paa: "PAA005",
-    gerenciaRegional: "Baixada Santista",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(13) 3456-7894",
-    nomeContato: "Carlos Santos",
-    dataInauguracao: new Date("2020-12-01"),
-    dataCertificacao: new Date("2022-05-15"),
-    situacaoTablet: "Pendente",
-    multiplicadorResponsavel: "Carlos Santos",
-    supervisorResponsavel: "Pedro Supervisor",
-    chaveSupervisao: "SUP005",
-    tendencia: "queda",
-    nivelAtividade: "baixa",
-    produtosHabilitados: {
-      consignado: false,
-      microsseguro: false,
-      lime: false,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "6",
-    chaveLoja: "5006",
-    cnpj: "67.890.123/0001-44",
-    nomeLoja: "Loja Sorocaba",
-    situacao: "EQUIP_RETIRADA",
-    dataUltimaTransacao: new Date("2024-01-05"),
-    mesM3: 1,
-    mesM2: 0,
-    mesM1: 1, // Corrigido: M1 = 1 (ativo)
-    mesM0: 0, // Corrigido: M0 = 0 (inativo)
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Gran Plaza Shopping, Loja 8 - Sorocaba/SP",
-    municipio: "Sorocaba",
-    uf: "SP",
-    agencia: "0006",
-    nome_agencia: "Agência Sorocaba",
-    nome_paa: "Ponto Sorocaba",
-    chave_paa: "PAA006",
-    gerenciaRegional: "Sorocaba",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(15) 3456-7895",
-    nomeContato: "Fernanda Lima",
-    dataInauguracao: new Date("2021-06-20"),
-    dataCertificacao: new Date("2022-11-30"),
-    situacaoTablet: "Não Instalado",
-    multiplicadorResponsavel: "Fernanda Lima",
-    supervisorResponsavel: "João Supervisor",
-    chaveSupervisao: "SUP006",
-    tendencia: "queda",
-    nivelAtividade: "baixa",
-    produtosHabilitados: {
-      consignado: true,
-      microsseguro: false,
-      lime: true,
-      conta: true
-    }
-  },
-  {
-    nrPacb: "7",
-    chaveLoja: "5007",
-    cnpj: "78.901.234/0001-33",
-    nomeLoja: "Loja Jundiaí",
-    situacao: "INOPERANTE",
-    dataUltimaTransacao: new Date("2023-11-15"),
-    mesM3: 0,
-    mesM2: 0,
-    mesM1: 1, // Corrigido: M1 = 1 (ativo)
-    mesM0: 0, // Corrigido: M0 = 0 (inativo)
-    segmento: "Supermercado",
-    tipo_posto: "Posto",
-    endereco: "Maxi Shopping, Loja 12 - Jundiaí/SP",
-    municipio: "Jundiaí",
-    uf: "SP",
-    agencia: "0007",
-    nome_agencia: "Agência Jundiaí",
-    nome_paa: "Ponto Jundiaí",
-    chave_paa: "PAA007",
-    gerenciaRegional: "Jundiaí",
-    diretoriaRegional: "Sudeste",
-    gerenteArea: "Gerente Area",
-    coordenador: "Coordenador",
-    supervisor: "Supervisor",
-    dt_bloqueio: new Date("2024-01-15"),
-
-    motivo_bloqueio: "Motivo Bloqueio",
-    telefoneLoja: "(11) 3456-7896",
-    nomeContato: "Roberto Silva",
-    dataInauguracao: new Date("2020-09-10"),
-    dataCertificacao: new Date("2022-03-25"),
-    situacaoTablet: "Pendente",
-    multiplicadorResponsavel: "Roberto Silva",
-    supervisorResponsavel: "Maria Supervisora",
-    chaveSupervisao: "SUP007",
-    tendencia: "queda",
-    nivelAtividade: "baixa",
-    produtosHabilitados: {
-      consignado: false,
-      microsseguro: false,
-      lime: false,
-      conta: true
-    }
-  }
-];
-
-//console.log('📊 Total de dados simulados:', dadosSimulados.length);
   
+const DEFAULT_BATCH_SIZE = 100;
+
 const PontosAtivos: React.FC = () => {
   const navigate = useNavigate();
   const { user, isManager, isAdmin } = useAuth();
@@ -457,6 +145,8 @@ const PontosAtivos: React.FC = () => {
   const [showHierarchyColumns, setShowHierarchyColumns] = useState(false);
   const [modalTratativaAberto, setModalTratativaAberto] = useState(false);
   const [pontoSelecionado, setPontoSelecionado] = useState<DadosPontoAtivo | null>(null);
+  const [visibleCount, setVisibleCount] = useState(DEFAULT_BATCH_SIZE);
+  const deferredDadosFiltrados = useDeferredValue(dadosFiltrados);
 
   // Função para determinar se o usuário pode ver as colunas de hierarquia
   const canSeeHierarchyColumns = isAdmin || isManager || user?.role === 'coordenador';
@@ -506,6 +196,12 @@ const PontosAtivos: React.FC = () => {
   const multiplicadoresResponsaveis = [...new Set(dados.map(d => d.multiplicadorResponsavel))];
   const supervisoresResponsaveis = [...new Set(dados.map(d => d.supervisor))];
 
+  const dadosVisiveis = useMemo(() => deferredDadosFiltrados.slice(0, visibleCount), [deferredDadosFiltrados, visibleCount]);
+  const totalResultados = deferredDadosFiltrados.length;
+  const hasMoreResults = visibleCount < totalResultados;
+  const remainingResults = Math.max(totalResultados - dadosVisiveis.length, 0);
+  const proximaCarga = Math.min(DEFAULT_BATCH_SIZE, remainingResults);
+
   // Função para carregar dados da API
   const loadPontosAtivos = async () => {
     if (!user) return;
@@ -536,9 +232,9 @@ Entre em contato com o administrador se o problema persistir.`;
         //console.log('⚠️ Usuário sem chave de hierarquia, usando dados simulados');
         setError(errorMsg);
         setConnectionStatus('error');
-        // Fallback para dados simulados
-        setDados(dadosSimulados);
-        setDadosFiltrados(dadosSimulados);
+        setDados([]);
+        setDadosFiltrados([]);
+        setVisibleCount(DEFAULT_BATCH_SIZE);
         return;
       }
       
@@ -605,7 +301,6 @@ Entre em contato com o administrador se o problema persistir.`;
 
       // Aplicar filtros após carregar dados
       const valoresIniciais = form.getValues();
-      //console.log('🔄 Aplicando filtros após carregar dados da API:', valoresIniciais);
       //console.log('📊 Dados formatados antes de aplicar filtros:', dadosFormatados.length);
       aplicarFiltros(valoresIniciais);
       
@@ -625,15 +320,9 @@ Verifique:
       
       setError(errorMessage);
       setConnectionStatus('error');
-      
-      // Fallback para dados simulados
-      setDados(dadosSimulados);
-
-      // Aplicar filtros após carregar dados simulados
-      const valoresIniciais = form.getValues();
-      //console.log('🔄 Aplicando filtros após carregar dados simulados:', valoresIniciais);
-      //console.log('📊 Dados simulados antes de aplicar filtros:', dadosSimulados.length);
-      aplicarFiltros(valoresIniciais);
+      setDados([]);
+      setDadosFiltrados([]);
+      setVisibleCount(DEFAULT_BATCH_SIZE);
       
     } finally {
       setIsLoading(false);
@@ -684,23 +373,6 @@ Verifique:
     }, 300);
   };
 
-  // UseEffect para inicializar dados simulados
-  useEffect(() => {
-    //console.log('🚀 Inicializando dados simulados...');
-    //console.log('📊 Dados atuais:', dados.length);
-    //console.log('📊 Dados filtrados atuais:', dadosFiltrados.length);
-    
-    if (dados.length === 0 && dadosFiltrados.length === 0) {
-      //console.log('✅ Carregando dados simulados...');
-      setDados(dadosSimulados);
-      setDadosFiltrados(dadosSimulados);
-      
-      // Aplicar filtros iniciais (que devem estar vazios)
-      const valoresIniciais = form.getValues();
-      //console.log('🔄 Valores iniciais do form:', valoresIniciais);
-    }
-  }, []);
-
   // UseEffect para carregar dados
   useEffect(() => {
     console.log('🔄 Carregando dados da API...');
@@ -708,13 +380,13 @@ Verifique:
     carregarDadosCascata();
   }, [user]);
 
-  // UseEffect para garantir que dadosFiltrados seja atualizado quando dados mudar
+  // UseEffect para garantir dados filtrados ao carregar o dataset pela primeira vez
   useEffect(() => {
     if (dados.length > 0 && dadosFiltrados.length === 0) {
-      //console.log('🔄 Atualizando dadosFiltrados com dados disponíveis...');
       setDadosFiltrados(dados);
+      setVisibleCount(Math.min(DEFAULT_BATCH_SIZE, dados.length));
     }
-  }, [dados]);
+  }, [dados, dadosFiltrados.length]);
 
   const handleVoltar = () => {
     navigate('/estrategia-comercial');
@@ -739,10 +411,21 @@ Verifique:
     loadPontosAtivos();
   };
 
-  const aplicarFiltros = (values: FiltrosPontosAtivos) => {
-    // Se não há dados, não aplicar filtros
-    if (dados.length === 0) {
-      //console.log('⚠️ Não há dados para filtrar');
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => Math.min(prev + DEFAULT_BATCH_SIZE, dadosFiltrados.length));
+  };
+
+  const handleShowAll = () => {
+    setVisibleCount(dadosFiltrados.length);
+  };
+
+  const aplicarFiltros = (values: FiltrosPontosAtivos, baseData?: DadosPontoAtivo[]) => {
+    const fonteDados = baseData ?? dados;
+
+    if (fonteDados.length === 0) {
+      setDadosFiltrados([]);
+      setVisibleCount(DEFAULT_BATCH_SIZE);
       return;
     }
 
@@ -761,7 +444,7 @@ Verifique:
     //console.log('🔍 Aplicando filtros com valores:', values);
     //console.log('📊 Total de dados disponíveis:', dados.length);
 
-    let filtrados = [...dados];
+    let filtrados = [...fonteDados];
 
     // Filtro por texto (chave loja, nome loja)
     if (values.chaveLoja || values.nomeLoja) {
@@ -884,11 +567,13 @@ Verifique:
     // Garantir que dadosFiltrados seja atualizado mesmo quando não há filtros
     //console.log('✅ Dados filtrados resultantes:', filtrados.length);
     setDadosFiltrados(filtrados);
+    setVisibleCount(Math.min(DEFAULT_BATCH_SIZE, filtrados.length));
   };
 
   const limparFiltros = () => {
     form.reset();
     setDadosFiltrados(dados);
+    setVisibleCount(Math.min(DEFAULT_BATCH_SIZE, dados.length));
   };
 
   const handleOrdenacao = (coluna: keyof DadosPontoAtivo) => {
@@ -1818,7 +1503,7 @@ type WaterfallItem = {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {dadosFiltrados.map((ponto) => (
+                      {dadosVisiveis.map((ponto) => (
                         <React.Fragment key={ponto.chaveLoja}>
                           <TableRow>
                           <TableCell className="font-medium">
@@ -2200,10 +1885,20 @@ type WaterfallItem = {
                 </div>
 
                 {/* Contador de resultados */}
-                <div className="mt-4 text-center">
+                <div className="mt-4 flex flex-col items-center gap-2 text-center">
                   <div className="text-sm text-gray-500">
-                    {dadosFiltrados.length} {dadosFiltrados.length === 1 ? 'loja encontrada' : 'lojas encontradas'}
+                    Exibindo {dadosVisiveis.length} de {totalResultados} {totalResultados === 1 ? 'loja' : 'lojas'}
                   </div>
+                  {hasMoreResults && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={handleLoadMore}>
+                        Carregar mais {proximaCarga} {proximaCarga === 1 ? 'registro' : 'registros'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleShowAll}>
+                        Mostrar tudo
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -2230,4 +1925,5 @@ type WaterfallItem = {
   );
 };
 
-export default PontosAtivos; 
+export default PontosAtivos;
+
